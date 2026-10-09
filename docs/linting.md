@@ -34,7 +34,7 @@ Install the [OxLint extension](https://marketplace.visualstudio.com/items?itemNa
 
 The config applies to all TypeScript and JavaScript files across:
 
-- `1-main/frontend`, `2-admin/admin`, `1-main/space`, `1-main/live`
+- `apps/web`, `apps/admin`, `apps/space`, `apps/live`
 - All packages in `packages/`
 
 **Ignored paths:**

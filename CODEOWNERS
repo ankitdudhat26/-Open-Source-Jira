@@ -1,8 +1,8 @@
 .oxlintrc.json   @sriramveeraghanta
 .oxfmtrc.json   @sriramveeraghanta
-1-main/backend/           @dheeru0198 @pablohashescobar
-1-main/frontend/           @sriramveeraghanta
-1-main/space/         @sriramveeraghanta
-2-admin/admin/         @sriramveeraghanta
-1-main/live/          @saivallampati
+apps/api/           @dheeru0198 @pablohashescobar
+apps/web/           @sriramveeraghanta
+apps/space/         @sriramveeraghanta
+apps/admin/         @sriramveeraghanta
+apps/live/          @saivallampati
 deployments/        @mguptahub

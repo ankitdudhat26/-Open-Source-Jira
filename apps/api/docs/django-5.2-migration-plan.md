@@ -1,7 +1,7 @@
-# Django 4.2 → 5.2 Migration Plan (`1-main/backend`)
+# Django 4.2 → 5.2 Migration Plan (`apps/api`)
 
 > **Status:** ✅ Executed & verified on branch `chore/django-5.2-upgrade` · **Target:** Django **5.2.15 LTS** from **4.2.30 LTS**
-> **Scope:** `1-main/backend` (the only Django service in the monorepo) · **Strategy:** single coordinated PR, direct 4.2 → 5.2 jump · **Dependency policy:** opportunistic (latest stable, with evidence-based safe overrides)
+> **Scope:** `apps/api` (the only Django service in the monorepo) · **Strategy:** single coordinated PR, direct 4.2 → 5.2 jump · **Dependency policy:** opportunistic (latest stable, with evidence-based safe overrides)
 
 ---
 
@@ -50,7 +50,7 @@ Executed on branch `chore/django-5.2-upgrade` and verified in the containerized 
 
 ## 2. Current state
 
-- **Service:** `1-main/backend` — Django + DRF + Celery (worker/beat) + Channels (ASGI http-only). No other Python/Django service exists in the repo.
+- **Service:** `apps/api` — Django + DRF + Celery (worker/beat) + Channels (ASGI http-only). No other Python/Django service exists in the repo.
 - **Django:** `4.2.30` (final 4.2 LTS line; 4.2 reaches EOL ~April 2026 — this upgrade is time-sensitive).
 - **Dependency files:** `requirements/base.txt`, `requirements/local.txt`, `requirements/production.txt`, `requirements/test.txt` (plain pip pins; **no lockfile** — edits are direct).
 - **Run surfaces:** `bin/docker-entrypoint-{api,worker,beat,migrator}.sh`. All four must be smoke-tested.
@@ -164,7 +164,7 @@ Policy: **latest stable**, with **evidence-based safe overrides** where "latest"
 8. **Apply third-party migrations:** `python manage.py migrate` on a scratch DB (django_celery_results 2.6.0 and django_celery_beat ship their own migrations).
 9. **Deprecation-warning audit:** run the suite with warnings as errors to catch any `RemovedInDjango60Warning` / `RemovedInDjango61Warning`:
    `python -W error::DeprecationWarning -W error::PendingDeprecationWarning -m pytest` (or via `pytest.ini` `filterwarnings`). Triage anything that surfaces (expected: clean, given the audit).
-10. **Full test suite:** `cd 1-main/backend && ./run_tests.sh` (or `pytest`). All green is the gate.
+10. **Full test suite:** `cd apps/api && ./run_tests.sh` (or `pytest`). All green is the gate.
 11. **Regenerate OpenAPI schema** (drf-spectacular 0.29.0) and commit the diff: `python manage.py spectacular --file <committed schema path>` (match the repo's existing schema-generation command). Review for unintended changes.
 12. **Manual smoke** of each entrypoint against a local stack (`docker-compose-local.yml`): **api** (boot + a few endpoints incl. one S3/file-upload path and one webhook), **worker** (enqueue+run a task), **beat** (scheduler starts, periodic task fires), **migrator** (runs to completion). Confirm `check --deploy` is clean: `python manage.py check --deploy`.
 13. **Update docs:** mark this plan as executed; note any deviations.
@@ -215,4 +215,4 @@ Policy: **latest stable**, with **evidence-based safe overrides** where "latest"
 
 ---
 
-_Audit basis: 12 code scans + settings + migrations + 19 per-dependency compatibility checks against `1-main/backend` at Django 4.2.30. Confirm the newest 5.2.x patch and each package's latest stable at execution time (pins above reflect the audit snapshot)._
+_Audit basis: 12 code scans + settings + migrations + 19 per-dependency compatibility checks against `apps/api` at Django 4.2.30. Confirm the newest 5.2.x patch and each package's latest stable at execution time (pins above reflect the audit snapshot)._

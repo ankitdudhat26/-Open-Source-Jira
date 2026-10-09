@@ -72,22 +72,22 @@ jobs:
         include:
           - image: plane-frontend
             context: .
-            dockerfile: 1-main/frontend/Dockerfile.web
+            dockerfile: apps/web/Dockerfile.web
           - image: plane-admin
             context: .
-            dockerfile: 2-admin/admin/Dockerfile.admin
+            dockerfile: apps/admin/Dockerfile.admin
           - image: plane-space
             context: .
-            dockerfile: 1-main/space/Dockerfile.space
+            dockerfile: apps/space/Dockerfile.space
           - image: plane-live
             context: .
-            dockerfile: 1-main/live/Dockerfile.live
+            dockerfile: apps/live/Dockerfile.live
           - image: plane-backend
-            context: 1-main/backend
-            dockerfile: 1-main/backend/Dockerfile.api
+            context: apps/api
+            dockerfile: apps/api/Dockerfile.api
           - image: plane-proxy
-            context: 1-main/proxy
-            dockerfile: 1-main/proxy/Dockerfile.ce
+            context: apps/proxy
+            dockerfile: apps/proxy/Dockerfile.ce
     steps:
       - name: Checkout
         uses: actions/checkout@v6

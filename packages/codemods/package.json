@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "function-declaration": "jscodeshift -t ./function-declaration.ts --extensions=tsx --parser=tsx ../../1-main/*/app ../../2-admin/*/app ../../1-main/*/ce ../../2-admin/*/ce ../../1-main/*/core ../../2-admin/*/core ../../1-main/*/ee ../../2-admin/*/ee ../../1-main/*/helpers ../../2-admin/*/helpers ../../packages/*/src --ignore-pattern='**/node_modules/**' --ignore-pattern='**/dist/**' --ignore-pattern='**/build/**' --ignore-pattern='**/*.d.ts'",
-    "remove-directives": "jscodeshift -t ./remove-directives.ts --extensions=ts,tsx --parser=tsx ../../1-main/*/app ../../2-admin/*/app ../../1-main/*/ce ../../2-admin/*/ce ../../1-main/*/core ../../2-admin/*/core ../../1-main/*/ee ../../2-admin/*/ee ../../1-main/*/helpers ../../2-admin/*/helpers ../../1-main/*/src ../../2-admin/*/src ../../packages/*/src --ignore-pattern='**/node_modules/**' --ignore-pattern='**/dist/**' --ignore-pattern='**/build/**' --ignore-pattern='**/*.d.ts'"
+    "function-declaration": "jscodeshift -t ./function-declaration.ts --extensions=tsx --parser=tsx ../../apps/*/app ../../apps/*/ce ../../apps/*/core ../../apps/*/ee ../../apps/*/helpers ../../packages/*/src --ignore-pattern='**/node_modules/**' --ignore-pattern='**/dist/**' --ignore-pattern='**/build/**' --ignore-pattern='**/*.d.ts'",
+    "remove-directives": "jscodeshift -t ./remove-directives.ts --extensions=ts,tsx --parser=tsx ../../apps/*/app ../../apps/*/ce ../../apps/*/core ../../apps/*/ee ../../apps/*/helpers ../../apps/*/src ../../packages/*/src --ignore-pattern='**/node_modules/**' --ignore-pattern='**/dist/**' --ignore-pattern='**/build/**' --ignore-pattern='**/*.d.ts'"
   },
   "devDependencies": {
     "@hypermod/utils": "catalog:",

@@ -58,10 +58,10 @@ until redis-cli ping >/dev/null 2>&1; do sleep 1; done
 echo "✓ Postgres :5434, Redis :6379, MinIO :9000"
 
 # --- Backend -----------------------------------------------------------------
-cd "$ROOT/1-main/backend"
+cd "$ROOT/apps/api"
 set -a; source .env; set +a
 export DJANGO_SETTINGS_MODULE=plane.settings.local
-PY="$ROOT/1-main/backend/.venv/bin/python"
+PY="$ROOT/apps/api/.venv/bin/python"
 
 "$PY" manage.py migrate --noinput >"$LOG_DIR/migrate.log" 2>&1
 "$PY" manage.py clear_cache >/dev/null 2>&1 || true

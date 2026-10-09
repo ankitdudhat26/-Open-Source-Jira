@@ -65,7 +65,7 @@ services:
 
   api:
     build:
-      context: ./1-main/backend
+      context: ./apps/api
       dockerfile: Dockerfile.dev
       args:
         DOCKER_BUILDKIT: 1
@@ -73,10 +73,10 @@ services:
     networks:
       - dev_env
     volumes:
-      - ./1-main/backend:/code
+      - ./apps/api:/code
     command: ./bin/docker-entrypoint-api-local.sh
     env_file:
-      - ./1-main/backend/.env
+      - ./apps/api/.env
     depends_on:
       - plane-db
       - plane-redis
@@ -86,7 +86,7 @@ services:
 
   worker:
     build:
-      context: ./1-main/backend
+      context: ./apps/api
       dockerfile: Dockerfile.dev
       args:
         DOCKER_BUILDKIT: 1
@@ -94,10 +94,10 @@ services:
     networks:
       - dev_env
     volumes:
-      - ./1-main/backend:/code
+      - ./apps/api:/code
     command: ./bin/docker-entrypoint-worker.sh
     env_file:
-      - ./1-main/backend/.env
+      - ./apps/api/.env
     depends_on:
       - api
       - plane-db
@@ -105,7 +105,7 @@ services:
 
   beat-worker:
     build:
-      context: ./1-main/backend
+      context: ./apps/api
       dockerfile: Dockerfile.dev
       args:
         DOCKER_BUILDKIT: 1
@@ -113,10 +113,10 @@ services:
     networks:
       - dev_env
     volumes:
-      - ./1-main/backend:/code
+      - ./apps/api:/code
     command: ./bin/docker-entrypoint-beat.sh
     env_file:
-      - ./1-main/backend/.env
+      - ./apps/api/.env
     depends_on:
       - api
       - plane-db
@@ -124,7 +124,7 @@ services:
 
   migrator:
     build:
-      context: ./1-main/backend
+      context: ./apps/api
       dockerfile: Dockerfile.dev
       args:
         DOCKER_BUILDKIT: 1
@@ -132,10 +132,10 @@ services:
     networks:
       - dev_env
     volumes:
-      - ./1-main/backend:/code
+      - ./apps/api:/code
     command: ./bin/docker-entrypoint-migrator.sh --settings=plane.settings.local
     env_file:
-      - ./1-main/backend/.env
+      - ./apps/api/.env
     depends_on:
       - plane-db
       - plane-redis

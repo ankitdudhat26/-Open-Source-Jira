@@ -48,7 +48,7 @@ This helps us triage and manage issues more efficiently.
 
 The project is a monorepo, with backend api and frontend in a single repo.
 
-The backend is a django project which is kept inside 1-main/backend
+The backend is a django project which is kept inside apps/api
 
 1. Clone the repo
 

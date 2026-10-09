@@ -13,7 +13,7 @@ on:
       - "reopened"
       - "ready_for_review"
     paths:
-      - "1-main/backend/**"
+      - "apps/api/**"
       - ".github/workflows/migration-check.yml"
 
 concurrency:
@@ -49,14 +49,14 @@ jobs:
         with:
           python-version: "3.12.x"
           cache: "pip"
-          cache-dependency-path: "1-main/backend/requirements/*.txt"
+          cache-dependency-path: "apps/api/requirements/*.txt"
 
       - name: Install API dependencies
-        working-directory: 1-main/backend
+        working-directory: apps/api
         run: pip install -r requirements.txt
 
       - name: Django system checks
-        working-directory: 1-main/backend
+        working-directory: apps/api
         run: python manage.py check
 
       # Fails on two leaf nodes in one app (the PR and the base branch both
@@ -64,7 +64,7 @@ jobs:
       # a migration that does not exist, and on models whose changes were never
       # written to a migration at all.
       - name: Migration graph and model/migration drift
-        working-directory: 1-main/backend
+        working-directory: apps/api
         run: python manage.py makemigrations --check --dry-run
 
       # HEAD^1 is the base branch tip, HEAD^2 the PR head, so this is exactly
@@ -74,7 +74,7 @@ jobs:
       - name: Guard already-merged migrations
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'migration-history-override')
         run: |
-          TOUCHED=$(git diff --name-status --diff-filter=MDR HEAD^1 HEAD -- '1-main/backend/*/migrations/*.py')
+          TOUCHED=$(git diff --name-status --diff-filter=MDR HEAD^1 HEAD -- 'apps/api/*/migrations/*.py')
           if [ -n "$TOUCHED" ]; then
             echo "::error::This PR edits, deletes or renames migrations that are already on ${{ github.base_ref }}:"
             echo "$TOUCHED"

@@ -68,5 +68,5 @@ jobs:
         #   review-comments: false   # Disable inline review comments on changed lines
         #   commit-status: false     # Disable the commit status (score + counts, links to the run)
         #   version: "0.4.0"         # Pin to a specific react-doctor version instead of "latest"
-        #   directory: 1-main/frontend      # Scan a sub-directory (default: ".")
+        #   directory: apps/web      # Scan a sub-directory (default: ".")
         #   project: "web,admin"     # In a monorepo, scan specific workspace project(s)
