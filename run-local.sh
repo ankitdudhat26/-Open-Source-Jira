@@ -35,6 +35,8 @@ if [ "$1" = "stop" ]; then
 fi
 
 # Refuse to start twice: a second copy can't bind the ports and leaves the frontends without an API.
+# In backend mode only the API port matters, so it can run next to a separate `pnpm dev` / `npm run dev`.
+[ "$1" = "backend" ] && APP_PORTS=(8000)
 busy="$(busy_ports | tr '\n' ' ')"
 if [ -n "$busy" ]; then
   echo "✗ Plane already seems to be running (ports in use: $busy)."
