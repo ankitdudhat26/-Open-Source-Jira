@@ -10,6 +10,9 @@
 #   REGISTRY_USER   optional, with REGISTRY_TOKEN: log in to ghcr.io to pull private images
 #   REGISTRY_TOKEN
 #   HEALTH_TIMEOUT  seconds to wait for the API after start (default 600)
+#   DATABASE_DIR    where the plane-database stack lives (default /opt/plane-database);
+#                   its scripts/backup.sh runs before each deploy
+#   SKIP_BACKUP=1   skip that pre-deploy backup
 
 set -euo pipefail
 
@@ -17,6 +20,7 @@ cd "$(dirname "$0")"
 ENV_FILE="plane.env"
 COMPOSE=(docker compose -p plane --env-file "$ENV_FILE" -f docker-compose.yml)
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-600}"
+DATABASE_DIR="${DATABASE_DIR:-/opt/plane-database}"
 
 log() { echo "[deploy] $*"; }
 fail() { echo "[deploy] ERROR: $*" >&2; exit 1; }
@@ -41,6 +45,21 @@ docker compose version >/dev/null 2>&1 || fail "docker compose plugin is not ins
 [ -n "${APP_RELEASE:-}" ] || fail "APP_RELEASE is not set"
 if grep -qE '^(SECRET_KEY|LIVE_SERVER_SECRET_KEY)=change-this-key-on-deployment$' "$ENV_FILE"; then
   fail "SECRET_KEY / LIVE_SERVER_SECRET_KEY in $ENV_FILE still have the example values"
+fi
+if grep -qE '^[A-Z_]+=.*CHANGE-ME' "$ENV_FILE"; then
+  fail "$ENV_FILE still contains CHANGE-ME values: $(grep -E '^[A-Z_]+=.*CHANGE-ME' "$ENV_FILE" | cut -d= -f1 | tr '\n' ' ')"
+fi
+
+# The database runs in the separate plane-database stack; it must be up first.
+docker network inspect plane-data >/dev/null 2>&1 \
+  || fail "Docker network 'plane-data' not found. Deploy the plane-database stack first."
+docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' plane-data | grep -q 'plane-db' \
+  || fail "The plane-database stack is not running (no plane-db on network 'plane-data')."
+
+# Back up the database before migrations run (skip with SKIP_BACKUP=1).
+if [ "${SKIP_BACKUP:-0}" != "1" ] && [ -x "$DATABASE_DIR/scripts/backup.sh" ]; then
+  log "Backing up the database before deploying..."
+  "$DATABASE_DIR/scripts/backup.sh" --db-only || fail "Pre-deploy backup failed; nothing was changed."
 fi
 
 [ -n "${IMAGE_PREFIX:-}" ] && set_env IMAGE_PREFIX "$IMAGE_PREFIX"

@@ -65,9 +65,39 @@ Getting started with Plane is simple. Choose the setup that works best for you:
 - **Analytics**
   Access real-time insights across all your Plane data. Visualize trends, remove blockers, and keep your projects moving forward.
 
+## 🗂️ Project structure
+
+This repository holds all application code: frontend and backend. The database stack (Postgres, Redis, RabbitMQ, MinIO and backups) lives in the separate **plane-database** repository.
+
+```
+apps/
+├── web/        Main web app (frontend)                    :3000
+├── admin/      Admin panel – instance settings            :3001/god-mode
+├── space/      Public project pages                       :3002/spaces
+├── live/       Real-time collaboration server             :3100/live
+├── api/        Backend: Django API, Celery workers, DB models & migrations   :8000
+└── proxy/      Caddy reverse proxy (production)
+packages/       Shared code used by the frontend apps
+deployments/
+└── production/ Server deployment of the app stack (see its README)
+.github/workflows/
+└── deploy-production.yml   push to main → build images → deploy to server
+```
+
 ## 🛠️ Local development
 
-See [CONTRIBUTING](./CONTRIBUTING.md)
+```bash
+./setup.sh        # once: create .env files and install Node packages
+
+# With Docker: database services + backend in containers, frontends with pnpm
+docker compose -f docker-compose-local.yml up -d
+pnpm dev
+
+# Or on macOS without Docker (Homebrew Postgres on 5434, Redis, MinIO)
+./run-local.sh
+```
+
+The Main app runs at http://localhost:3000 and the Admin panel at http://localhost:3001/god-mode. See [CONTRIBUTING](./CONTRIBUTING.md) for more, and [deployments/production](./deployments/production/README.md) for deploying.
 
 ## ⚙️ Built with
 

@@ -1,6 +1,10 @@
-# Production stack for Plane, deployed by .github/workflows/deploy-production.yml.
-# Based on deployments/cli/community/docker-compose.yml; only the image names differ
-# (images are built by CI and pulled from GitHub Container Registry).
+# Production APP stack for Plane (frontend + backend), deployed by
+# .github/workflows/deploy-production.yml.
+#
+# Based on deployments/cli/community/docker-compose.yml with two differences:
+#   - images are built by CI and pulled from GitHub Container Registry;
+#   - Postgres, Redis, RabbitMQ and MinIO run in the separate plane-database
+#     repository/stack on the same server, joined through the "plane-data" network.
 #
 # Usage on the server (see README.md):
 #   docker compose --env-file plane.env up -d
@@ -123,10 +127,6 @@ services:
       - logs_api:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   worker:
     image: ${IMAGE_PREFIX:?set IMAGE_PREFIX in plane.env}/plane-backend:${APP_RELEASE:?set APP_RELEASE in plane.env}
@@ -141,9 +141,6 @@ services:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
     depends_on:
       - api
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   beat-worker:
     image: ${IMAGE_PREFIX:?set IMAGE_PREFIX in plane.env}/plane-backend:${APP_RELEASE:?set APP_RELEASE in plane.env}
@@ -158,9 +155,6 @@ services:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
     depends_on:
       - api
-      - plane-db
-      - plane-redis
-      - plane-mq
 
   migrator:
     image: ${IMAGE_PREFIX:?set IMAGE_PREFIX in plane.env}/plane-backend:${APP_RELEASE:?set APP_RELEASE in plane.env}
@@ -173,55 +167,6 @@ services:
       - logs_migrator:/code/plane/logs
     environment:
       <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
-    depends_on:
-      - plane-db
-      - plane-redis
-
-  # Comment this if you already have a database running
-  plane-db:
-    image: postgres:15.7-alpine
-    command: postgres -c 'max_connections=1000'
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-    environment:
-      <<: *db-env
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  plane-redis:
-    image: valkey/valkey:7.2.11-alpine
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-    volumes:
-      - redisdata:/data
-
-  plane-mq:
-    image: rabbitmq:3.13.6-management-alpine
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-    environment:
-      <<: *mq-env
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-
-  # Comment this if you using any external s3 compatible storage
-  plane-minio:
-    image: docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    command: server /export --console-address ":9090"
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-    environment:
-      <<: *minio-env
-    volumes:
-      - uploads:/export
 
   # Comment this if you already have a reverse proxy running
   proxy:
@@ -252,13 +197,16 @@ services:
       - live
 
 volumes:
-  pgdata:
-  redisdata:
-  uploads:
   logs_api:
   logs_worker:
   logs_beat-worker:
   logs_migrator:
-  rabbitmq_data:
   proxy_config:
   proxy_data:
+
+# All app containers join the "plane-data" network created by the plane-database
+# stack, so they reach plane-db, plane-redis, plane-mq and plane-minio by name.
+networks:
+  default:
+    name: plane-data
+    external: true
