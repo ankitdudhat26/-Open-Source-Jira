@@ -119,7 +119,7 @@ packages/i18n/src/types/keys.generated.ts
 /security/
 
 .local-logs/
-apps/api/.venv/
+1-main/backend/.venv/
 .run-local.out
 
 # Production deployment (server-only files)

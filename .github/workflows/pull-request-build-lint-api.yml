@@ -12,7 +12,7 @@ on:
       - "review_requested"
       - "reopened"
     paths:
-      - "apps/api/**"
+      - "1-main/backend/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,10 +33,10 @@ jobs:
         with:
           python-version: "3.12.x"
           cache: 'pip'
-          cache-dependency-path: 'apps/api/requirements.txt'
+          cache-dependency-path: '1-main/backend/requirements.txt'
       - name: Install Pylint
         run: python -m pip install ruff
       - name: Install API Dependencies
-        run: cd apps/api && pip install -r requirements.txt
-      - name: Lint apps/api
-        run: ruff check --fix apps/api
+        run: cd 1-main/backend && pip install -r requirements.txt
+      - name: Lint 1-main/backend
+        run: ruff check --fix 1-main/backend

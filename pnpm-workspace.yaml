@@ -1,8 +1,10 @@
 packages:
-  - apps/*
+  - 1-main/*
+  - 2-admin/*
   - packages/*
-  - "!apps/api"
-  - "!apps/proxy"
+  - "!1-main/backend"
+  - "!1-main/proxy"
+  - "!1-main/database"
 
 catalog:
   "@atlaskit/pragmatic-drag-and-drop": "1.7.4"
@@ -203,7 +205,7 @@ overrides:
   express: "catalog:"
   # @react-router/serve v8 needs Express 5 — it mounts with the Express 5 path syntax
   # `app.all("/{*splat}")`, which Express 4 silently fails to match, 404ing every route.
-  # The catalog stays on Express 4 for apps/live, which depends on express-ws (Express 4 only).
+  # The catalog stays on Express 4 for 1-main/live, which depends on express-ws (Express 4 only).
   "@react-router/serve>express": "^5.2.1"
   mdast-util-to-hast: 13.2.1
   valibot: 1.4.2
@@ -238,7 +240,7 @@ overrides:
   picomatch: 2.3.2
   "yaml@1": 1.10.3
   "yaml@2": 2.8.3
-  # Pinned for Express 4 (apps/live), which needs path-to-regexp ~0.1.12.
+  # Pinned for Express 4 (1-main/live), which needs path-to-regexp ~0.1.12.
   path-to-regexp: 0.1.13
   # Express 5's router needs path-to-regexp 8; the pin above would otherwise reach it
   # and break route matching at startup with `pathRegexp.match is not a function`.

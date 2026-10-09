@@ -21,7 +21,7 @@ const ALWAYS_COLLAPSED = 99999;
 /**
  * The shape Ruling 39 is about: a wrapper component that renders the crumb's markup itself, so the
  * element handed to `Breadcrumbs.Item` carries ids rather than the crumb's tree. `crumbLabel` is
- * spread in from `TCrumbLabelProps`, exactly as `apps/web`'s `ProjectBreadcrumbWithPreference`
+ * spread in from `TCrumbLabelProps`, exactly as `1-main/frontend`'s `ProjectBreadcrumbWithPreference`
  * threads it.
  */
 type ProjectCrumbProps = { projectId: string; projectName: string } & TCrumbLabelProps;

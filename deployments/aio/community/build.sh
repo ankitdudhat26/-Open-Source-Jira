@@ -95,7 +95,7 @@ update_env_file(){
 
 build_dist_files(){
     cp ./variables.env $DIST_DIR/plane.env
-    cp ../../../apps/proxy/Caddyfile.aio.ce $DIST_DIR/Caddyfile
+    cp ../../../1-main/proxy/Caddyfile.aio.ce $DIST_DIR/Caddyfile
 
     echo "" >> $DIST_DIR/plane.env
     echo "" >> $DIST_DIR/plane.env

@@ -26,7 +26,8 @@ We use **Turbo** for build system orchestration.
 
 ## Project Structure
 
-- `apps/`: Contains application services (admin, api, live, proxy, space, web).
+- `1-main/`: Main app services (frontend, backend, database, live, proxy, space).
+- `2-admin/`: Admin panel (admin).
 - `packages/`: Contains shared packages and libraries.
 - `deployments/`: Deployment configurations.
 

@@ -177,7 +177,7 @@ jobs:
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_admin }}
           build-context: .
-          dockerfile-path: ./apps/admin/Dockerfile.admin
+          dockerfile-path: ./2-admin/admin/Dockerfile.admin
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
@@ -228,7 +228,7 @@ jobs:
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_web }}
           build-context: .
-          dockerfile-path: ./apps/web/Dockerfile.web
+          dockerfile-path: ./1-main/frontend/Dockerfile.web
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
@@ -279,7 +279,7 @@ jobs:
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_space }}
           build-context: .
-          dockerfile-path: ./apps/space/Dockerfile.space
+          dockerfile-path: ./1-main/space/Dockerfile.space
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
@@ -330,7 +330,7 @@ jobs:
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_live }}
           build-context: .
-          dockerfile-path: ./apps/live/Dockerfile.live
+          dockerfile-path: ./1-main/live/Dockerfile.live
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
@@ -380,8 +380,8 @@ jobs:
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_backend }}
-          build-context: ./apps/api
-          dockerfile-path: ./apps/api/Dockerfile.api
+          build-context: ./1-main/backend
+          dockerfile-path: ./1-main/backend/Dockerfile.api
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
@@ -431,8 +431,8 @@ jobs:
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
           docker-image-owner: makeplane
           docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_proxy }}
-          build-context: ./apps/proxy
-          dockerfile-path: ./apps/proxy/Dockerfile.ce
+          build-context: ./1-main/proxy
+          dockerfile-path: ./1-main/proxy/Dockerfile.ce
           buildx-driver: docker-container
           buildx-version: latest
           buildx-platforms: ${{ matrix.platform }}
