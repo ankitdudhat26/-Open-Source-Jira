@@ -13,8 +13,8 @@ name: Deploy Production
 #   SSH_PORT         default 22
 #   DEPLOY_PATH      directory on the server holding plane.env, default /opt/plane
 #
-# The database (Postgres, Redis, RabbitMQ, MinIO) is deployed separately from the
-# plane-database repository and must be running on the server first.
+# The database (Postgres, Redis, RabbitMQ, MinIO) lives in database/ and is deployed
+# by deploy-database.yml; it must be running on the server first.
 #
 # See deployments/production/README.md for the full setup.
 
@@ -22,6 +22,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - database/**
+      - .github/workflows/deploy-database.yml
   workflow_dispatch:
     inputs:
       image_tag:

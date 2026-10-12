@@ -67,7 +67,7 @@ Getting started with Plane is simple. Choose the setup that works best for you:
 
 ## 🗂️ Project structure
 
-This repository holds all application code: frontend and backend. The database stack (Postgres, Redis, RabbitMQ, MinIO and backups) lives in the separate **plane-database** repository.
+This repository holds all application code: frontend and backend. The database stack (Postgres, Redis, RabbitMQ, MinIO and backups) is in `database/`.
 
 ```
 apps/

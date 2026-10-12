@@ -1,0 +1,106 @@
+name: Deploy Database
+
+# Copies the database stack (database/ in this repo) to the server and runs
+# database/scripts/deploy.sh over SSH.
+# Data is kept in Docker volumes; a deploy only recreates containers whose
+# image or settings changed.
+#
+# Uses the same repository secrets as deploy-production.yml
+# (Settings → Secrets and variables → Actions):
+#   SSH_HOST         server hostname or IP
+#   SSH_USER         SSH user that can run docker
+#   SSH_PRIVATE_KEY  private key for that user
+# Optional repository secret:
+#   SSH_KNOWN_HOSTS  output of `ssh-keyscan -p <port> <host>`, to pin the server's host key
+# Optional repository variables:
+#   SSH_PORT         default 22
+#   DATABASE_DEPLOY_PATH  directory on the server holding .env, default /opt/plane-database
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - database/docker-compose.yml
+      - database/scripts/**
+      - .github/workflows/deploy-database.yml
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-database
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: database
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check compose file
+        run: |
+          cp .env.example .env
+          sed -i 's/=CHANGE-ME$/=validation-only/' .env
+          docker compose --env-file .env -f docker-compose.yml config --quiet
+
+      - name: Check scripts
+        run: shellcheck scripts/*.sh
+
+  deploy:
+    name: Deploy to server
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DATABASE_DEPLOY_PATH || '/opt/plane-database' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: database
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::Set the SSH_HOST, SSH_USER and SSH_PRIVATE_KEY repository secrets."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Prefer the pinned host key (SSH_KNOWN_HOSTS secret); fall back to scanning the server.
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+
+      - name: Upload files
+        working-directory: database
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH/scripts'"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" docker-compose.yml .env.example "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" scripts/*.sh "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/scripts/"
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && chmod +x scripts/*.sh && ./scripts/deploy.sh"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

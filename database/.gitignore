@@ -1,0 +1,6 @@
+# Server settings and data — never commit
+.env
+backups/
+*.dump
+*.tar.gz
+.DS_Store

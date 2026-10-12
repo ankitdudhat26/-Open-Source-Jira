@@ -1,0 +1,98 @@
+# Plane database stack: Postgres, Redis (Valkey), RabbitMQ and MinIO.
+#
+# Runs on the same server as the app stack (repository: -Open-Source-Jira,
+# deployments/production). Both stacks join the shared Docker network
+# "plane-data"; the app reaches these services by their service names
+# (plane-db, plane-redis, plane-mq, plane-minio), exactly as in Plane's own
+# single-stack setup, so no application settings change.
+#
+# No ports are published: the services are reachable only from containers on
+# the "plane-data" network, never from the internet.
+#
+# Usage on the server (see README.md):
+#   docker compose --env-file .env up -d
+
+name: plane-database
+
+x-db-env: &db-env
+  POSTGRES_USER: ${POSTGRES_USER:-plane}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+  POSTGRES_DB: ${POSTGRES_DB:-plane}
+  PGDATA: /var/lib/postgresql/data
+
+x-mq-env: &mq-env
+  RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-plane}
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
+  RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-plane}
+
+x-minio-env: &minio-env
+  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-access-key}
+  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in .env}
+
+services:
+  plane-db:
+    image: postgres:15.7-alpine
+    command: postgres -c 'max_connections=1000'
+    restart: always
+    environment:
+      <<: *db-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - plane-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  plane-redis:
+    image: valkey/valkey:7.2.11-alpine
+    restart: always
+    volumes:
+      - redisdata:/data
+    networks:
+      - plane-data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    restart: always
+    environment:
+      <<: *mq-env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - plane-data
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # File uploads (S3-compatible). The app's API creates the bucket on startup.
+  plane-minio:
+    image: docker.io/pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: server /export --console-address ":9090"
+    restart: always
+    environment:
+      <<: *minio-env
+    volumes:
+      - uploads:/export
+    networks:
+      - plane-data
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitmq_data:
+  uploads:
+
+networks:
+  plane-data:
+    # Fixed name so the app stack can join it as an external network.
+    name: plane-data

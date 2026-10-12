@@ -3,8 +3,8 @@
 #
 # Based on deployments/cli/community/docker-compose.yml with two differences:
 #   - images are built by CI and pulled from GitHub Container Registry;
-#   - Postgres, Redis, RabbitMQ and MinIO run in the separate plane-database
-#     repository/stack on the same server, joined through the "plane-data" network.
+#   - Postgres, Redis, RabbitMQ and MinIO run in the separate database stack
+#     (database/ in this repo) on the same server, joined through the "plane-data" network.
 #
 # Usage on the server (see README.md):
 #   docker compose --env-file plane.env up -d
@@ -204,8 +204,8 @@ volumes:
   proxy_config:
   proxy_data:
 
-# All app containers join the "plane-data" network created by the plane-database
-# stack, so they reach plane-db, plane-redis, plane-mq and plane-minio by name.
+# All app containers join the "plane-data" network created by the database
+# stack (database/), so they reach plane-db, plane-redis, plane-mq and plane-minio by name.
 networks:
   default:
     name: plane-data

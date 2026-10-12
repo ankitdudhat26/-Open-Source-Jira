@@ -1,11 +1,11 @@
 # Production deployment
 
-Plane is deployed as **two stacks on one server**, each from its own repository:
+Plane is deployed as **two stacks on one server**, both from this repository:
 
-| Stack        | Repository                      | Server folder         | Contains                                                          |
-| ------------ | ------------------------------- | --------------------- | ----------------------------------------------------------------- |
-| **App**      | this repo (`-Open-Source-Jira`) | `/opt/plane`          | Frontend (web, admin, space, live), backend (API, workers), proxy |
-| **Database** | `plane-database`                | `/opt/plane-database` | Postgres, Redis, RabbitMQ, MinIO, backups                         |
+| Stack        | Folder in this repo      | Server folder         | Contains                                                          |
+| ------------ | ------------------------ | --------------------- | ----------------------------------------------------------------- |
+| **App**      | `deployments/production` | `/opt/plane`          | Frontend (web, admin, space, live), backend (API, workers), proxy |
+| **Database** | `database`               | `/opt/plane-database` | Postgres, Redis, RabbitMQ, MinIO, backups                         |
 
 ```
                  Server
@@ -77,7 +77,7 @@ sudo chmod 700 /home/deploy/.ssh && sudo chmod 600 /home/deploy/.ssh/authorized_
 
 ## 3. Deploy the database stack first
 
-Follow the `plane-database` repository's README: create `/opt/plane-database/.env`, add the same three SSH secrets to that repository, and run its **Deploy Database** workflow. This creates the `plane-data` network the app needs.
+Create `/opt/plane-database/.env` from `database/.env.example` (see `database/README.md`), add the SSH secrets from step 5, and run **Actions → Deploy Database → Run workflow**. This creates the `plane-data` network the app needs.
 
 ## 4. Create `plane.env` for the app (once)
 

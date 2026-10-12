@@ -10,7 +10,7 @@
 #   REGISTRY_USER   optional, with REGISTRY_TOKEN: log in to ghcr.io to pull private images
 #   REGISTRY_TOKEN
 #   HEALTH_TIMEOUT  seconds to wait for the API after start (default 600)
-#   DATABASE_DIR    where the plane-database stack lives (default /opt/plane-database);
+#   DATABASE_DIR    where the database stack (database/ in this repo) lives (default /opt/plane-database);
 #                   its scripts/backup.sh runs before each deploy
 #   SKIP_BACKUP=1   skip that pre-deploy backup
 
@@ -50,11 +50,11 @@ if grep -qE '^[A-Z_]+=.*CHANGE-ME' "$ENV_FILE"; then
   fail "$ENV_FILE still contains CHANGE-ME values: $(grep -E '^[A-Z_]+=.*CHANGE-ME' "$ENV_FILE" | cut -d= -f1 | tr '\n' ' ')"
 fi
 
-# The database runs in the separate plane-database stack; it must be up first.
+# The database runs as its own stack (database/ in this repo); it must be up first.
 docker network inspect plane-data >/dev/null 2>&1 \
-  || fail "Docker network 'plane-data' not found. Deploy the plane-database stack first."
+  || fail "Docker network 'plane-data' not found. Run the Deploy Database workflow first."
 docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' plane-data | grep -q 'plane-db' \
-  || fail "The plane-database stack is not running (no plane-db on network 'plane-data')."
+  || fail "The database stack is not running (no plane-db on network 'plane-data')."
 
 # Back up the database before migrations run (skip with SKIP_BACKUP=1).
 if [ "${SKIP_BACKUP:-0}" != "1" ] && [ -x "$DATABASE_DIR/scripts/backup.sh" ]; then
