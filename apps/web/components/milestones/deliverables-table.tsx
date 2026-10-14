@@ -51,7 +51,9 @@ export const DeliverablesTable = observer(function DeliverablesTable(props: Prop
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
   const milestoneOrder = new Map((milestones ?? []).map((milestone, index) => [milestone.id, index]));
   // in milestone order, deliverables without a milestone last
-  const sorted = [...(deliverables ?? [])].toSorted(
+  // copy is sorted, the source array is left untouched (toSorted needs ES2023)
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const sorted = [...(deliverables ?? [])].sort(
     (a, b) =>
       (milestoneOrder.get(a.milestone_id ?? "") ?? Number.MAX_SAFE_INTEGER) -
         (milestoneOrder.get(b.milestone_id ?? "") ?? Number.MAX_SAFE_INTEGER) || a.sort_order - b.sort_order

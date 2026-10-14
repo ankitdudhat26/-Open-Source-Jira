@@ -30,7 +30,9 @@ export type TTreeGroupNode = {
 
 type TGroupDefinition = { id: string };
 
-const bySequence = (issues: TIssue[]) => [...issues].toSorted((a, b) => a.sequence_id - b.sequence_id);
+// copy is sorted, the source array is left untouched (toSorted needs ES2023)
+// oxlint-disable-next-line unicorn/no-array-sort
+const bySequence = (issues: TIssue[]) => [...issues].sort((a, b) => a.sequence_id - b.sequence_id);
 
 /**
  * Work items of one group arranged under their parents. Every member is shown under its parent chain;

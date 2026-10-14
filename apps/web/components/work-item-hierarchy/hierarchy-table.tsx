@@ -98,7 +98,9 @@ export const WorkItemHierarchyTable = observer(function WorkItemHierarchyTable(p
     .filter((issue) => !issue.archived_at && !issue.is_draft);
   const issueById = new Map(issues.map((issue) => [issue.id, issue]));
   // modules in their configured order (SOW order for imported projects)
-  const moduleIds = [...(getProjectModuleIds(projectId) ?? [])].toSorted(
+  // copy is sorted, the source array is left untouched (toSorted needs ES2023)
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const moduleIds = [...(getProjectModuleIds(projectId) ?? [])].sort(
     (a, b) => (getModuleById(a)?.sort_order ?? 0) - (getModuleById(b)?.sort_order ?? 0)
   );
   const getStateGroup = (stateId: string | null) => (stateId ? getStateById(stateId)?.group : undefined);
