@@ -63,6 +63,7 @@ export type TBaseIssue = {
   cycle_id: string | null;
   module_ids: string[] | null;
   type_id: string | null;
+  milestone_id?: string | null;
 
   created_at: string;
   updated_at: string;
@@ -89,6 +90,9 @@ type IssueRelation = {
 
 export type TIssue = TBaseIssue & {
   description_html?: string;
+  // SOW ID (e.g. "T001") of work items imported from a SOW
+  external_source?: string | null;
+  external_id?: string | null;
   is_subscribed?: boolean;
   parent?: Partial<TBaseIssue>;
   issue_reactions?: TIssueReaction[];

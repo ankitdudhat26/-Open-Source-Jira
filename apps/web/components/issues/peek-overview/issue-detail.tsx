@@ -29,6 +29,7 @@ import type { TIssueOperations } from "../issue-detail";
 import { IssueParentDetail } from "../issue-detail/parent";
 import { IssueReaction } from "../issue-detail/reactions";
 import { IssueTitleInput } from "../title-input";
+import { WorkItemContext } from "../issue-detail/work-item-context";
 // services init
 const workItemVersionService = new WorkItemVersionService();
 
@@ -104,6 +105,8 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
         disabled={disabled || isArchived}
         value={issue.name}
       />
+
+      <WorkItemContext workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issue.id} />
 
       <DescriptionInput
         issueSequenceId={issue.sequence_id}

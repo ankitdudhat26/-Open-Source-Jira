@@ -40,6 +40,9 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.db.models.intake import IntakeIssueStatus
+from plane.app.serializers.milestone import MilestoneSerializer
+from plane.db.models import Deliverable, Milestone
+from plane.utils.work_item_types import ensure_project_work_item_types
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 
@@ -190,6 +193,8 @@ class ProjectViewSet(BaseViewSet):
             "guest_view_all_features",
             "project_lead",
             "network",
+            "project_type",
+            "empro_id",
             "created_at",
             "updated_at",
             "created_by",
@@ -258,6 +263,22 @@ class ProjectViewSet(BaseViewSet):
     def create(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
 
+        # Milestones (name + amount) and deliverables entered in the create project form
+        milestones_data = request.data.get("milestones") or []
+        deliverables_data = request.data.get("deliverables") or []
+        milestone_serializer = MilestoneSerializer(data=milestones_data, many=True)
+        if not isinstance(milestones_data, list) or not milestone_serializer.is_valid():
+            return Response(
+                {"milestones": milestone_serializer.errors if isinstance(milestones_data, list) else "Invalid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(deliverables_data, list):
+            return Response({"deliverables": "Invalid"}, status=status.HTTP_400_BAD_REQUEST)
+        deliverable_names = [
+            str(item.get("name") if isinstance(item, dict) else item).strip()[:255] for item in deliverables_data
+        ]
+        deliverable_names = [name for name in deliverable_names if name and name != "None"]
+
         serializer = ProjectSerializer(data={**request.data}, context={"workspace_id": workspace.id})
         if serializer.is_valid():
             serializer.save()
@@ -293,6 +314,19 @@ class ProjectViewSet(BaseViewSet):
                     for state in DEFAULT_STATES
                 ]
             )
+
+            for index, milestone in enumerate(milestone_serializer.validated_data):
+                milestone.pop("module_ids", None)
+                Milestone.objects.create(
+                    **milestone,
+                    project=serializer.instance,
+                    sort_order=(index + 1) * 10000,
+                )
+            for index, name in enumerate(deliverable_names):
+                Deliverable.objects.create(name=name, project=serializer.instance, sort_order=(index + 1) * 10000)
+
+            # Feature / Task / Bug work item types
+            ensure_project_work_item_types(serializer.instance)
 
             project = self.get_queryset().filter(pk=serializer.data["id"]).first()
 

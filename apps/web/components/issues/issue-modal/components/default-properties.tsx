@@ -16,7 +16,7 @@ import { CalendarOutline, ParentOutline } from "@makeplane/propel/icons";
 import { ETabIndices } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // types
-import type { ISearchIssueResponse, TIssue } from "@plane/types";
+import type { ISearchIssueResponse, TIssue, TWorkItemTypeKey } from "@plane/types";
 // ui
 import { DateSelect } from "@plane/blocks/property-select";
 import { getDate, renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
@@ -49,6 +49,9 @@ type TIssueDefaultPropertiesProps = {
   isDraft: boolean;
   handleFormChange: () => void;
   setSelectedParentIssue: (issue: ISearchIssueResponse) => void;
+  /** Feature / Task / Bug of the work item; tasks and bugs are created under a feature. */
+  workItemTypeKey?: TWorkItemTypeKey;
+  featureTypeId?: string;
 };
 
 export const IssueDefaultProperties = observer(function IssueDefaultProperties(props: TIssueDefaultPropertiesProps) {
@@ -64,6 +67,8 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
     isDraft,
     handleFormChange,
     setSelectedParentIssue,
+    workItemTypeKey,
+    featureTypeId,
   } = props;
   // states
   const [parentIssueListModalOpen, setParentIssueListModalOpen] = useState(false);
@@ -76,6 +81,8 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
   const { data: userProfile } = useUserProfile();
   // derived values
   const projectDetails = getProjectById(projectId);
+  const isFeature = workItemTypeKey === "feature";
+  const isUnderFeature = workItemTypeKey === "task" || workItemTypeKey === "bug";
 
   const { getIndex } = getTabIndex(ETabIndices.ISSUE_FORM, isMobile);
 
@@ -259,7 +266,7 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
           )}
         />
       )}
-      {parentId ? (
+      {isFeature ? null : parentId ? (
         <Menu>
           <MenuTrigger
             tabIndex={getIndex("parent_id")}
@@ -279,13 +286,16 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
             }
           />
           <MenuContent side="bottom" align="start">
-            <MenuItem label={t("change_parent_issue")} onClick={() => setParentIssueListModalOpen(true)} />
+            <MenuItem
+              label={isUnderFeature ? "Change feature" : t("change_parent_issue")}
+              onClick={() => setParentIssueListModalOpen(true)}
+            />
             <Controller
               control={control}
               name="parent_id"
               render={({ field: { onChange } }) => (
                 <MenuItem
-                  label={t("remove_parent_issue")}
+                  label={isUnderFeature ? "Remove feature" : t("remove_parent_issue")}
                   onClick={() => {
                     onChange(null);
                     handleFormChange();
@@ -301,7 +311,7 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
           variant="outline"
           startIcon={<PropelIcon icon={<ParentOutline className="size-3.5" />} />}
           onClick={() => setParentIssueListModalOpen(true)}
-          label={t("add_parent")}
+          label={isUnderFeature ? "Feature" : t("add_parent")}
         />
       )}
       <Controller
@@ -318,6 +328,8 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
             }}
             projectId={projectId ?? undefined}
             issueId={isDraft ? undefined : id}
+            workItemTypeId={isUnderFeature ? featureTypeId : undefined}
+            title={isUnderFeature ? "Select feature" : undefined}
           />
         )}
       />

@@ -168,6 +168,13 @@ class Issue(ChangeTrackerMixin, ProjectBaseModel):
         null=True,
         blank=True,
     )
+    milestone = models.ForeignKey(
+        "db.Milestone",
+        on_delete=models.SET_NULL,
+        related_name="milestone_issues",
+        null=True,
+        blank=True,
+    )
 
     issue_objects = IssueManager()
 

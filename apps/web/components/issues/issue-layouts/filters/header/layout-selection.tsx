@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import type { ReactNode } from "react";
 // plane imports
 import { ISSUE_LAYOUTS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
@@ -19,10 +20,12 @@ type Props = {
   layouts: EIssueLayoutTypes[];
   onChange: (layout: EIssueLayoutTypes) => void;
   selectedLayout: EIssueLayoutTypes | undefined;
+  /** Extra options rendered before the layouts in the same switcher (e.g. the hierarchy view). */
+  leading?: ReactNode;
 };
 
 export function LayoutSelection(props: Props) {
-  const { layouts, onChange, selectedLayout } = props;
+  const { layouts, onChange, selectedLayout, leading } = props;
   const { isMobile } = usePlatformOS();
   const { t } = useTranslation();
   const handleOnChange = (layoutKey: EIssueLayoutTypes) => {
@@ -33,6 +36,7 @@ export function LayoutSelection(props: Props) {
 
   return (
     <div className="flex items-center gap-1 rounded-md bg-layer-3 p-1">
+      {leading}
       {ISSUE_LAYOUTS.map((layout) => {
         if (!layouts.includes(layout.key)) return null;
         return (

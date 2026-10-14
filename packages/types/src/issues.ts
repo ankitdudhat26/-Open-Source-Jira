@@ -126,7 +126,9 @@ export type GroupByColumnTypes =
   | "labels"
   | "assignees"
   | "created_by"
-  | "team_project";
+  | "team_project"
+  | "type"
+  | "milestone";
 
 export type TGetColumns = {
   isWorkspaceLevel?: boolean;

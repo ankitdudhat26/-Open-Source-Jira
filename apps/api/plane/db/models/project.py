@@ -65,9 +65,17 @@ def get_default_preferences():
     return {"pages": {"block_display": True}, "navigation": {"default_tab": "work_items", "hide_in_more_menu": []}}
 
 
+class ProjectType(models.TextChoices):
+    FIXED_COST = "fixed_cost", "Fixed Cost"
+    DEDICATED = "dedicated", "Dedicated"
+    TIME_AND_MATERIAL = "time_and_material", "T&M"
+
+
 class Project(BaseModel):
     NETWORK_CHOICES = ((0, "Secret"), (2, "Public"))
     name = models.CharField(max_length=255, verbose_name="Project Name")
+    empro_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="EmPro Id")
+    project_type = models.CharField(max_length=30, choices=ProjectType.choices, default=ProjectType.FIXED_COST)
     description = models.TextField(verbose_name="Project Description", blank=True)
     description_text = models.JSONField(verbose_name="Project Description RT", blank=True, null=True)
     description_html = models.JSONField(verbose_name="Project Description HTML", blank=True, null=True)

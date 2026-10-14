@@ -23,6 +23,8 @@ export type TIssueGroupByOptions =
   | "module"
   | "target_date"
   | "team_project"
+  | "type"
+  | "milestone"
   | null;
 
 export type TIssueOrderByOptions =
@@ -84,6 +86,7 @@ export type TIssueParams =
   | "cursor"
   | "per_page"
   | "issue_type"
+  | "milestone"
   | "layout"
   | "expand"
   | "filters";
@@ -109,6 +112,8 @@ export const WORK_ITEM_FILTER_PROPERTY_KEYS = [
   "project_id",
   "created_at",
   "updated_at",
+  "type_id",
+  "milestone_id",
 ] as const;
 export type TWorkItemFilterProperty = (typeof WORK_ITEM_FILTER_PROPERTY_KEYS)[number];
 

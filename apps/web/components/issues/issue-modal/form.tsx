@@ -37,11 +37,13 @@ import {
 } from "@plane/utils";
 // components
 import {
+  IssueAttachmentsAndBlockedBy,
   IssueDefaultProperties,
   IssueDescriptionEditor,
   IssueParentTag,
   IssueProjectSelect,
   IssueTitleInput,
+  WorkItemTypeSelect,
 } from "@/components/issues/issue-modal/components";
 // helpers
 // hooks
@@ -52,6 +54,7 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 import { useWorkspaceDraftIssues } from "@/hooks/store/workspace-draft";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 import { useProjectIssueProperties } from "@/hooks/use-project-issue-properties";
+import { useProjectWorkItemTypes } from "@/hooks/use-project-milestones";
 
 export interface IssueFormProps {
   data?: Partial<TIssue>;
@@ -154,6 +157,8 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
   } = methods;
 
   const projectId = watch("project_id");
+  const { getTypeById, getTypeByKey } = useProjectWorkItemTypes(workspaceSlug?.toString(), projectId);
+  const workItemTypeKey = getTypeById(watch("type_id"))?.key;
 
   const isDisabled = isSubmitting || isApplyingTemplate;
 
@@ -373,6 +378,15 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                     disabled={!!data?.id || !!data?.sourceIssueId || isProjectSelectionDisabled}
                     handleFormChange={handleFormChange}
                   />
+                  <WorkItemTypeSelect
+                    control={control}
+                    setValue={setValue}
+                    workspaceSlug={workspaceSlug?.toString()}
+                    projectId={projectId}
+                    typeId={watch("type_id")}
+                    isEditing={!!data?.id}
+                    handleFormChange={handleFormChange}
+                  />
                 </div>
               </div>
               {watch("parent_id") && selectedParentIssue && (
@@ -425,7 +439,14 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 isDraft={isDraft}
                 handleFormChange={handleFormChange}
                 setSelectedParentIssue={setSelectedParentIssue}
+                workItemTypeKey={workItemTypeKey}
+                featureTypeId={getTypeByKey("feature")?.id}
               />
+              {!data?.id && !isDraft && (
+                <div className="mt-2">
+                  <IssueAttachmentsAndBlockedBy workspaceSlug={workspaceSlug?.toString()} projectId={projectId} />
+                </div>
+              )}
             </div>
           </DialogMain>
           {showActionButtons && (

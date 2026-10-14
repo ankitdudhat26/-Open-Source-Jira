@@ -9,12 +9,15 @@ import type { TUserPermissions } from "../enums";
 import type { TStateGroups } from "../state";
 import type { IUser, IUserLite } from "../users";
 import type { IWorkspace } from "../workspace";
+import type { TMilestoneFormData } from "./milestone";
 
 export enum EUserProjectRoles {
   ADMIN = 20,
   MEMBER = 15,
   GUEST = 5,
 }
+
+export type TProjectType = "fixed_cost" | "dedicated" | "time_and_material";
 
 export interface IPartialProject {
   id: string;
@@ -33,6 +36,8 @@ export interface IPartialProject {
   guest_view_all_features?: boolean;
   project_lead?: IUserLite | string | null;
   network?: number;
+  empro_id?: string | null;
+  project_type?: TProjectType;
   // Timestamps
   created_at?: Date;
   updated_at?: Date;
@@ -59,6 +64,9 @@ export interface IProject extends IPartialProject {
   members?: string[];
   timezone?: string;
   next_work_item_sequence?: number;
+  // only sent while creating a project
+  milestones?: TMilestoneFormData[];
+  deliverables?: string[];
 }
 
 export type TProjectAnalyticsCountParams = {
@@ -156,6 +164,8 @@ export type TProjectIssuesSearchParams = {
   workspace_search: boolean;
   target_date?: string;
   epic?: boolean;
+  // only work items of this type
+  type_id?: string;
 };
 
 export interface ISearchIssueResponse {

@@ -102,6 +102,8 @@ ISSUE_GROUP_BY_ALLOWLIST = frozenset({
     "created_by",
     "target_date",
     "start_date",
+    "type_id",
+    "milestone_id",
 })
 
 # Cycle list queryset.

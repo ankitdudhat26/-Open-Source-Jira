@@ -4,13 +4,16 @@
  * See the LICENSE file for details.
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 // plane imports
+import { setToast } from "@plane/blocks/toast";
 import type { ISearchIssueResponse, TIssue } from "@plane/types";
 // components
 import { IssueModalContext } from "@/components/issues/issue-modal/context";
+import type { TCreateUpdatePropertyValuesProps } from "@/components/issues/issue-modal/context";
 // hooks
+import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useUser } from "@/hooks/store/user/user-user";
 
 export type TIssueModalProviderProps = {
@@ -24,10 +27,39 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
   const { children, allowedProjectIds } = props;
   // states
   const [selectedParentIssue, setSelectedParentIssue] = useState<ISearchIssueResponse | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [pendingBlockedByIssues, setPendingBlockedByIssues] = useState<ISearchIssueResponse[]>([]);
   // store hooks
   const { projectsWithCreatePermissions } = useUser();
+  const { createAttachment, createRelation } = useIssueDetail();
   // derived values
   const projectIdsWithCreatePermissions = Object.keys(projectsWithCreatePermissions ?? {});
+
+  // Runs after a work item is created or updated: uploads the attachments and adds the "blocked by" relations
+  // that were picked in the create form.
+  const handleCreateUpdatePropertyValues = useCallback(
+    async ({ workspaceSlug, projectId, issueId, isDraft }: TCreateUpdatePropertyValuesProps) => {
+      if (isDraft) return;
+      const attachments = pendingAttachments;
+      const blockedByIds = pendingBlockedByIssues.map((issue) => issue.id);
+      setPendingAttachments([]);
+      setPendingBlockedByIssues([]);
+
+      const results = await Promise.allSettled([
+        ...attachments.map((file) => createAttachment(workspaceSlug, projectId, issueId, file)),
+        ...(blockedByIds.length > 0
+          ? [createRelation(workspaceSlug, projectId, issueId, "blocked_by", blockedByIds)]
+          : []),
+      ]);
+      if (results.some((result) => result.status === "rejected"))
+        setToast({
+          type: "error",
+          title: "Error!",
+          message: "The work item was created, but some attachments or blocked by work items could not be added.",
+        });
+    },
+    [pendingAttachments, pendingBlockedByIssues, createAttachment, createRelation]
+  );
 
   return (
     <IssueModalContext.Provider
@@ -47,11 +79,15 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
         getIssueTypeIdOnProjectChange: () => null,
         getActiveAdditionalPropertiesLength: () => 0,
         handlePropertyValuesValidation: () => true,
-        handleCreateUpdatePropertyValues: () => Promise.resolve(),
+        handleCreateUpdatePropertyValues,
         handleProjectEntitiesFetch: () => Promise.resolve(),
         handleTemplateChange: () => Promise.resolve(),
         handleConvert: () => Promise.resolve(),
         handleCreateSubWorkItem: () => Promise.resolve(),
+        pendingAttachments,
+        setPendingAttachments,
+        pendingBlockedByIssues,
+        setPendingBlockedByIssues,
       }}
     >
       {children}

@@ -1,3 +1,4 @@
+// oxlint-disable promise/always-return
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -24,6 +25,7 @@ import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useProjectView } from "@/hooks/store/use-project-view";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useProjectMilestones, useProjectWorkItemTypes } from "@/hooks/use-project-milestones";
 // local imports
 import { WorkItemFiltersHOC } from "./base";
 import type { TEnableSaveViewProps, TEnableUpdateViewProps, TSharedWorkItemFiltersHOCProps } from "./shared";
@@ -187,6 +189,12 @@ export const ProjectLevelWorkItemFiltersHOC = observer(function ProjectLevelWork
     [updateViewLabel, canUpdateView, hasAdditionalChanges, handleViewUpdate]
   );
 
+  // Feature / Task / Bug and milestones (fixed cost projects) for the Type and Milestone filters
+  const { workItemTypes } = useProjectWorkItemTypes(workspaceSlug, projectId);
+  const { getProjectById: getProjectDetailsById } = useProject();
+  const isFixedCost = getProjectDetailsById(projectId)?.project_type === "fixed_cost";
+  const { milestones } = useProjectMilestones(workspaceSlug, isFixedCost ? projectId : undefined);
+
   return (
     <>
       <CreateUpdateProjectViewModal
@@ -207,6 +215,8 @@ export const ProjectLevelWorkItemFiltersHOC = observer(function ProjectLevelWork
         memberIds={getProjectMemberIds(projectId, false) ?? undefined}
         moduleIds={getProjectModuleIds(projectId) ?? undefined}
         stateIds={getProjectStateIds(projectId)}
+        workItemTypes={workItemTypes}
+        milestones={milestones}
         saveViewOptions={saveViewOptions}
         updateViewOptions={updateViewOptions}
       >

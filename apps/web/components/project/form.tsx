@@ -1,3 +1,5 @@
+// oxlint-disable no-shadow
+// oxlint-disable promise/always-return
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -33,6 +35,7 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 // services
 import { ProjectService } from "@/services/project";
 // local imports
+import { PROJECT_TYPE_OPTIONS } from "./create/commercial-attributes";
 import { ProjectNetworkIcon } from "./project-network-icon";
 
 export interface IProjectDetailsForm {
@@ -164,6 +167,8 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
 
       logo_props: formData.logo_props,
       timezone: formData.timezone,
+      empro_id: formData.empro_id?.trim() || null,
+      project_type: formData.project_type,
     };
 
     // Handle cover image changes
@@ -449,6 +454,69 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
               )}
             />
             {errors.timezone && <span className="text-11 text-danger-primary">{errors.timezone.message}</span>}
+          </div>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-13">EmPro Id</h4>
+            <Controller
+              control={control}
+              name="empro_id"
+              rules={{ maxLength: { value: 255, message: "EmPro Id should be less than 255 characters" } }}
+              render={({ field: { value, onChange } }) => (
+                <Field name="empro_id" invalid={Boolean(errors.empro_id)} disabled={!isAdmin}>
+                  <InputGroup size="lg">
+                    <Input
+                      size="lg"
+                      id="empro_id"
+                      name="empro_id"
+                      type="text"
+                      value={value ?? ""}
+                      onChange={onChange}
+                      placeholder="EmPro Id"
+                      disabled={!isAdmin}
+                    />
+                  </InputGroup>
+                </Field>
+              )}
+            />
+            <span className="text-11 text-danger-primary">{errors?.empro_id?.message}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-13">Project Type</h4>
+            <Controller
+              name="project_type"
+              control={control}
+              render={({ field: { value, onChange } }) => {
+                const selectedType = PROJECT_TYPE_OPTIONS.find((option) => option.key === value);
+                return (
+                  <Select<(typeof PROJECT_TYPE_OPTIONS)[number]>
+                    getValues={() => PROJECT_TYPE_OPTIONS}
+                    value={selectedType ?? null}
+                    onChange={(key) => onChange(key)}
+                    getOptionValue={(option) => option.key}
+                    getOptionLabel={(option) => option.label}
+                    getOptionDescription={(option) => option.description}
+                    placeholder="Select project type"
+                    showSearch={false}
+                    pinSelected={false}
+                    contentSizing="anchor"
+                    disabled={!isAdmin}
+                    estimateItemSize={56}
+                  >
+                    <Select.Trigger<(typeof PROJECT_TYPE_OPTIONS)[number]>
+                      variant="select-lg"
+                      className="font-medium"
+                      disabled={!isAdmin}
+                    >
+                      {(options) => (
+                        <span className="min-w-0 grow truncate text-left">
+                          {options[0] ? options[0].label : "Select project type"}
+                        </span>
+                      )}
+                    </Select.Trigger>
+                  </Select>
+                );
+              }}
+            />
           </div>
         </div>
         <div className="flex items-center justify-between py-2">

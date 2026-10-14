@@ -67,6 +67,7 @@ export const getTabUrl = (workspaceSlug: string, projectId: string, tabKey: stri
   const baseUrl = `/${workspaceSlug}/projects/${projectId}`;
   const tabUrlMap: Record<string, string> = {
     work_items: `${baseUrl}/issues`,
+    milestones: `${baseUrl}/milestones`,
     cycles: `${baseUrl}/cycles`,
     modules: `${baseUrl}/modules`,
     views: `${baseUrl}/views`,

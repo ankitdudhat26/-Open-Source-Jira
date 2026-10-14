@@ -28,6 +28,7 @@ import { IssueDetailWidgets } from "../issue-detail-widgets";
 import { NameDescriptionUpdateStatus } from "../issue-update-status";
 import { PeekOverviewProperties } from "../peek-overview/properties";
 import { IssueTitleInput } from "../title-input";
+import { WorkItemContext } from "./work-item-context";
 import { IssueActivity } from "./issue-activity";
 import { IssueParentDetail } from "./parent";
 import { IssueReaction } from "./reactions";
@@ -105,6 +106,8 @@ export const IssueMainContent = observer(function IssueMainContent(props: Props)
           disabled={isArchived || !isEditable}
           value={issue.name}
         />
+
+        <WorkItemContext workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issue.id} />
 
         <DescriptionInput
           issueSequenceId={issue.sequence_id}

@@ -33,10 +33,13 @@ export enum EIssueGroupByToServerOptions {
   "cycle" = "cycle_id",
   "module" = "issue_module__module_id",
   "target_date" = "target_date",
+  // oxlint-disable-next-line typescript/no-duplicate-enum-values -- "team_project" groups by the same field
   "project" = "project_id",
   "created_by" = "created_by",
   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   "team_project" = "project_id",
+  "type" = "type_id",
+  "milestone" = "milestone_id",
 }
 
 export enum EIssueGroupBYServerToProperty {
@@ -50,6 +53,8 @@ export enum EIssueGroupBYServerToProperty {
   "target_date" = "target_date",
   "project_id" = "project_id",
   "created_by" = "created_by",
+  "type_id" = "type_id",
+  "milestone_id" = "milestone_id",
 }
 
 export enum EIssueCommentAccessSpecifier {
@@ -114,6 +119,8 @@ export const ISSUE_GROUP_BY_OPTIONS: {
   key: TIssueGroupByOptions;
   titleTranslationKey: string;
 }[] = [
+  { key: "type", titleTranslationKey: "Type" },
+  { key: "milestone", titleTranslationKey: "common.milestones" },
   { key: "state", titleTranslationKey: "common.states" },
   { key: "state_detail.group", titleTranslationKey: "common.state_groups" },
   { key: "priority", titleTranslationKey: "common.priority" },
@@ -174,6 +181,10 @@ export const ISSUE_DISPLAY_PROPERTIES: {
   {
     key: "key",
     titleTranslationKey: "issue.display.properties.id",
+  },
+  {
+    key: "issue_type",
+    titleTranslationKey: "Type",
   },
   {
     key: "assignee",

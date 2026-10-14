@@ -21,6 +21,11 @@ import type { TProject } from "@plane/types";
 import { WorkItemsModal } from "../analytics/work-items/modal";
 import { WorkItemFiltersToggle } from "../work-item-filters/filters-toggle";
 import {
+  HierarchyViewToggle,
+  useHierarchyViewNavigation,
+  useIsHierarchyView,
+} from "../work-item-hierarchy/hierarchy-toggle";
+import {
   DisplayFiltersSelection,
   FiltersDropdown,
   LayoutSelection,
@@ -58,6 +63,9 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
   const {
     issuesFilter: { issueFilters, updateFilters },
   } = useIssues(storeType);
+  // the Module / Milestone hierarchy is a project work items view
+  const isHierarchyView = useIsHierarchyView() && storeType === EIssuesStoreType.PROJECT;
+  const { openHierarchy, closeHierarchy } = useHierarchyViewNavigation();
   // derived values
   const activeLayout = issueFilters?.displayFilters?.layout;
   const layoutDisplayFiltersOptions = ISSUE_STORE_TO_FILTERS_MAP[storeType]?.layoutOptions[activeLayout];
@@ -65,9 +73,10 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
   const handleLayoutChange = useCallback(
     (layout: EIssueLayoutTypes) => {
       if (!workspaceSlug || !projectId) return;
+      if (isHierarchyView) closeHierarchy();
       updateFilters(workspaceSlug, projectId, EIssueFilterType.DISPLAY_FILTERS, { layout: layout });
     },
-    [workspaceSlug, projectId, updateFilters]
+    [workspaceSlug, projectId, updateFilters, isHierarchyView, closeHierarchy]
   );
 
   const handleDisplayFilters = useCallback(
@@ -98,7 +107,12 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
         <LayoutSelection
           layouts={LAYOUTS}
           onChange={(layout) => handleLayoutChange(layout)}
-          selectedLayout={activeLayout}
+          selectedLayout={isHierarchyView ? undefined : activeLayout}
+          leading={
+            storeType === EIssuesStoreType.PROJECT ? (
+              <HierarchyViewToggle isActive={isHierarchyView} onClick={openHierarchy} />
+            ) : undefined
+          }
         />
       </div>
       <div className="flex @4xl:hidden">
@@ -108,23 +122,25 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
           activeLayout={activeLayout}
         />
       </div>
-      <WorkItemFiltersToggle entityType={storeType} entityId={projectId} />
-      <FiltersDropdown
-        miniIcon={<PreferencesOutline className="size-3.5" />}
-        title={t("common.display")}
-        placement="bottom-end"
-      >
-        <DisplayFiltersSelection
-          layoutDisplayFiltersOptions={layoutDisplayFiltersOptions}
-          displayFilters={issueFilters?.displayFilters ?? {}}
-          handleDisplayFiltersUpdate={handleDisplayFilters}
-          displayProperties={issueFilters?.displayProperties ?? {}}
-          handleDisplayPropertiesUpdate={handleDisplayProperties}
-          cycleViewDisabled={!currentProjectDetails?.cycle_view}
-          moduleViewDisabled={!currentProjectDetails?.module_view}
-          isEpic={storeType === EIssuesStoreType.EPIC}
-        />
-      </FiltersDropdown>
+      {!isHierarchyView && <WorkItemFiltersToggle entityType={storeType} entityId={projectId} />}
+      {!isHierarchyView && (
+        <FiltersDropdown
+          miniIcon={<PreferencesOutline className="size-3.5" />}
+          title={t("common.display")}
+          placement="bottom-end"
+        >
+          <DisplayFiltersSelection
+            layoutDisplayFiltersOptions={layoutDisplayFiltersOptions}
+            displayFilters={issueFilters?.displayFilters ?? {}}
+            handleDisplayFiltersUpdate={handleDisplayFilters}
+            displayProperties={issueFilters?.displayProperties ?? {}}
+            handleDisplayPropertiesUpdate={handleDisplayProperties}
+            cycleViewDisabled={!currentProjectDetails?.cycle_view}
+            moduleViewDisabled={!currentProjectDetails?.module_view}
+            isEpic={storeType === EIssuesStoreType.EPIC}
+          />
+        </FiltersDropdown>
+      )}
       {canUserCreateIssue ? (
         <div className="hidden md:flex">
           <Button

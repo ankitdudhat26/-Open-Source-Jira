@@ -10,12 +10,16 @@ import { useTranslation } from "@plane/i18n";
 // components
 import { PageHead } from "@/components/core/page-title";
 import { ProjectLayoutRoot } from "@/components/issues/issue-layouts/roots/project-layout-root";
+import { IssuePeekOverview } from "@/components/issues/peek-overview";
+import { WorkItemHierarchyTable } from "@/components/work-item-hierarchy/hierarchy-table";
+import { useIsHierarchyView } from "@/components/work-item-hierarchy/hierarchy-toggle";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import type { Route } from "./+types/page";
 
 function ProjectIssuesPage({ params }: Route.ComponentProps) {
-  const { projectId } = params;
+  const { projectId, workspaceSlug } = params;
+  const isHierarchyView = useIsHierarchyView();
   // i18n
   const { t } = useTranslation();
   // store
@@ -29,7 +33,14 @@ function ProjectIssuesPage({ params }: Route.ComponentProps) {
     <>
       <PageHead title={pageTitle} />
       <div className="h-full w-full">
-        <ProjectLayoutRoot />
+        {isHierarchyView ? (
+          <>
+            <WorkItemHierarchyTable workspaceSlug={workspaceSlug} projectId={projectId} />
+            <IssuePeekOverview />
+          </>
+        ) : (
+          <ProjectLayoutRoot />
+        )}
       </div>
     </>
   );

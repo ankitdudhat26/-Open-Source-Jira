@@ -21,4 +21,23 @@ export const getProjectFormValues = (): Partial<IProject> => ({
   name: "",
   network: 2,
   project_lead: null,
+  empro_id: "",
+  project_type: "fixed_cost",
+  deliverables: [""],
+  milestones: [{ name: "", amount: null }],
 });
+
+/** Drops empty deliverable / milestone rows; only fixed cost projects are billed by milestones. */
+export const getProjectCreatePayload = (formData: Partial<IProject>): Partial<IProject> => {
+  const isFixedCost = formData.project_type === "fixed_cost";
+  return {
+    ...formData,
+    empro_id: formData.empro_id?.trim() || null,
+    deliverables: isFixedCost ? (formData.deliverables ?? []).map((name) => name.trim()).filter(Boolean) : [],
+    milestones: isFixedCost
+      ? (formData.milestones ?? [])
+          .map((milestone) => ({ name: milestone.name.trim(), amount: milestone.amount || null }))
+          .filter((milestone) => milestone.name)
+      : [],
+  };
+};

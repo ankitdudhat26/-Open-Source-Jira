@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Python imports
+import uuid
+
 # Django imports
 from django.db.models import Q, QuerySet
 
@@ -106,6 +109,7 @@ class IssueSearchEndpoint(BaseAPIView):
         sub_issue = request.query_params.get("sub_issue", "false")
         target_date = request.query_params.get("target_date", True)
         issue_id = request.query_params.get("issue_id", False)
+        type_id = request.query_params.get("type_id", False)
 
         issues = Issue.issue_objects.filter(
             workspace__slug=slug,
@@ -138,6 +142,13 @@ class IssueSearchEndpoint(BaseAPIView):
         if target_date == "none":
             issues = self.filter_issues_without_target_date(issues)
 
+        # e.g. only Feature work items when picking the feature of a task / bug
+        if type_id:
+            try:
+                issues = issues.filter(type_id=uuid.UUID(str(type_id)))
+            except ValueError:
+                return Response({"error": "Invalid type_id"}, status=status.HTTP_400_BAD_REQUEST)
+
         if ProjectMember.objects.filter(
             project_id=project_id, member=self.request.user, is_active=True, role=5
         ).exists():
@@ -156,6 +167,7 @@ class IssueSearchEndpoint(BaseAPIView):
                 "state__name",
                 "state__group",
                 "state__color",
+                "type_id",
             )[:100],
             status=status.HTTP_200_OK,
         )

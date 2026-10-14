@@ -17,8 +17,10 @@ import {
   DueDateOutline,
   EstimateOutline,
   LabelsOutline,
+  LayerStackOutline,
   LinkOutline,
   MembersOutline,
+  MilestoneOutline,
   ModuleOutline,
   PriorityOutline,
   StartDateOutline,
@@ -52,6 +54,8 @@ import { EIssuesStoreType } from "@plane/types";
 import { renderFormattedDate, getFileURL } from "@plane/utils";
 // store
 import { store } from "@/lib/store-context";
+import { WorkItemTypeIcon } from "@/components/issues/work-item-type-icon";
+import { milestonesByProject, workItemTypesByProject } from "@/hooks/use-project-milestones";
 import { ISSUE_FILTER_DEFAULT_DATA } from "@/store/issue/helpers/base-issues.store";
 import { DEFAULT_DISPLAY_PROPERTIES } from "@/store/issue/issue-details/sub_issues_filter.store";
 // constants
@@ -153,10 +157,42 @@ export const getGroupByColumns = ({
     assignees: getAssigneeColumns,
     created_by: getCreatedByColumns,
     team_project: getTeamProjectColumns,
+    type: getWorkItemTypeColumns,
+    milestone: getMilestoneColumns,
   };
 
   // Get and return the columns for the specified group by option
   return groupByColumnMap[groupBy]?.({ isWorkspaceLevel, projectId });
+};
+
+const getWorkItemTypeColumns = (): IGroupByColumn[] | undefined => {
+  const { currentProjectDetails } = store.projectRoot.project;
+  if (!currentProjectDetails?.id) return;
+  const types = workItemTypesByProject.get(currentProjectDetails.id) ?? [];
+  return [
+    ...types.map((type) => ({
+      id: type.id,
+      name: type.name,
+      icon: <WorkItemTypeIcon type={type} size="xs" />,
+      payload: { type_id: type.id },
+    })),
+    { id: "None", name: "No type", icon: <LayerStackOutline className="h-3.5 w-3.5" />, payload: {} },
+  ];
+};
+
+const getMilestoneColumns = (): IGroupByColumn[] | undefined => {
+  const { currentProjectDetails } = store.projectRoot.project;
+  if (!currentProjectDetails?.id) return;
+  const milestones = milestonesByProject.get(currentProjectDetails.id) ?? [];
+  return [
+    ...milestones.map((milestone) => ({
+      id: milestone.id,
+      name: milestone.code ? `${milestone.code} · ${milestone.name}` : milestone.name,
+      icon: <MilestoneOutline className="h-3.5 w-3.5" />,
+      payload: { milestone_id: milestone.id },
+    })),
+    { id: "None", name: "No milestone", icon: <MilestoneOutline className="h-3.5 w-3.5" />, payload: {} },
+  ];
 };
 
 const getProjectColumns = (): IGroupByColumn[] | undefined => {

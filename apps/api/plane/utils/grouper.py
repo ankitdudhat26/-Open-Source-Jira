@@ -21,6 +21,8 @@ from plane.db.models import (
     IssueAssignee,
     ModuleIssue,
     IssueLabel,
+    Milestone,
+    ProjectIssueType,
 )
 from typing import Optional, Dict, Tuple, Any, Union, List
 
@@ -116,6 +118,8 @@ def issue_on_results(
         "sequence_id",
         "project_id",
         "parent_id",
+        "type_id",
+        "milestone_id",
         "cycle_id",
         "sub_issues_count",
         "created_at",
@@ -186,6 +190,18 @@ def issue_group_values(
     if field == "project_id":
         queryset = Project.objects.filter(workspace__slug=slug).values_list("id", flat=True)
         return list(queryset)
+
+    if field == "type_id":
+        queryset = ProjectIssueType.objects.filter(workspace__slug=slug).order_by("level", "issue_type__created_at")
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        return list(dict.fromkeys(queryset.values_list("issue_type_id", flat=True))) + ["None"]
+
+    if field == "milestone_id":
+        queryset = Milestone.objects.filter(workspace__slug=slug).values_list("id", flat=True)
+        if project_id:
+            return list(queryset.filter(project_id=project_id)) + ["None"]
+        return list(queryset) + ["None"]
 
     if field == "priority":
         return ["low", "medium", "high", "urgent", "none"]

@@ -1,3 +1,4 @@
+// oxlint-disable no-shadow
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -11,7 +12,9 @@ import {
   CyclesOutline,
   DueDateOutline,
   LabelsOutline,
+  LayerStackOutline,
   MembersOutline,
+  MilestoneOutline,
   ModuleOutline,
   PriorityOutline,
   ProjectsOutline,
@@ -31,7 +34,9 @@ import type {
   IIssueLabel,
   IModule,
   IProject,
+  TMilestone,
   TWorkItemFilterProperty,
+  TWorkItemType,
 } from "@plane/types";
 
 import {
@@ -42,6 +47,8 @@ import {
   getFileURL,
   getLabelFilterConfig,
   getMentionFilterConfig,
+  getMilestoneFilterConfig,
+  getWorkItemTypeFilterConfig,
   getModuleFilterConfig,
   getPriorityFilterConfig,
   getProjectFilterConfig,
@@ -72,6 +79,9 @@ export type TWorkItemFiltersEntityProps = {
   projectId?: string;
   projectIds?: string[];
   stateIds?: string[];
+  // Feature / Task / Bug types and milestones of the project
+  workItemTypes?: TWorkItemType[];
+  milestones?: TMilestone[];
 };
 
 export type TUseWorkItemFiltersConfigProps = {
@@ -89,8 +99,19 @@ export type TWorkItemFiltersConfig = {
 };
 
 export const useWorkItemFiltersConfig = (props: TUseWorkItemFiltersConfigProps): TWorkItemFiltersConfig => {
-  const { allowedFilters, cycleIds, labelIds, memberIds, moduleIds, projectId, projectIds, stateIds, workspaceSlug } =
-    props;
+  const {
+    allowedFilters,
+    cycleIds,
+    labelIds,
+    memberIds,
+    moduleIds,
+    projectId,
+    projectIds,
+    stateIds,
+    workspaceSlug,
+    workItemTypes,
+    milestones,
+  } = props;
   // store hooks
   const { loader: projectLoader, getProjectById } = useProject();
   const { getCycleById } = useCycle();
@@ -211,6 +232,34 @@ export const useWorkItemFiltersConfig = (props: TUseWorkItemFiltersConfigProps):
         ...operatorConfigs,
       }),
     [isFilterEnabled, project?.module_view, modules, operatorConfigs]
+  );
+
+  // work item type filter config
+  const workItemTypeFilterConfig = useMemo(
+    () =>
+      getWorkItemTypeFilterConfig<TWorkItemFilterProperty>("type_id")({
+        isEnabled: isFilterEnabled("type_id") && !!workItemTypes?.length,
+        filterIcon: LayerStackOutline,
+        workItemTypes: workItemTypes ?? [],
+        getOptionIcon: (type) => (
+          <span className="flex size-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: type.color }} />
+        ),
+        ...operatorConfigs,
+      }),
+    [isFilterEnabled, workItemTypes, operatorConfigs]
+  );
+
+  // milestone filter config
+  const milestoneFilterConfig = useMemo(
+    () =>
+      getMilestoneFilterConfig<TWorkItemFilterProperty>("milestone_id")({
+        isEnabled: isFilterEnabled("milestone_id") && !!milestones?.length,
+        filterIcon: MilestoneOutline,
+        milestones: milestones ?? [],
+        getOptionIcon: () => <MilestoneOutline className="h-3 w-3 flex-shrink-0" />,
+        ...operatorConfigs,
+      }),
+    [isFilterEnabled, milestones, operatorConfigs]
   );
 
   // assignee filter config
@@ -365,6 +414,8 @@ export const useWorkItemFiltersConfig = (props: TUseWorkItemFiltersConfigProps):
   return {
     areAllConfigsInitialized,
     configs: [
+      workItemTypeFilterConfig,
+      milestoneFilterConfig,
       stateFilterConfig,
       stateGroupFilterConfig,
       assigneeFilterConfig,
@@ -388,6 +439,8 @@ export const useWorkItemFiltersConfig = (props: TUseWorkItemFiltersConfigProps):
       label_id: labelFilterConfig,
       cycle_id: cycleFilterConfig,
       module_id: moduleFilterConfig,
+      type_id: workItemTypeFilterConfig,
+      milestone_id: milestoneFilterConfig,
       assignee_id: assigneeFilterConfig,
       mention_id: mentionFilterConfig,
       created_by_id: createdByFilterConfig,

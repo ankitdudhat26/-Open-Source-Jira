@@ -35,6 +35,9 @@ type Props = {
   projectId: string | undefined;
   issueId?: string;
   searchEpic?: boolean;
+  /** Only offer work items of this type, e.g. features as the parent of a task. */
+  workItemTypeId?: string;
+  title?: string;
 };
 
 // services
@@ -48,6 +51,8 @@ export function ParentIssuesListModal({
   projectId,
   issueId,
   searchEpic = false,
+  workItemTypeId,
+  title,
 }: Props) {
   // i18n
   const { t } = useTranslation();
@@ -83,13 +88,14 @@ export function ParentIssuesListModal({
         issue_id: issueId,
         workspace_search: false,
         epic: searchEpic ? true : undefined,
+        type_id: workItemTypeId,
       })
       .then((res) => setIssues(res))
       .finally(() => {
         setIsSearching(false);
         setIsLoading(false);
       });
-  }, [debouncedSearchTerm, isOpen, issueId, projectId, searchEpic, workspaceSlug]);
+  }, [debouncedSearchTerm, isOpen, issueId, projectId, searchEpic, workspaceSlug, workItemTypeId]);
 
   return (
     <Dialog
@@ -101,7 +107,7 @@ export function ParentIssuesListModal({
       <DialogContent size="md">
         {/* The search field is the only visible chrome, so the dialog's accessible name is carried by a visually hidden title. */}
         <div className="sr-only">
-          <DialogTitle>{t("issue.add.parent")}</DialogTitle>
+          <DialogTitle>{title ?? t("issue.add.parent")}</DialogTitle>
         </div>
         <Combobox<string, false>
           inline

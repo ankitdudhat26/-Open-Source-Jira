@@ -19,6 +19,14 @@ from plane.app.views import (
     ProjectArchiveUnarchiveEndpoint,
     ProjectMemberPreferenceEndpoint,
 )
+from plane.app.views.project.milestone import (
+    DeliverableEndpoint,
+    MilestoneEndpoint,
+    ProjectResourceEndpoint,
+    ProjectWorkItemTypesEndpoint,
+    SOWImportEndpoint,
+    WorkItemTreeEndpoint,
+)
 
 
 urlpatterns = [
@@ -128,5 +136,50 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/preferences/member/<uuid:member_id>/",
         ProjectMemberPreferenceEndpoint.as_view(),
         name="project-member-preference",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/milestones/",
+        MilestoneEndpoint.as_view(),
+        name="project-milestones",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/milestones/<uuid:pk>/",
+        MilestoneEndpoint.as_view(),
+        name="project-milestones",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/deliverables/",
+        DeliverableEndpoint.as_view(),
+        name="project-deliverables",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/deliverables/<uuid:pk>/",
+        DeliverableEndpoint.as_view(),
+        name="project-deliverables",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-item-types/",
+        ProjectWorkItemTypesEndpoint.as_view(),
+        name="project-work-item-types",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/sow-import/",
+        SOWImportEndpoint.as_view(),
+        name="project-sow-import",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/resources/",
+        ProjectResourceEndpoint.as_view(),
+        name="project-resources",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/resources/<uuid:pk>/",
+        ProjectResourceEndpoint.as_view(),
+        name="project-resources",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-item-tree/",
+        WorkItemTreeEndpoint.as_view(),
+        name="project-work-item-tree",
     ),
 ]

@@ -76,6 +76,11 @@ export type TIssueModalContext = {
   handleTemplateChange: (props: THandleTemplateChangeProps) => Promise<void>;
   handleConvert: (workspaceSlug: string, data: Partial<TIssue>) => Promise<void>;
   handleCreateSubWorkItem: (props: TCreateSubWorkItemProps) => Promise<void>;
+  // files and blocking work items picked while creating a work item; saved once it exists
+  pendingAttachments: File[];
+  setPendingAttachments: React.Dispatch<React.SetStateAction<File[]>>;
+  pendingBlockedByIssues: ISearchIssueResponse[];
+  setPendingBlockedByIssues: React.Dispatch<React.SetStateAction<ISearchIssueResponse[]>>;
 };
 
 export const IssueModalContext = createContext<TIssueModalContext | undefined>(undefined);

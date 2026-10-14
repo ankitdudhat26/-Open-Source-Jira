@@ -12,6 +12,7 @@ import { useTranslation } from "@plane/i18n";
 import { setToast } from "@plane/blocks/toast";
 import { EFileAssetType } from "@plane/types";
 // components
+import { ProjectCommercialAttributes } from "@/components/project/create/commercial-attributes";
 import ProjectCommonAttributes from "@/components/project/create/common-attributes";
 import ProjectCreateHeader from "@/components/project/create/header";
 import ProjectCreateButtons from "@/components/project/create/project-create-buttons";
@@ -22,7 +23,7 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web types
 import type { TProject } from "@plane/types";
 import { ProjectAttributes } from "./attributes";
-import { getProjectFormValues } from "./utils";
+import { getProjectCreatePayload, getProjectFormValues } from "./utils";
 
 export type TCreateProjectFormProps = {
   setToFavorite?: boolean;
@@ -92,7 +93,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
       }
     }
 
-    return createProject(workspaceSlug.toString(), formData)
+    return createProject(workspaceSlug.toString(), getProjectCreatePayload(formData))
       .then(async (res) => {
         if (uploadedAssetUrl) {
           await updateCoverImageStatus(res.id, uploadedAssetUrl);
@@ -184,6 +185,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
             shouldAutoSyncIdentifier={shouldAutoSyncIdentifier}
             setShouldAutoSyncIdentifier={setShouldAutoSyncIdentifier}
           />
+          <ProjectCommercialAttributes />
           <ProjectAttributes isMobile={isMobile} />
         </div>
         <ProjectCreateButtons handleClose={handleClose} />

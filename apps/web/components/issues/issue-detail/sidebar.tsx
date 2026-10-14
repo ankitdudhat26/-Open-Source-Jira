@@ -15,7 +15,6 @@ import {
   LabelsOutline,
   MembersOutline,
   ModuleOutline,
-  ParentOutline,
   PriorityOutline,
   StartDateOutline,
   StateOutline,
@@ -37,11 +36,11 @@ import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
 // components
-import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { IssueCycleSelect } from "./cycle-select";
 import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
+import { IssueWorkItemStructureProperties } from "./work-item-structure-properties";
 import type { TIssueOperations } from "./root";
 
 type Props = {
@@ -219,16 +218,13 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               </SidebarPropertyListItem>
             )}
 
-            <SidebarPropertyListItem icon={ParentOutline} label={t("common.parent")}>
-              <IssueParentSelectRoot
-                className="h-7.5 w-full grow"
-                workspaceSlug={workspaceSlug}
-                projectId={projectId}
-                issueId={issueId}
-                issueOperations={issueOperations}
-                disabled={!isEditable}
-              />
-            </SidebarPropertyListItem>
+            <IssueWorkItemStructureProperties
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              issueId={issueId}
+              issueOperations={issueOperations}
+              disabled={!isEditable}
+            />
 
             <SidebarPropertyListItem icon={LabelsOutline} label={t("common.labels")}>
               <IssueLabel

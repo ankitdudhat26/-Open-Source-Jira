@@ -1,3 +1,6 @@
+// oxlint-disable no-shadow
+// oxlint-disable jsx_a11y/click-events-have-key-events
+// oxlint-disable jsx_a11y/no-static-element-interactions
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -36,6 +39,7 @@ type TIssueParentSelect = {
     issueId: string
   ) => Promise<void>;
   workItemLink: string;
+  workItemTypeId?: string;
 };
 
 export const IssueParentSelect = observer(function IssueParentSelect(props: TIssueParentSelect) {
@@ -48,6 +52,7 @@ export const IssueParentSelect = observer(function IssueParentSelect(props: TIss
     handleParentIssue,
     handleRemoveSubIssue,
     workItemLink,
+    workItemTypeId,
   } = props;
   const { t } = useTranslation();
   // store hooks
@@ -74,6 +79,8 @@ export const IssueParentSelect = observer(function IssueParentSelect(props: TIss
         isOpen={isParentIssueModalOpen === issueId}
         handleClose={() => toggleParentIssueModal(null)}
         onChange={(issue: any) => handleParentIssue(issue?.id)}
+        workItemTypeId={workItemTypeId}
+        title={workItemTypeId ? "Select feature" : undefined}
       />
       <button
         type="button"

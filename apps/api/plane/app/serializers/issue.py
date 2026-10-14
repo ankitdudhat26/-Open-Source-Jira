@@ -42,6 +42,9 @@ from plane.db.models import (
     IssueDescriptionVersion,
     ProjectMember,
     EstimatePoint,
+    IssueType,
+    ProjectIssueType,
+    Milestone,
 )
 from plane.utils.content_validator import (
     validate_html_content,
@@ -86,6 +89,12 @@ class IssueCreateSerializer(BaseSerializer):
     )
     parent_id = serializers.PrimaryKeyRelatedField(
         source="parent", queryset=Issue.objects.all(), required=False, allow_null=True
+    )
+    type_id = serializers.PrimaryKeyRelatedField(
+        source="type", queryset=IssueType.objects.all(), required=False, allow_null=True
+    )
+    milestone_id = serializers.PrimaryKeyRelatedField(
+        source="milestone", queryset=Milestone.objects.all(), required=False, allow_null=True
     )
     label_ids = serializers.ListField(
         child=serializers.PrimaryKeyRelatedField(queryset=Label.objects.all()),
@@ -185,6 +194,26 @@ class IssueCreateSerializer(BaseSerializer):
         ):
             raise serializers.ValidationError("Parent is not valid issue_id please pass a valid issue_id")
 
+        # Check work item type is enabled for the project
+        if (
+            attrs.get("type")
+            and not ProjectIssueType.objects.filter(
+                project_id=self.context.get("project_id"),
+                issue_type_id=attrs.get("type").id,
+            ).exists()
+        ):
+            raise serializers.ValidationError("Work item type is not valid please pass a valid type_id")
+
+        # Check milestone is from the project
+        if (
+            attrs.get("milestone")
+            and not Milestone.objects.filter(
+                project_id=self.context.get("project_id"),
+                pk=attrs.get("milestone").id,
+            ).exists()
+        ):
+            raise serializers.ValidationError("Milestone is not valid please pass a valid milestone_id")
+
         if (
             attrs.get("estimate_point")
             and not EstimatePoint.objects.filter(
@@ -204,8 +233,34 @@ class IssueCreateSerializer(BaseSerializer):
         workspace_id = self.context["workspace_id"]
         default_assignee_id = self.context["default_assignee_id"]
 
+        # A task / bug belongs to the feature it is created under: same milestone and modules
+        parent = validated_data.get("parent")
+        inherit_from_parent = bool(
+            parent and validated_data.get("type") and validated_data["type"].external_id in ("task", "bug")
+        )
+        if inherit_from_parent and not validated_data.get("milestone"):
+            validated_data["milestone"] = parent.milestone
+
         # Create Issue
         issue = Issue.objects.create(**validated_data, project_id=project_id)
+
+        if inherit_from_parent and not self.initial_data.get("module_ids"):
+            ModuleIssue.objects.bulk_create(
+                [
+                    ModuleIssue(
+                        module_id=module_id,
+                        issue=issue,
+                        project_id=project_id,
+                        workspace_id=workspace_id,
+                        created_by_id=issue.created_by_id,
+                        updated_by_id=issue.updated_by_id,
+                    )
+                    for module_id in ModuleIssue.objects.filter(
+                        issue_id=parent.id, module__archived_at__isnull=True
+                    ).values_list("module_id", flat=True)
+                ],
+                ignore_conflicts=True,
+            )
 
         # Issue Audit Users
         created_by_id = issue.created_by_id
@@ -796,6 +851,8 @@ class IssueSerializer(DynamicBaseSerializer):
             "sequence_id",
             "project_id",
             "parent_id",
+            "type_id",
+            "milestone_id",
             "cycle_id",
             "module_ids",
             "label_ids",
@@ -853,6 +910,8 @@ class IssueListDetailSerializer(serializers.Serializer):
             "sequence_id": instance.sequence_id,
             "project_id": instance.project_id,
             "parent_id": instance.parent_id,
+            "type_id": instance.type_id,
+            "milestone_id": instance.milestone_id,
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
             "created_by": instance.created_by_id,
@@ -941,6 +1000,9 @@ class IssueDetailSerializer(IssueSerializer):
             "description_html",
             "is_subscribed",
             "is_intake",
+            # SOW ID (e.g. "T001") of imported work items
+            "external_source",
+            "external_id",
         ]
         read_only_fields = fields
 

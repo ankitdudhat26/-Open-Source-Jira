@@ -1,3 +1,4 @@
+// oxlint-disable promise/always-return
 /**
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -159,6 +160,9 @@ export class IssueStore implements IIssueStore {
       cycle_id: issue?.cycle_id,
       module_ids: issue?.module_ids,
       type_id: issue?.type_id,
+      milestone_id: issue?.milestone_id,
+      external_source: issue?.external_source,
+      external_id: issue?.external_id,
       created_at: issue?.created_at,
       updated_at: issue?.updated_at,
       start_date: issue?.start_date,

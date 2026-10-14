@@ -332,6 +332,25 @@ def filter_cycle(params, issue_filter, method, prefix=""):
     return issue_filter
 
 
+def _filter_fk(param, field):
+    """Filter by a nullable foreign key; "None" selects work items without one (used for paginating a group)."""
+
+    def apply(params, issue_filter, method, prefix=""):
+        values = [item for item in str(params.get(param) or "").split(",") if item and item != "null"]
+        if "None" in values:
+            issue_filter[f"{prefix}{field}__isnull"] = True
+        values = filter_valid_uuids(values)
+        if values:
+            issue_filter[f"{prefix}{field}__in"] = values
+        return issue_filter
+
+    return apply
+
+
+filter_work_item_type = _filter_fk("issue_type", "type_id")
+filter_milestone = _filter_fk("milestone", "milestone_id")
+
+
 def filter_module(params, issue_filter, method, prefix=""):
     if method == "GET":
         modules = [item for item in params.get("module").split(",") if item != "null"]
@@ -449,6 +468,8 @@ def issue_filters(query_params, method, prefix=""):
         "project": filter_project,
         "cycle": filter_cycle,
         "module": filter_module,
+        "issue_type": filter_work_item_type,
+        "milestone": filter_milestone,
         "intake_status": filter_intake_status,
         "inbox_status": filter_inbox_status,
         "sub_issue": filter_sub_issue_toggle,

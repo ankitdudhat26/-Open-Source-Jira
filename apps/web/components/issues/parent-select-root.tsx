@@ -23,6 +23,8 @@ type TIssueParentSelect = {
   issueOperations: TIssueOperations;
   projectId: string;
   workspaceSlug: string;
+  /** Only offer work items of this type, e.g. features for a task or bug. */
+  workItemTypeId?: string;
 };
 
 export const IssueParentSelectRoot = observer(function IssueParentSelectRoot(props: TIssueParentSelect) {
