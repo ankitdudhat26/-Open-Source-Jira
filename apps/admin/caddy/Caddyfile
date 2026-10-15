@@ -9,8 +9,15 @@
 :3000 {
 	root * /usr/share/caddy/html
 
-	# Per-client-IP rate limiting for static asset requests
-	rate_limit {
+	# Fingerprinted build assets (/god-mode/assets/*) never change, and one page load requests hundreds of them.
+	# Rate limiting them answered real page loads with 429 (an office behind one IP used up the budget),
+	# so they are cached by the browser for a year and left out of the limit.
+	@assets path /god-mode/assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# Per-client-IP rate limiting for every other request (index.html, icons, manifest, ...)
+	@not_assets not path /god-mode/assets/*
+	rate_limit @not_assets {
 		zone static {
 			key {client_ip}
 			events 300
