@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-unused-expressions -- upstream code
 import { useParams } from "next/navigation";
 import { setToast } from "@plane/blocks/toast";
 import type { SetToastProps } from "@plane/blocks/toast";
@@ -95,7 +96,15 @@ export const useGroupIssuesDragNDrop = (
       delete data[moduleKey];
     }
 
-    updateIssue && updateIssue(projectId, issueId, data).catch(() => setToast(errorToastProps));
+    updateIssue &&
+      updateIssue(projectId, issueId, data).catch((error: { error?: string; code?: string } | undefined) =>
+        // a move the project workflow does not permit: say which moves are allowed
+        setToast(
+          error?.code === "WORKFLOW_TRANSITION_NOT_ALLOWED" && error.error
+            ? { ...errorToastProps, title: "Move not allowed", message: error.error }
+            : errorToastProps
+        )
+      );
   };
 
   const handleOnDrop = async (source: GroupDropLocation, destination: GroupDropLocation) => {

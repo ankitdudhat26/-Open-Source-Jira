@@ -25,7 +25,9 @@ from plane.db.models import (
     IssueComment,
     IssueReaction,
     IssueSubscriber,
+    IssueType,
     Label,
+    Milestone,
     Module,
     Project,
     State,
@@ -34,6 +36,7 @@ from plane.db.models import (
 )
 from plane.settings.redis import redis_instance
 from plane.utils.exception_logger import log_exception
+from plane.utils.work_item_automation import run_work_item_automation
 from plane.utils.issue_relation_mapper import get_inverse_relation
 from plane.utils.uuid import is_valid_uuid
 
@@ -183,6 +186,81 @@ def track_priority(
                 epoch=epoch,
             )
         )
+
+
+def _track_named_reference(
+    field,
+    model,
+    label,
+    requested_data,
+    current_instance,
+    issue_id,
+    project_id,
+    workspace_id,
+    actor_id,
+    issue_activities,
+    epoch,
+):
+    """Activity for a foreign key shown by name (work item type, milestone)."""
+    current_id = current_instance.get(f"{field}_id") or current_instance.get(field)
+    requested_id = requested_data.get(f"{field}_id") if f"{field}_id" in requested_data else requested_data.get(field)
+    if str(current_id or "") == str(requested_id or ""):
+        return
+    for value in (current_id, requested_id):
+        if value is not None and not is_valid_uuid(str(value)):
+            return
+    old = model.objects.filter(pk=current_id).first() if current_id else None
+    new = model.objects.filter(pk=requested_id).first() if requested_id else None
+    issue_activities.append(
+        IssueActivity(
+            issue_id=issue_id,
+            actor_id=actor_id,
+            verb="updated",
+            old_value=old.name if old else "",
+            new_value=new.name if new else "",
+            old_identifier=old.id if old else None,
+            new_identifier=new.id if new else None,
+            field=field,
+            project_id=project_id,
+            workspace_id=workspace_id,
+            comment=f"updated the {label} to" if new else f"removed the {label}",
+            epoch=epoch,
+        )
+    )
+
+
+def track_type(requested_data, current_instance, issue_id, project_id, workspace_id, actor_id, issue_activities, epoch):
+    _track_named_reference(
+        "type",
+        IssueType,
+        "type",
+        requested_data,
+        current_instance,
+        issue_id,
+        project_id,
+        workspace_id,
+        actor_id,
+        issue_activities,
+        epoch,
+    )
+
+
+def track_milestone(
+    requested_data, current_instance, issue_id, project_id, workspace_id, actor_id, issue_activities, epoch
+):
+    _track_named_reference(
+        "milestone",
+        Milestone,
+        "milestone",
+        requested_data,
+        current_instance,
+        issue_id,
+        project_id,
+        workspace_id,
+        actor_id,
+        issue_activities,
+        epoch,
+    )
 
 
 # Track changes in state of the issue
@@ -614,6 +692,8 @@ def update_issue_activity(
         "estimate_point": track_estimate_points,
         "archived_at": track_archive_at,
         "closed_to": track_closed_to,
+        "type_id": track_type,
+        "milestone_id": track_milestone,
         # External endpoint keys
         "parent": track_parent,
         "state": track_state,
@@ -1500,6 +1580,37 @@ def create_intake_activity(
 
 
 # Receive message from room group
+BULK_WORK_ITEM_ACTIVITY_TYPES = {
+    "cycle.activity.created",
+    "cycle.activity.deleted",
+    "module.activity.created",
+    "module.activity.deleted",
+}
+
+
+def run_activity_automation(type, requested_data, current_instance, issue_id, actor_id, origin):
+    try:
+        requested = json.loads(requested_data) if requested_data else {}
+        current = json.loads(current_instance) if current_instance else {}
+        if not isinstance(requested, dict):
+            return
+        current = current if isinstance(current, dict) else {}
+        is_created = type == "issue.activity.created"
+        state_changed = is_created or "state_id" in requested or "state" in requested
+        parent_changed = is_created or "parent_id" in requested or "parent" in requested
+        if state_changed or parent_changed:
+            run_work_item_automation(
+                issue_id,
+                actor_id,
+                origin=origin,
+                state_changed=state_changed,
+                parent_changed=parent_changed,
+                old_parent_id=current.get("parent_id") or current.get("parent"),
+            )
+    except Exception as e:
+        log_exception(e)
+
+
 @shared_task
 def issue_activity(
     type,
@@ -1583,7 +1694,44 @@ def issue_activity(
         # Save all the values to database
         issue_activities_created = IssueActivity.objects.bulk_create(issue_activities)
 
-        if notification:
+        # "created the issue" is saved on its own in create_issue_activity; pass it on as well so the assignees
+        # and watchers get a "created" notification (Jira's Issue Created event)
+        if type == "issue.activity.created" and issue_id is not None:
+            created_activity = (
+                IssueActivity.objects.filter(issue_id=issue_id, verb="created", field__isnull=True)
+                .order_by("-created_at")
+                .first()
+            )
+            if created_activity is not None:
+                issue_activities_created = [created_activity, *issue_activities_created]
+
+        # Feature/task automation for changes that did not go through the app's issue views (bulk updates,
+        # public API, ...). It is idempotent, so changes already handled in the request are a no-op here.
+        if type in ("issue.activity.created", "issue.activity.updated") and issue_id is not None:
+            run_activity_automation(type, requested_data, current_instance, issue_id, actor_id, origin)
+
+        # Adding / removing work items to a sprint (cycle) or module is one request for many work items, so the
+        # notification goes out per work item (Jira notifies the watchers of each issue whose Sprint changed)
+        if notification and type in BULK_WORK_ITEM_ACTIVITY_TYPES:
+            activities_by_issue = {}
+            for activity in issue_activities_created:
+                if activity.issue_id:
+                    activities_by_issue.setdefault(str(activity.issue_id), []).append(activity)
+            for changed_issue_id, activities in activities_by_issue.items():
+                notifications.delay(
+                    type="issue.activity.updated",
+                    issue_id=changed_issue_id,
+                    actor_id=actor_id,
+                    project_id=project_id,
+                    # moving work items around does not make the actor a watcher of all of them
+                    subscriber=False,
+                    issue_activities_created=json.dumps(
+                        IssueActivitySerializer(activities, many=True).data, cls=DjangoJSONEncoder
+                    ),
+                    requested_data=None,
+                    current_instance=None,
+                )
+        elif notification:
             notifications.delay(
                 type=type,
                 issue_id=issue_id,

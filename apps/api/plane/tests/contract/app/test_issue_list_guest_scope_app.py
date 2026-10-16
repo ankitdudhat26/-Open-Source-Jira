@@ -34,12 +34,14 @@ LIST_URL = "/api/workspaces/{slug}/projects/{project_id}/issues/list/"
 
 @pytest.fixture
 def project(db, workspace, create_user):
-    """A project (guest_view_all_features defaults to False); owner is a member."""
+    """A project where guests (clients) only see their own work items; owner is a member."""
     project = Project.objects.create(
         name="Scoped Project",
         identifier="SP",
         workspace=workspace,
         created_by=create_user,
+        # clients see every work item by default now; this suite covers the restricted setting
+        guest_view_all_features=False,
     )
     ProjectMember.objects.create(
         project=project, member=create_user, workspace=workspace, role=20

@@ -65,6 +65,17 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Every invite needs the person's job, e.g. "Developer" or "Graphic Designer"
+        for email in emails:
+            designation = str(email.get("designation") or "").strip()
+            if not designation:
+                return Response(
+                    {"error": f"Role is required for {email.get('email')} (e.g. Developer, Graphic Designer)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if len(designation) > 255:
+                return Response({"error": "Role must be at most 255 characters."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Get the workspace object
         workspace = Workspace.objects.get(slug=slug)
 
@@ -98,6 +109,7 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                             algorithm="HS256",
                         ),
                         role=email.get("role", 5),
+                        designation=str(email.get("designation") or "").strip(),
                         created_by=request.user,
                     )
                 )
@@ -192,6 +204,8 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     if workspace_member is not None:
                         workspace_member.is_active = True
                         workspace_member.role = workspace_invite.role
+                        if workspace_invite.designation:
+                            workspace_member.company_role = workspace_invite.designation
                         workspace_member.save()
                     else:
                         # Create a Workspace
@@ -199,6 +213,8 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                             workspace=workspace_invite.workspace,
                             member=user,
                             role=workspace_invite.role,
+                            # the job given in the invite is the default project role of the member
+                            company_role=workspace_invite.designation,
                         )
 
                     # Set the user last_workspace_id to the accepted workspace
@@ -262,6 +278,10 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
             WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).update(
                 is_active=True, role=invitation.role
             )
+            if invitation.designation:
+                WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).update(
+                    company_role=invitation.designation
+                )
 
         # Bulk create the user for all the workspaces
         WorkspaceMember.objects.bulk_create(
@@ -270,6 +290,7 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
                     workspace=invitation.workspace,
                     member=request.user,
                     role=invitation.role,
+                    company_role=invitation.designation,
                     created_by=request.user,
                 )
                 for invitation in workspace_invitations

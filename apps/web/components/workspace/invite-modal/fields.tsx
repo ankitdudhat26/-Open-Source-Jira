@@ -16,6 +16,7 @@ import { CloseOutline } from "@makeplane/propel/icons";
 import { Select } from "@plane/blocks/select";
 import { cn } from "@plane/utils";
 // hooks
+import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useUserPermissions } from "@/hooks/store/user";
 import type { InvitationFormValues } from "@/hooks/use-workspace-invitation";
 
@@ -92,6 +93,30 @@ export const InvitationFields = observer(function InvitationFields(props: TInvit
                 </>
               )}
             />
+          </div>
+          <div className="flex w-44 shrink-0 flex-col gap-1">
+            <Controller
+              control={control}
+              name={`emails.${index}.designation`}
+              rules={{ validate: (value) => !!value?.trim() || "Role is required" }}
+              render={({ field: { value, onChange, onBlur } }) => (
+                <div className="[&_input]:h-10">
+                  <ProjectRoleInput
+                    value={value ?? ""}
+                    onChange={onChange}
+                    onBlur={onBlur}
+                    invalid={Boolean(errors.emails?.[index]?.designation)}
+                    placeholder="Role * e.g. Developer"
+                    ariaLabel="Role"
+                  />
+                </div>
+              )}
+            />
+            {errors.emails?.[index]?.designation && (
+              <span className="ml-1 text-caption-sm-regular text-danger-primary">
+                {errors.emails?.[index]?.designation?.message}
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center justify-between gap-2">
             <div className="flex flex-col gap-1">

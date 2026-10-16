@@ -4,7 +4,8 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect } from "react";
+// oxlint-disable jsx-a11y/no-autofocus -- upstream: the sprint name field is focused when the modal opens
+import { useEffect, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 // plane imports
 import { Field } from "@makeplane/propel/components/field";
@@ -21,8 +22,11 @@ import { getDate, renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
 // components
 import { ProjectSelect } from "@/components/dropdowns/project/project-select";
 // hooks
+import { useCycle } from "@/hooks/store/use-cycle";
+import { useProject } from "@/hooks/store/use-project";
 import { useUserProfile } from "@/hooks/store/user";
 import { useUser } from "@/hooks/store/user/user-user";
+import { getNewSprintDefaults } from "./sprint-defaults";
 
 type Props = {
   handleFormSubmit: (values: Partial<ICycle>) => Promise<void>;
@@ -48,6 +52,10 @@ export function CycleForm(props: Props) {
   // store hooks
   const { projectsWithCreatePermissions } = useUser();
   const { data: userProfile } = useUserProfile();
+  const { getProjectCycleDetails } = useCycle();
+  const { getProjectIdentifierById } = useProject();
+  // project the sprint defaults were filled in for, so they are not reapplied while the user edits
+  const defaultsAppliedFor = useRef<string | null>(null);
   // form data
   const {
     formState: { errors, isSubmitting },
@@ -72,6 +80,19 @@ export function CycleForm(props: Props) {
       ...data,
     });
   }, [data, reset]);
+
+  // Jira style defaults for a new sprint: next "Sprint N" name and the next two week window
+  const projectSprints = projectId ? getProjectCycleDetails(projectId) : null;
+  useEffect(() => {
+    if (data || !projectId || defaultsAppliedFor.current === projectId) return;
+    // keep recomputing until the project's sprints are loaded
+    if (projectSprints) defaultsAppliedFor.current = projectId;
+    reset({
+      ...defaultValues,
+      project_id: projectId,
+      ...getNewSprintDefaults(projectSprints ?? [], getProjectIdentifierById(projectId)),
+    });
+  }, [data, projectId, projectSprints, getProjectIdentifierById, reset]);
 
   return (
     <form onSubmit={handleSubmit((formData) => handleFormSubmit(formData))}>
@@ -146,7 +167,7 @@ export function CycleForm(props: Props) {
                       autoResize
                       maxRows={8}
                       name="description"
-                      placeholder={t("description")}
+                      placeholder="Sprint goal: what should this sprint deliver?"
                       value={value}
                       onChange={onChange}
                       tabIndex={getIndex("description")}

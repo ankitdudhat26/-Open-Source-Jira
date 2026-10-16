@@ -82,6 +82,12 @@ export interface IBaseProjectMemberStore {
     role: EUserProjectRoles
   ) => Promise<TProjectMembership>;
   removeMemberFromProject: (workspaceSlug: string, projectId: string, userId: string) => Promise<void>;
+  updateMemberDesignation: (
+    workspaceSlug: string,
+    projectId: string,
+    userId: string,
+    designation: string
+  ) => Promise<TProjectMembership>;
 }
 
 export class BaseProjectMemberStore implements IBaseProjectMemberStore {
@@ -120,6 +126,7 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
       updateProjectUserProperties: action,
       bulkAddMembersToProject: action,
       updateMemberRole: action,
+      updateMemberDesignation: action,
       removeMemberFromProject: action,
     });
     // root store
@@ -221,6 +228,7 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
       id: projectMember.id,
       role: projectMember.role,
       original_role: projectMember.original_role,
+      designation: projectMember.designation,
       member: {
         ...userDetails,
         joining_date: projectMember.created_at ?? undefined,
@@ -274,6 +282,7 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
       id: projectMember.id,
       role: projectMember.role,
       original_role: projectMember.original_role,
+      designation: projectMember.designation,
       member: {
         ...userDetails,
         joining_date: projectMember.created_at ?? undefined,
@@ -346,6 +355,24 @@ export class BaseProjectMemberStore implements IBaseProjectMemberStore {
    * @param userId
    * @param data
    */
+  /**
+   * @description update the project role (job) of a member, e.g. "Developer" or "Graphic Designer"
+   */
+  updateMemberDesignation = async (workspaceSlug: string, projectId: string, userId: string, designation: string) => {
+    const memberDetails = this.getProjectMemberDetails(userId, projectId);
+    if (!memberDetails || !memberDetails?.id) throw new Error("Member not found");
+    const previous = this.getProjectMembershipByUserId(userId, projectId)?.designation;
+    runInAction(() => set(this.projectMemberMap, [projectId, userId, "designation"], designation));
+    try {
+      return await this.projectMemberService.updateProjectMember(workspaceSlug, projectId, memberDetails.id, {
+        designation,
+      });
+    } catch (error) {
+      runInAction(() => set(this.projectMemberMap, [projectId, userId, "designation"], previous));
+      throw error;
+    }
+  };
+
   updateMemberRole = async (workspaceSlug: string, projectId: string, userId: string, role: EUserProjectRoles) => {
     const memberDetails = this.getProjectMemberDetails(userId, projectId);
     if (!memberDetails || !memberDetails?.id) throw new Error("Member not found");

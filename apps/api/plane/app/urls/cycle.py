@@ -4,6 +4,8 @@
 
 from django.urls import path
 
+from plane.app.views.cycle.sprint_board import SprintBoardEndpoint
+
 
 from plane.app.views import (
     CycleViewSet,
@@ -102,5 +104,10 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/analytics/",
         CycleAnalyticsEndpoint.as_view(),
         name="project-cycle",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/sprint-board/",
+        SprintBoardEndpoint.as_view(),
+        name="project-sprint-board",
     ),
 ]

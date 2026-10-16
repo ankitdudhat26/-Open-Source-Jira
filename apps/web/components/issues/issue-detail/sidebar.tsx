@@ -16,6 +16,7 @@ import {
   MembersOutline,
   ModuleOutline,
   PriorityOutline,
+  ShowOutline,
   StartDateOutline,
   StateOutline,
   UserOutline,
@@ -40,6 +41,7 @@ import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/prop
 import { IssueCycleSelect } from "./cycle-select";
 import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
+import { IssueWatchersSelect } from "./watchers-select";
 import { IssueWorkItemStructureProperties } from "./work-item-structure-properties";
 import type { TIssueOperations } from "./root";
 
@@ -86,6 +88,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
           <div className={`mt-4 mb-2 space-y-2.5 truncate ${!isEditable ? "opacity-60" : ""}`}>
             <SidebarPropertyListItem icon={StateOutline} label={t("common.state")}>
               <StateSelect
+                enforceWorkflow
                 testId="work-item-state-select"
                 value={issue?.state_id}
                 onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { state_id: val })}
@@ -108,6 +111,15 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 variant="select-ghost-md"
                 showLabel={(issue?.assignee_ids?.length ?? 0) <= 1}
                 tooltip={{ heading: t("common.assignees") }}
+              />
+            </SidebarPropertyListItem>
+
+            <SidebarPropertyListItem icon={ShowOutline} label="Watchers">
+              <IssueWatchersSelect
+                workspaceSlug={workspaceSlug}
+                projectId={projectId}
+                issueId={issueId}
+                disabled={!isEditable}
               />
             </SidebarPropertyListItem>
 

@@ -11,6 +11,7 @@ import { useTranslation } from "@plane/i18n";
 import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { PageHead } from "@/components/core/page-title";
 import { ProjectStateRoot } from "@/components/project-states";
+import { ProjectWorkflowEditor } from "@/components/project-states/workflow-editor";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SettingsHeading } from "@/components/settings/heading";
 // hook
@@ -29,7 +30,7 @@ function StatesSettingsPage({ params }: Route.ComponentProps) {
   const { t } = useTranslation();
 
   // derived values
-  const pageTitle = currentProjectDetails?.name ? `${currentProjectDetails?.name} - States` : undefined;
+  const pageTitle = currentProjectDetails?.name ? `${currentProjectDetails?.name} - States & workflow` : undefined;
   // derived values
   const canPerformProjectMemberActions = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
@@ -51,6 +52,11 @@ function StatesSettingsPage({ params }: Route.ComponentProps) {
         <div className="mt-6">
           <ProjectStateRoot workspaceSlug={workspaceSlug} projectId={projectId} />
         </div>
+        <ProjectWorkflowEditor
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          isEditable={allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT)}
+        />
       </div>
     </SettingsContentWrapper>
   );

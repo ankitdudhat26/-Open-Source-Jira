@@ -11,13 +11,13 @@ import type { IWorkspaceMember, TProjectMembership } from "@plane/types";
 import { renderFormattedDate } from "@plane/utils";
 // components
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
-import { AccountTypeColumn, NameColumn } from "@/components/project/settings/member-columns";
+import { AccountTypeColumn, NameColumn, ProjectRoleColumn } from "@/components/project/settings/member-columns";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import type { IMemberFilters } from "@/store/member/utils";
 
-export interface RowData extends Pick<TProjectMembership, "original_role"> {
+export interface RowData extends Pick<TProjectMembership, "original_role" | "designation"> {
   member: IWorkspaceMember;
 }
 
@@ -103,8 +103,16 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
       tdRender: (rowData: RowData) => <div className="w-48 text-secondary">{rowData.member.email}</div>,
     },
     {
+      key: "Project Role",
+      content: "Project role",
+      thRender: () => <span className="text-left">Project role</span>,
+      tdRender: (rowData: RowData) => (
+        <ProjectRoleColumn rowData={rowData} workspaceSlug={workspaceSlug} projectId={projectId} isEditable={isAdmin} />
+      ),
+    },
+    {
       key: "Account Type",
-      content: "Account type",
+      content: "Access",
       thRender: () => (
         <MemberHeaderColumn
           property="role"

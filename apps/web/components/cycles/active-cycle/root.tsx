@@ -20,6 +20,7 @@ import lightActiveCycleAsset from "@/app/assets/empty-state/cycle/active-light.w
 import { ActiveCycleStats } from "@/components/cycles/active-cycle/cycle-stats";
 import { ActiveCycleProductivity } from "@/components/cycles/active-cycle/productivity";
 import { ActiveCycleProgress } from "@/components/cycles/active-cycle/progress";
+import { ActiveSprintScope } from "@/components/cycles/active-cycle/sprint-scope";
 import useCyclesDetails from "@/components/cycles/active-cycle/use-cycles-details";
 import { CycleListGroupHeader } from "@/components/cycles/list/cycle-list-group-header";
 import { CyclesListItem } from "@/components/cycles/list/cycles-list-item";
@@ -92,6 +93,9 @@ const ActiveCyclesComponent = observer(function ActiveCyclesComponent({
             handleFiltersUpdate={handleFiltersUpdate}
             cycleIssueDetails={cycleIssueDetails}
           />
+        </div>
+        <div className="mt-3">
+          <ActiveSprintScope workspaceSlug={workspaceSlug} projectId={projectId} cycle={activeCycle} />
         </div>
       </Row>
     </div>

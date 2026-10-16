@@ -239,6 +239,8 @@ class WorkspaceMemberInvite(BaseModel):
     message = models.TextField(null=True)
     responded_at = models.DateTimeField(null=True)
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=5)
+    # job title given when inviting (e.g. "Developer"); becomes the member's company_role
+    designation = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         unique_together = ["email", "workspace", "deleted_at"]

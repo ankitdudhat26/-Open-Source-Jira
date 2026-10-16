@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable promise/always-return -- upstream code
 import React, { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import type {
@@ -33,6 +34,7 @@ import { Select, SelectDropdownPlacementContext } from "@plane/blocks/select";
 import { Spinner } from "@plane/blocks/spinner";
 import { cn } from "@plane/utils";
 // services
+import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { WorkspaceService } from "@/services/workspace.service";
 // components
 import { SwitchAccountDropdown } from "./switch-account-dropdown";
@@ -48,6 +50,8 @@ type EmailRole = {
   email: string;
   role: EUserPermissions;
   role_active: boolean;
+  /** job of the person, e.g. "Developer" (compulsory when an email is entered) */
+  designation: string;
 };
 
 type FormValues = {
@@ -138,7 +142,7 @@ const InviteMemberInput = observer(function InviteMemberInput(props: InviteMembe
   return (
     <div>
       <div className="group relative grid grid-cols-10 gap-4">
-        <div className="col-span-6 ml-8">
+        <div className="col-span-4 ml-8">
           <Controller
             control={control}
             name={`emails.${index}.email`}
@@ -170,7 +174,32 @@ const InviteMemberInput = observer(function InviteMemberInput(props: InviteMembe
             )}
           />
         </div>
-        <div className="col-span-4 mr-8">
+        <div className="col-span-3">
+          <Controller
+            control={control}
+            name={`emails.${index}.designation`}
+            rules={{
+              validate: (value, values) =>
+                !values.emails?.[index]?.email?.trim() || !!value?.trim() || "Role is required",
+            }}
+            render={({ field: { value, onChange, onBlur } }) => (
+              <ProjectRoleInput
+                value={value ?? ""}
+                onChange={onChange}
+                onBlur={onBlur}
+                invalid={Boolean(errors.emails?.[index]?.designation)}
+                placeholder="Role, e.g. Developer"
+                ariaLabel="Role"
+              />
+            )}
+          />
+          {errors.emails?.[index]?.designation && (
+            <span className="text-caption-sm-regular text-danger-primary">
+              {errors.emails?.[index]?.designation?.message}
+            </span>
+          )}
+        </div>
+        <div className="col-span-3 mr-8">
           <Controller
             control={control}
             name={`emails.${index}.role`}
@@ -259,6 +288,7 @@ export function InviteMembers(props: Props) {
         emails: payload.emails.map((email) => ({
           email: email.email,
           role: email.role,
+          designation: email.designation.trim(),
         })),
       })
       .then(async () => {
@@ -279,16 +309,16 @@ export function InviteMembers(props: Props) {
   };
 
   const appendField = () => {
-    append({ email: "", role: 15, role_active: false });
+    append({ email: "", role: 15, role_active: false, designation: "" });
   };
 
   useEffect(() => {
     if (fields.length === 0) {
       append(
         [
-          { email: "", role: 15, role_active: false },
-          { email: "", role: 15, role_active: false },
-          { email: "", role: 15, role_active: false },
+          { email: "", role: 15, role_active: false, designation: "" },
+          { email: "", role: 15, role_active: false, designation: "" },
+          { email: "", role: 15, role_active: false, designation: "" },
         ],
         {
           focusIndex: 0,
@@ -316,8 +346,9 @@ export function InviteMembers(props: Props) {
           >
             <div className="w-full py-4 text-13">
               <div className="group relative mx-8 grid grid-cols-10 gap-4 py-2">
-                <div className="col-span-6 px-1 text-13 font-medium text-secondary">Email</div>
-                <div className="col-span-4 px-1 text-13 font-medium text-secondary">Role</div>
+                <div className="col-span-4 px-1 text-13 font-medium text-secondary">Email</div>
+                <div className="col-span-3 px-1 text-13 font-medium text-secondary">Role</div>
+                <div className="col-span-3 px-1 text-13 font-medium text-secondary">Access</div>
               </div>
               <div className="mb-3 space-y-3 sm:space-y-4">
                 {fields.map((field, index) => (

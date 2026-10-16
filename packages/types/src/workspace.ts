@@ -49,6 +49,8 @@ export interface IWorkspaceMemberInvitation {
   message: string;
   responded_at: Date;
   role: TUserPermissions;
+  /** job given in the invite, e.g. "Developer" */
+  designation?: string;
   token: string;
   invite_link: string;
   workspace: {
@@ -60,7 +62,7 @@ export interface IWorkspaceMemberInvitation {
 }
 
 export interface IWorkspaceBulkInviteFormData {
-  emails: { email: string; role: TUserPermissions }[];
+  emails: { email: string; role: TUserPermissions; designation: string }[];
 }
 
 export type Properties = {
@@ -92,6 +94,8 @@ export interface IWorkspaceMember {
   display_name?: string;
   last_login_medium?: TLoginMediums;
   is_active?: boolean;
+  /** job in the organisation ("Developer", "Graphic Designer", ...), the default project role */
+  company_role?: string | null;
 }
 
 export interface IWorkspaceMemberMe {

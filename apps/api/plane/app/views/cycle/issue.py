@@ -4,10 +4,8 @@
 
 # Python imports
 import copy
-import json
 
 # Django imports
-from django.core import serializers
 from django.db.models import F, Func, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -21,7 +19,6 @@ from rest_framework.response import Response
 # Module imports
 from .. import BaseViewSet
 from plane.app.serializers import CycleIssueSerializer
-from plane.bgtasks.issue_activities_task import issue_activity
 from plane.db.models import Cycle, CycleIssue, Issue, FileAsset, IssueLink
 from plane.utils.grouper import (
     issue_group_values,
@@ -33,6 +30,7 @@ from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.host import base_host
+from plane.utils.work_item_automation import assign_issues_to_cycle, descendant_ids, remove_issues_from_cycle
 from plane.utils.filters import ComplexFilterBackend
 from plane.utils.filters import IssueFilterSet
 
@@ -231,114 +229,32 @@ class CycleIssueViewSet(BaseViewSet):
 
         if cycle.end_date is not None and cycle.end_date < timezone.now():
             return Response(
-                {"error": "The Cycle has already been completed so no new issues can be added"},
+                {"error": "The sprint has already been completed so no new work items can be added"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get all CycleIssues already created
-        # Scope to workspace+project to prevent cross-tenant IDOR: without this
-        # scope, foreign-tenant CycleIssue rows matched by issue_id would be
-        # reassigned to the caller's cycle (GHSA-4w5x-wc9w-f47x).
-        cycle_issues = list(
-            CycleIssue.objects.filter(
-                ~Q(cycle_id=cycle_id),
-                issue_id__in=issues,
-                workspace__slug=slug,
-                project_id=project_id,
-            )
-        )
-        existing_issues = [str(cycle_issue.issue_id) for cycle_issue in cycle_issues]
-        new_issues = list(set(issues) - set(existing_issues))
-
-        # Scope to workspace+project to prevent cross-tenant IDOR
-        new_issues = list(
-            str(i)
-            for i in Issue.issue_objects.filter(
-                workspace__slug=slug,
-                project_id=project_id,
-                pk__in=new_issues,
+        # Scope to workspace+project to prevent cross-tenant IDOR (GHSA-4w5x-wc9w-f47x)
+        requested_ids = [
+            str(issue_id)
+            for issue_id in Issue.issue_objects.filter(
+                workspace__slug=slug, project_id=project_id, pk__in=issues
             ).values_list("id", flat=True)
-        )
-
-        # New issues to create
-        created_records = CycleIssue.objects.bulk_create(
-            [
-                CycleIssue(
-                    project_id=project_id,
-                    workspace_id=cycle.workspace_id,
-                    created_by_id=request.user.id,
-                    updated_by_id=request.user.id,
-                    cycle_id=cycle_id,
-                    issue_id=issue,
-                )
-                for issue in new_issues
-            ],
-            batch_size=10,
-        )
-
-        # Updated Issues
-        updated_records = []
-        update_cycle_issue_activity = []
-        # Iterate over each cycle_issue in cycle_issues
-        for cycle_issue in cycle_issues:
-            old_cycle_id = cycle_issue.cycle_id
-            # Update the cycle_issue's cycle_id
-            cycle_issue.cycle_id = cycle_id
-            # Add the modified cycle_issue to the records_to_update list
-            updated_records.append(cycle_issue)
-            # Record the update activity
-            update_cycle_issue_activity.append(
-                {
-                    "old_cycle_id": str(old_cycle_id),
-                    "new_cycle_id": str(cycle_id),
-                    "issue_id": str(cycle_issue.issue_id),
-                }
-            )
-
-        # Update the cycle issues
-        CycleIssue.objects.bulk_update(updated_records, ["cycle_id"], batch_size=100)
-        # Capture Issue Activity
-        issue_activity.delay(
-            type="cycle.activity.created",
-            requested_data=json.dumps({"cycles_list": issues}),
-            actor_id=str(self.request.user.id),
-            issue_id=None,
-            project_id=str(self.kwargs.get("project_id", None)),
-            current_instance=json.dumps(
-                {
-                    "updated_cycle_issues": update_cycle_issue_activity,
-                    "created_cycle_issues": serializers.serialize("json", created_records),
-                }
-            ),
-            epoch=int(timezone.now().timestamp()),
-            notification=True,
-            origin=base_host(request=request, is_app=True),
-        )
-        return Response({"message": "success"}, status=status.HTTP_201_CREATED)
+        ]
+        # Like Jira, the tasks under a feature always sit in the feature's sprint
+        issue_ids = list(dict.fromkeys([*requested_ids, *descendant_ids(requested_ids, project_id)]))
+        assign_issues_to_cycle(cycle, issue_ids, request.user.id, origin=base_host(request=request, is_app=True))
+        return Response({"message": "success", "issues": issue_ids}, status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, cycle_id, issue_id):
-        cycle_issue = CycleIssue.objects.filter(
-            issue_id=issue_id,
-            workspace__slug=slug,
-            project_id=project_id,
-            cycle_id=cycle_id,
-        )
-        issue_activity.delay(
-            type="cycle.activity.deleted",
-            requested_data=json.dumps(
-                {
-                    "cycle_id": str(self.kwargs.get("cycle_id")),
-                    "issues": [str(issue_id)],
-                }
-            ),
-            actor_id=str(self.request.user.id),
-            issue_id=str(issue_id),
-            project_id=str(self.kwargs.get("project_id", None)),
-            current_instance=None,
-            epoch=int(timezone.now().timestamp()),
-            notification=True,
+        if not Issue.objects.filter(workspace__slug=slug, project_id=project_id, pk=issue_id).exists():
+            return Response({"error": "Work item not found"}, status=status.HTTP_404_NOT_FOUND)
+        # the tasks under a feature leave the sprint with it
+        remove_issues_from_cycle(
+            cycle_id,
+            [str(issue_id), *descendant_ids([issue_id], project_id)],
+            project_id,
+            request.user.id,
             origin=base_host(request=request, is_app=True),
         )
-        cycle_issue.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -76,7 +76,7 @@ export const MEMBER_PROPERTY_DETAILS: {
   role: {
     i18n_title: "project_members.role",
     ascendingOrderKey: "role",
-    ascendingOrderTitle: "Guest",
+    ascendingOrderTitle: "Client",
     descendingOrderKey: "-role",
     descendingOrderTitle: "Admin",
     iconName: "Shield",

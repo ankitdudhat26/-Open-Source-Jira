@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions, react/no-array-index-key -- upstream
 import { useCallback, useRef, useState } from "react";
 import { isEmpty } from "lodash-es";
 import { observer } from "mobx-react";
@@ -146,6 +147,7 @@ export const ActiveCycleStats = observer(function ActiveCycleStats(props: Active
                           <PriorityIcon priority={issue.priority} />
                           <div className="flex flex-shrink-0 items-center gap-1.5">
                             <StateSelect
+                              enforceWorkflow
                               value={issue.state_id}
                               onChange={() => {}}
                               projectId={projectId?.toString() ?? ""}

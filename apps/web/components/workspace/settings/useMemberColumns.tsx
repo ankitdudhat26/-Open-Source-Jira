@@ -11,7 +11,7 @@ import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
 import type { RowData } from "@/components/workspace/settings/member-columns";
-import { AccountTypeColumn, NameColumn } from "@/components/workspace/settings/member-columns";
+import { AccountTypeColumn, NameColumn, WorkspaceRoleColumn } from "@/components/workspace/settings/member-columns";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import type { IMemberFilters } from "@/store/member/utils";
@@ -95,6 +95,18 @@ export const useMemberColumns = () => {
       ),
     },
 
+    {
+      key: "Role",
+      content: "Role",
+      thRender: () => <span className="text-left">Role</span>,
+      tdRender: (rowData: RowData) => (
+        <WorkspaceRoleColumn
+          rowData={rowData}
+          workspaceSlug={workspaceSlug?.toString() ?? ""}
+          isEditable={isAdmin && rowData.member.id !== currentUser?.id && !isSuspended(rowData)}
+        />
+      ),
+    },
     {
       key: "Account type",
       content: t("workspace_settings.settings.members.details.account_type"),

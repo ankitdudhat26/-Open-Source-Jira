@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable promise/always-return -- upstream code
 import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
@@ -27,6 +28,7 @@ import {
 } from "@makeplane/propel/components/dialog";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
+import { ProjectRoleInput } from "@/components/members/project-role-input";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -42,6 +44,8 @@ type Props = {
 type member = {
   role: EUserPermissions;
   member_id: string;
+  /** job on the project, e.g. "Developer" or "Graphic Designer" (compulsory) */
+  designation: string;
 };
 
 type FormValues = {
@@ -58,6 +62,7 @@ const defaultValues: FormValues = {
     {
       role: 5,
       member_id: "",
+      designation: "",
     },
   ],
 };
@@ -98,7 +103,9 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
   const onSubmit = async (formData: FormValues) => {
     if (!workspaceSlug || !projectId || isSubmitting) return;
 
-    const payload = { ...formData };
+    const payload = {
+      members: formData.members.map((member) => ({ ...member, designation: member.designation.trim() })),
+    };
 
     await bulkAddMembersToProject(workspaceSlug.toString(), projectId.toString(), payload)
       .then(() => {
@@ -112,6 +119,11 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
       })
       .catch((error) => {
         console.error(error);
+        setToast({
+          title: "Error!",
+          type: "error",
+          message: error?.error ?? "Members could not be added. Please try again.",
+        });
       })
       .finally(() => {
         reset(defaultValues);
@@ -131,6 +143,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     append({
       role: 5,
       member_id: "",
+      designation: "",
     });
   };
 
@@ -140,6 +153,7 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
         {
           role: 5,
           member_id: "",
+          designation: "",
         },
       ]);
     }
@@ -168,8 +182,10 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
     // Update the role to the workspace role when member ID changes
     const workspaceMemberDetails = getWorkspaceMemberDetails(memberId);
     const workspaceRole = workspaceMemberDetails?.role ?? 5;
-    const newValue = ROLE[workspaceRole].toUpperCase();
-    setValue(`members.${index}.role`, EUserPermissions[newValue as keyof typeof EUserPermissions]);
+    setValue(`members.${index}.role`, workspaceRole as EUserPermissions);
+    // the job the person was invited with is the default project role
+    if (!watch(`members.${index}.designation`)?.trim())
+      setValue(`members.${index}.designation`, workspaceMemberDetails?.company_role ?? "");
   };
 
   return (
@@ -210,6 +226,30 @@ export const SendProjectInvitationModal = observer(function SendProjectInvitatio
                       {errors.members && errors.members[index]?.member_id && (
                         <span className="px-1 text-13 text-danger-primary">
                           {errors.members[index]?.member_id?.message}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex w-44 shrink-0 flex-col gap-1">
+                      <Controller
+                        control={control}
+                        name={`members.${index}.designation`}
+                        rules={{
+                          validate: (value) => !!value?.trim() || "Project role is required",
+                        }}
+                        render={({ field: { value, onChange, onBlur } }) => (
+                          <ProjectRoleInput
+                            value={value ?? ""}
+                            onChange={onChange}
+                            onBlur={onBlur}
+                            invalid={!!errors.members?.[index]?.designation}
+                            placeholder="Project role *"
+                          />
+                        )}
+                      />
+                      {errors.members && errors.members[index]?.designation && (
+                        <span className="px-1 text-13 text-danger-primary">
+                          {errors.members[index]?.designation?.message}
                         </span>
                       )}
                     </div>

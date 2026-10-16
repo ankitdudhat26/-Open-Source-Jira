@@ -26,6 +26,8 @@ export interface IWorkspaceMembership {
   member: string;
   role: EUserPermissions;
   is_active?: boolean;
+  /** job ("Developer", "Graphic Designer", ...), the default project role */
+  company_role?: string | null;
 }
 
 export interface IWorkspaceMemberStore {
@@ -49,7 +51,11 @@ export interface IWorkspaceMemberStore {
   fetchWorkspaceMembers: (workspaceSlug: string) => Promise<IWorkspaceMember[]>;
   fetchWorkspaceMemberInvitations: (workspaceSlug: string) => Promise<IWorkspaceMemberInvitation[]>;
   // crud actions
-  updateMember: (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => Promise<void>;
+  updateMember: (
+    workspaceSlug: string,
+    userId: string,
+    data: { role?: EUserPermissions; company_role?: string }
+  ) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   // invite actions
   inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
@@ -209,6 +215,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       role: workspaceMember.role,
       member: this.memberRoot?.memberMap?.[workspaceMember.member],
       is_active: workspaceMember.is_active,
+      company_role: workspaceMember.company_role,
     };
     return memberDetails;
   });
@@ -242,6 +249,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             member: member.member.id,
             role: member.role,
             is_active: member.is_active,
+            company_role: member.company_role,
           });
         });
       });
@@ -254,14 +262,20 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
    * @param userId
    * @param data
    */
-  updateMember = async (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => {
+  updateMember = async (
+    workspaceSlug: string,
+    userId: string,
+    data: { role?: EUserPermissions; company_role?: string }
+  ) => {
     const memberDetails = this.getWorkspaceMemberDetails(userId);
     if (!memberDetails) throw new Error("Member not found");
     // original data to revert back in case of error
     const originalProjectMemberData = { ...this.workspaceMemberMap?.[workspaceSlug]?.[userId] };
     try {
       runInAction(() => {
-        set(this.workspaceMemberMap, [workspaceSlug, userId, "role"], data.role);
+        if (data.role !== undefined) set(this.workspaceMemberMap, [workspaceSlug, userId, "role"], data.role);
+        if (data.company_role !== undefined)
+          set(this.workspaceMemberMap, [workspaceSlug, userId, "company_role"], data.company_role);
       });
       await this.workspaceService.updateWorkspaceMember(workspaceSlug, memberDetails.id, data);
     } catch (error) {

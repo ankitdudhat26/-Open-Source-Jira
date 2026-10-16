@@ -527,6 +527,71 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @param shouldUpdateList If false, then it would not update the Issue Id list but only makes an API call and adds to the main Issue Map
    * @returns
    */
+  /** Loaded ancestors of a work item: parent, grandparent, ... */
+  getLoadedAncestorIds = (issueId: string | null | undefined): string[] => {
+    const ids: string[] = [];
+    let parentId = issueId ? this.rootIssueStore.issues.getIssueById(issueId)?.parent_id : undefined;
+    while (parentId && !ids.includes(parentId) && parentId !== issueId) {
+      ids.push(parentId);
+      parentId = this.rootIssueStore.issues.getIssueById(parentId)?.parent_id;
+    }
+    return ids;
+  };
+
+  /** Loaded work items under a work item: children, grandchildren, ... */
+  getLoadedDescendantIds = (issueId: string): string[] => {
+    const childrenByParent = new Map<string, string[]>();
+    Object.values(this.rootIssueStore.issues.issuesMap).forEach((issue) => {
+      if (!issue?.parent_id) return;
+      childrenByParent.set(issue.parent_id, [...(childrenByParent.get(issue.parent_id) ?? []), issue.id]);
+    });
+    const found = new Set<string>();
+    const queue = [...(childrenByParent.get(issueId) ?? [])];
+    while (queue.length > 0) {
+      const id = queue.shift() as string;
+      if (found.has(id) || id === issueId) continue;
+      found.add(id);
+      queue.push(...(childrenByParent.get(id) ?? []));
+    }
+    return [...found];
+  };
+
+  /** Work items the server added to the sprint besides the requested ones (the tasks under a feature). */
+  getAutomatedCycleIssueIds = (response: unknown, requestedIds: string[]): string[] => {
+    const added = (response as { issues?: unknown } | undefined)?.issues;
+    if (!Array.isArray(added)) return [];
+    return added.filter((id): id is string => typeof id === "string" && !requestedIds.includes(id));
+  };
+
+  /**
+   * Reload work items that the server changed through automation (a feature's status, the sprint of its
+   * tasks) and keep the current list in step. Failures are ignored, the next fetch shows the right data.
+   */
+  refreshAutomatedIssues = (workspaceSlug: string, projectId: string, issueIds: string[]) => {
+    const ids = uniq(issueIds.filter(Boolean));
+    if (ids.length === 0) return;
+    this.issueService
+      .retrieveIssues(workspaceSlug, projectId, ids)
+      .then((issues) => {
+        runInAction(() => {
+          issues.forEach((issue) => {
+            const issueBefore = clone(this.rootIssueStore.issues.getIssueById(issue.id));
+            // in a sprint's list, the work item may have joined or left the sprint
+            const wasInList = !this.cycleId || issueBefore?.cycle_id === this.cycleId;
+            const isInList = !this.cycleId || issue.cycle_id === this.cycleId;
+            if (wasInList && !isInList) this.removeIssueFromList(issue.id);
+            this.rootIssueStore.issues.addIssue([issue]);
+            if (!wasInList && isInList) this.addIssueToList(issue.id);
+            else if (wasInList && isInList && issueBefore)
+              this.updateIssueList({ ...issueBefore, ...issue }, issueBefore);
+          });
+        });
+        if (this.cycleId) void this.fetchParentStats(workspaceSlug, projectId, this.cycleId);
+        return issues;
+      })
+      .catch(() => undefined);
+  };
+
   async createIssue(
     workspaceSlug: string,
     projectId: string,
@@ -539,6 +604,10 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
     // add Issue to Store
     this.addIssue(response, shouldUpdateList);
+
+    // a new task can reopen its done feature (server automation)
+    if (response?.parent_id)
+      this.refreshAutomatedIssues(workspaceSlug, projectId, this.getLoadedAncestorIds(response.id));
 
     // If shouldUpdateList is true, call fetchParentStats
     // oxlint-disable-next-line no-unused-expressions
@@ -581,6 +650,19 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
       // call API to update the issue
       await this.issueService.patchIssue(workspaceSlug, projectId, issueId, data);
+
+      // The server moves the parent feature along with its tasks' status, and a task moved under another
+      // feature joins that feature's sprint, so reload what it may have changed
+      if ("state_id" in data || "parent_id" in data) {
+        const affectedIds = [
+          ...this.getLoadedAncestorIds(issueId),
+          ...(issueBeforeUpdate?.parent_id
+            ? [issueBeforeUpdate.parent_id, ...this.getLoadedAncestorIds(issueBeforeUpdate.parent_id)]
+            : []),
+          ...("parent_id" in data ? [issueId] : []),
+        ];
+        this.refreshAutomatedIssues(workspaceSlug, projectId, affectedIds);
+      }
 
       // call fetch Parent Stats
       this.fetchParentStats(workspaceSlug, projectId);
@@ -820,9 +902,11 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     fetchAddedIssues = true
   ) {
     // Perform an APi call to add issue to cycle
-    await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
+    const response = await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
       issues: issueIds,
     });
+    // the tasks under the added features join the sprint too
+    this.refreshAutomatedIssues(workspaceSlug, projectId, this.getAutomatedCycleIssueIds(response, issueIds));
 
     // if cycle Id is the current Cycle Id then call fetch parent stats
     if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId);
@@ -857,8 +941,14 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     // update parent stats optimistically
     if (this.cycleId === cycleId) this.updateParentStats(issueBeforeRemoval, undefined, cycleId);
 
+    // the tasks under the feature leave the sprint with it
+    const childIdsInCycle = this.getLoadedDescendantIds(issueId).filter(
+      (id) => this.rootIssueStore.issues.getIssueById(id)?.cycle_id === cycleId
+    );
+
     // Perform an APi call to remove issue from cycle
     await this.issueService.removeIssueFromCycle(workspaceSlug, projectId, cycleId, issueId);
+    this.refreshAutomatedIssues(workspaceSlug, projectId, childIdsInCycle);
 
     // if cycle Id is the current Cycle Id then call fetch parent stats
     if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId, cycleId);
@@ -905,9 +995,11 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       if (this.cycleId === cycleId || this.cycleId === issueCycleId)
         this.updateParentStats(issueBeforeUpdate, issueAfterUpdate, this.cycleId);
 
-      await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
+      const response = await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
         issues: [issueId],
       });
+      // the tasks under the feature join the sprint too
+      this.refreshAutomatedIssues(workspaceSlug, projectId, this.getAutomatedCycleIssueIds(response, [issueId]));
 
       // if cycle Id is the current Cycle Id then call fetch parent stats
       if (this.cycleId === cycleId || this.cycleId === issueCycleId)
@@ -949,8 +1041,14 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       // update parent stats optimistically
       if (this.cycleId === issueCycleId) this.updateParentStats(issueBeforeRemoval, undefined, issueCycleId);
 
+      // the tasks under the feature leave the sprint with it
+      const childIdsInCycle = this.getLoadedDescendantIds(issueId).filter(
+        (id) => this.rootIssueStore.issues.getIssueById(id)?.cycle_id === issueCycleId
+      );
+
       // make API call
       await this.issueService.removeIssueFromCycle(workspaceSlug, projectId, issueCycleId, issueId);
+      this.refreshAutomatedIssues(workspaceSlug, projectId, childIdsInCycle);
 
       // if cycle Id is the current Cycle Id then call fetch parent stats
       if (this.cycleId === issueCycleId) this.fetchParentStats(workspaceSlug, projectId, issueCycleId);

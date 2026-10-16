@@ -105,7 +105,8 @@ class Project(BaseModel):
     intake_view = models.BooleanField(default=False)
     is_time_tracking_enabled = models.BooleanField(default=False)
     is_issue_type_enabled = models.BooleanField(default=False)
-    guest_view_all_features = models.BooleanField(default=False)
+    # Clients (role 5) see every work item of the project by default; they can still only comment
+    guest_view_all_features = models.BooleanField(default=True)
     cover_image = models.TextField(blank=True, null=True)
     cover_image_asset = models.ForeignKey(
         "db.FileAsset",
@@ -225,6 +226,8 @@ class ProjectMember(ProjectBaseModel):
     )
     comment = models.TextField(blank=True, null=True)
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=5)
+    # job on the project, e.g. "Developer" or "Graphic Designer" (role is the access level)
+    designation = models.CharField(max_length=255, blank=True, default="")
     view_props = models.JSONField(default=get_default_props)
     default_props = models.JSONField(default=get_default_props)
     preferences = models.JSONField(default=get_default_preferences)

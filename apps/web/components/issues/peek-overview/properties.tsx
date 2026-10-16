@@ -16,6 +16,7 @@ import {
   MembersOutline,
   ModuleOutline,
   PriorityOutline,
+  ShowOutline,
   StartDateOutline,
   StateOutline,
   UserOutline,
@@ -41,6 +42,7 @@ import type { TIssueOperations } from "../issue-detail";
 import { IssueCycleSelect } from "../issue-detail/cycle-select";
 import { IssueLabel } from "../issue-detail/label";
 import { IssueModuleSelect } from "../issue-detail/module-select";
+import { IssueWatchersSelect } from "../issue-detail/watchers-select";
 
 interface IPeekOverviewProperties {
   workspaceSlug: string;
@@ -81,6 +83,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
       <div className={`mt-3 w-full space-y-3 ${disabled ? "opacity-60" : ""}`}>
         <SidebarPropertyListItem icon={StateOutline} label={t("common.state")}>
           <StateSelect
+            enforceWorkflow
             testId="work-item-state-select"
             value={issue?.state_id}
             onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { state_id: val })}
@@ -103,6 +106,15 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
             variant="select-ghost-md"
             showLabel={(issue?.assignee_ids?.length ?? 0) <= 1}
             tooltip={{ heading: t("common.assignees") }}
+          />
+        </SidebarPropertyListItem>
+
+        <SidebarPropertyListItem icon={ShowOutline} label="Watchers">
+          <IssueWatchersSelect
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueId={issueId}
+            disabled={disabled}
           />
         </SidebarPropertyListItem>
 

@@ -7,18 +7,21 @@
 import { useState } from "react";
 import { isNil } from "lodash-es";
 import { observer } from "mobx-react";
-import { SubscribeOutline, UnsubscribeOutline } from "@makeplane/propel/icons";
+import useSWR from "swr";
+import { ShowFilled, ShowOutline } from "@makeplane/propel/icons";
 // plane-i18n
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // UI
 import { Button } from "@makeplane/propel/elements/button";
 import { Icon } from "@makeplane/propel/components/icon";
+import { Tooltip } from "@makeplane/propel/components/tooltip";
 import { setToast } from "@plane/blocks/toast";
 import { EIssueServiceType } from "@plane/types";
 import { Loader } from "@plane/blocks/skeleton";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
+import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
 
 export type TIssueSubscription = {
@@ -33,16 +36,29 @@ export const IssueSubscription = observer(function IssueSubscription(props: TIss
   const { t } = useTranslation();
   // hooks
   const {
-    subscription: { getSubscriptionByIssueId },
+    subscription: { getSubscriptionByIssueId, getWatcherIdsByIssueId },
     createSubscription,
     removeSubscription,
+    fetchWatchers,
   } = useIssueDetail(serviceType);
+  const { getUserDetails } = useMember();
   // state
   const [loading, setLoading] = useState(false);
   // hooks
   const { allowPermissions } = useUserPermissions();
 
+  // watchers (shared SWR key with the Watchers property in the sidebar)
+  useSWR(
+    workspaceSlug && projectId && issueId ? `ISSUE_WATCHERS_${workspaceSlug}_${projectId}_${issueId}` : null,
+    workspaceSlug && projectId && issueId ? () => fetchWatchers(workspaceSlug, projectId, issueId) : null,
+    { revalidateOnFocus: false }
+  );
+
   const isSubscribed = getSubscriptionByIssueId(issueId);
+  const watcherIds = getWatcherIdsByIssueId(issueId);
+  const watcherNames = (watcherIds ?? [])
+    .map((userId) => getUserDetails(userId)?.display_name)
+    .filter((name): name is string => !!name);
   const isEditable = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT,
@@ -59,8 +75,8 @@ export const IssueSubscription = observer(function IssueSubscription(props: TIss
         type: "success",
         title: t("toast.success"),
         message: isSubscribed
-          ? t("issue.subscription.actions.unsubscribed")
-          : t("issue.subscription.actions.subscribed"),
+          ? "You stopped watching this work item."
+          : "You are watching this work item. You will get an email for new comments and changes.",
       });
       setLoading(false);
     } catch {
@@ -81,7 +97,13 @@ export const IssueSubscription = observer(function IssueSubscription(props: TIss
     );
 
   return (
-    <div>
+    <Tooltip
+      label={
+        watcherNames.length > 0
+          ? `Watchers (${watcherNames.length}): ${watcherNames.join(", ")}`
+          : "No one is watching this work item yet."
+      }
+    >
       <Button
         variant="secondary"
         size="md"
@@ -89,18 +111,16 @@ export const IssueSubscription = observer(function IssueSubscription(props: TIss
         render={<button type="button" />}
         onClick={handleSubscription}
         disabled={!isEditable || loading}
+        aria-pressed={isSubscribed}
       >
-        <Icon icon={isSubscribed ? UnsubscribeOutline : SubscribeOutline} />
-        {loading ? (
-          <span>
-            <span className="hidden sm:block">{t("common.loading")}</span>
+        <Icon icon={isSubscribed ? ShowFilled : ShowOutline} />
+        <span className="hidden sm:block">{loading ? t("common.loading") : isSubscribed ? "Watching" : "Watch"}</span>
+        {watcherIds && (
+          <span className="rounded-sm bg-layer-2 px-1.5 text-caption-sm-medium text-secondary">
+            {watcherIds.length}
           </span>
-        ) : isSubscribed ? (
-          <div className="hidden sm:block">{t("common.actions.unsubscribe")}</div>
-        ) : (
-          <div className="hidden sm:block">{t("common.actions.subscribe")}</div>
         )}
       </Button>
-    </div>
+    </Tooltip>
   );
 });

@@ -255,6 +255,7 @@ export class IssueDetail implements IIssueDetail {
     this.openWidgets = state;
     if (this.lastWidgetAction) this.lastWidgetAction = null;
   };
+  // oxlint-disable-next-line no-shadow -- upstream name, `action` from mobx is not used here
   setLastWidgetAction = (action: TWorkItemWidgets) => {
     this.openWidgets = [action];
   };
@@ -360,6 +361,12 @@ export class IssueDetail implements IIssueDetail {
     this.subscription.createSubscription(workspaceSlug, projectId, issueId);
   removeSubscription = async (workspaceSlug: string, projectId: string, issueId: string) =>
     this.subscription.removeSubscription(workspaceSlug, projectId, issueId);
+  fetchWatchers = async (workspaceSlug: string, projectId: string, issueId: string) =>
+    this.subscription.fetchWatchers(workspaceSlug, projectId, issueId);
+  addWatchers = async (workspaceSlug: string, projectId: string, issueId: string, userIds: string[]) =>
+    this.subscription.addWatchers(workspaceSlug, projectId, issueId, userIds);
+  removeWatcher = async (workspaceSlug: string, projectId: string, issueId: string, userId: string) =>
+    this.subscription.removeWatcher(workspaceSlug, projectId, issueId, userId);
 
   // relations
   fetchRelations = async (workspaceSlug: string, projectId: string, issueId: string) =>

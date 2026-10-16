@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
@@ -22,6 +23,7 @@ import { Select } from "@plane/blocks/select";
 // helpers
 import { getFileURL } from "@plane/utils";
 // hooks
+import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
@@ -29,6 +31,8 @@ export interface RowData {
   member: IWorkspaceMember;
   role: EUserPermissions;
   is_active: boolean;
+  /** job ("Developer", "Graphic Designer", ...), the default project role */
+  company_role?: string | null;
 }
 
 type NameProps = {
@@ -184,5 +188,43 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         />
       )}
     </>
+  );
+});
+
+type WorkspaceRoleProps = { rowData: RowData; workspaceSlug: string; isEditable: boolean };
+
+/** The member's job ("Developer", "Graphic Designer", ...). It pre-fills the project role when they join a project. */
+export const WorkspaceRoleColumn = observer(function WorkspaceRoleColumn(props: WorkspaceRoleProps) {
+  const { rowData, workspaceSlug, isEditable } = props;
+  const {
+    workspace: { updateMember },
+  } = useMember();
+  const saved = rowData.company_role ?? "";
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+
+  if (!isEditable) return <div className="w-44 truncate">{saved || "—"}</div>;
+
+  const save = () => {
+    const value = draft.trim();
+    if (value === saved) return;
+    void updateMember(workspaceSlug, rowData.member.id, { company_role: value })
+      .then(() => setToast({ type: "success", title: "Role updated", message: value || "Role cleared" }))
+      .catch((error: { error?: string } | undefined) => {
+        setDraft(saved);
+        setToast({ type: "error", title: "Error!", message: error?.error ?? "Role could not be updated." });
+      });
+  };
+
+  return (
+    <div className="w-44">
+      <ProjectRoleInput
+        value={draft}
+        onChange={setDraft}
+        onBlur={save}
+        placeholder="Add role"
+        ariaLabel={`Role of ${rowData.member.display_name}`}
+      />
+    </div>
   );
 });

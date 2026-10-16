@@ -143,6 +143,9 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
           </span>
           <div>
             <h4 className="cursor-default text-body-xs-regular">{invitationDetails.email}</h4>
+            {invitationDetails.designation && (
+              <p className="text-caption-sm-regular text-tertiary">{invitationDetails.designation}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 text-11">

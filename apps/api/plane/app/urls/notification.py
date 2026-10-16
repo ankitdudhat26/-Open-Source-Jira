@@ -11,9 +11,16 @@ from plane.app.views import (
     MarkAllReadNotificationViewSet,
     UserNotificationPreferenceEndpoint,
 )
+from plane.app.views.issue.unwatch import UnwatchWorkItemEndpoint
 
 
 urlpatterns = [
+    # "Stop watching" link in notification emails (signed token, no sign in needed)
+    path(
+        "notifications/unwatch/<str:token>/",
+        UnwatchWorkItemEndpoint.as_view(),
+        name="work-item-unwatch",
+    ),
     path(
         "workspaces/<str:slug>/users/notifications/",
         NotificationViewSet.as_view({"get": "list"}),

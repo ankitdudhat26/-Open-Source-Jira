@@ -19,6 +19,7 @@ from plane.app.views import (
     ProjectArchiveUnarchiveEndpoint,
     ProjectMemberPreferenceEndpoint,
 )
+from plane.app.views.project.workflow import ProjectWorkflowEndpoint, ProjectWorkflowTemplateEndpoint
 from plane.app.views.project.milestone import (
     DeliverableEndpoint,
     MilestoneEndpoint,
@@ -181,5 +182,15 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/work-item-tree/",
         WorkItemTreeEndpoint.as_view(),
         name="project-work-item-tree",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/workflow/",
+        ProjectWorkflowEndpoint.as_view(),
+        name="project-workflow",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/workflow/apply-template/",
+        ProjectWorkflowTemplateEndpoint.as_view(),
+        name="project-workflow-template",
     ),
 ]

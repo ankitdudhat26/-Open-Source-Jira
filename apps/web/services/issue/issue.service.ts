@@ -21,6 +21,14 @@ import type {
 // services
 import { APIService } from "@/services/api.service";
 
+/** A user watching a work item; `subscriber` is the watching user's id. */
+export type TIssueWatcher = {
+  id: string;
+  subscriber: string;
+  created_at: string;
+  created_by: string | null;
+};
+
 export class IssueService extends APIService {
   private serviceType: TIssueServiceType;
 
@@ -401,6 +409,43 @@ export class IssueService extends APIService {
 
   async subscribeToIssueNotifications(workspaceSlug: string, projectId: string, issueId: string): Promise<any> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/subscribe/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // watchers: everyone subscribed to a work item's notifications
+  async listIssueWatchers(workspaceSlug: string, projectId: string, issueId: string): Promise<TIssueWatcher[]> {
+    return this.get(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/issue-subscribers/`
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async addIssueWatchers(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    subscriberIds: string[]
+  ): Promise<TIssueWatcher[]> {
+    return this.post(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/issue-subscribers/`,
+      { subscriber_ids: subscriberIds }
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async removeIssueWatcher(workspaceSlug: string, projectId: string, issueId: string, userId: string): Promise<void> {
+    return this.delete(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/issue-subscribers/${userId}/`
+    )
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

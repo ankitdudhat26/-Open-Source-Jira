@@ -69,6 +69,8 @@ from plane.utils.grouper import (
     issue_queryset_grouper,
 )
 from plane.utils.host import base_host
+from plane.utils.work_item_automation import run_work_item_automation
+from plane.utils.workflow import check_transition
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
@@ -418,6 +420,14 @@ class IssueViewSet(BaseViewSet):
 
         if serializer.is_valid():
             serializer.save()
+            # sprint of the parent feature, and the feature's status (e.g. a new open task reopens a done feature)
+            run_work_item_automation(
+                serializer.data.get("id"),
+                request.user.id,
+                origin=base_host(request=request, is_app=True),
+                state_changed=True,
+                parent_changed=True,
+            )
 
             # Track the issue
             issue_activity.delay(
@@ -678,12 +688,32 @@ class IssueViewSet(BaseViewSet):
         if not issue:
             return Response({"error": "Issue not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Jira style workflow: only the permitted state changes are allowed
+        requested_state_id = request.data.get("state_id") or request.data.get("state")
+        workflow_error = check_transition(project_id, issue.state_id, requested_state_id, request.user.id)
+        if workflow_error:
+            return Response(
+                {"error": workflow_error, "code": "WORKFLOW_TRANSITION_NOT_ALLOWED"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         current_instance = json.dumps(IssueDetailSerializer(issue).data, cls=DjangoJSONEncoder)
 
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
+        old_parent_id = issue.parent_id
         serializer = IssueCreateSerializer(issue, data=request.data, partial=True, context={"project_id": project_id})
         if serializer.is_valid():
             serializer.save()
+            # Jira style automation: the parent feature follows its tasks' status, a moved task joins the
+            # new parent's sprint
+            run_work_item_automation(
+                pk,
+                request.user.id,
+                origin=base_host(request=request, is_app=True),
+                state_changed="state_id" in request.data or "state" in request.data,
+                parent_changed="parent_id" in request.data or "parent" in request.data,
+                old_parent_id=old_parent_id,
+            )
             # Check if the update is a migration description update
             is_migration_description_update = skip_activity and is_description_update
             # Log all the updates
@@ -748,21 +778,11 @@ class ProjectUserDisplayPropertyEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def patch(self, request, slug, project_id):
         try:
-            issue_property = ProjectUserProperty.objects.get(
-                user=request.user, 
-                project_id=project_id
-            )
+            issue_property = ProjectUserProperty.objects.get(user=request.user, project_id=project_id)
         except ProjectUserProperty.DoesNotExist:
-            issue_property = ProjectUserProperty.objects.create(
-                user=request.user, 
-                project_id=project_id
-            )
+            issue_property = ProjectUserProperty.objects.create(user=request.user, project_id=project_id)
 
-        serializer = ProjectUserPropertySerializer(
-            issue_property, 
-            data=request.data,
-            partial=True
-        )
+        serializer = ProjectUserPropertySerializer(issue_property, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)

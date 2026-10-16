@@ -58,6 +58,21 @@ class ProjectMemberViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Every member needs a project role (job), e.g. "Developer" or "Graphic Designer"
+        designations = {}
+        for member in members:
+            designation = str(member.get("designation") or "").strip()
+            if not designation:
+                return Response(
+                    {"error": "Project role is required for every member (e.g. Developer, Graphic Designer)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if len(designation) > 255:
+                return Response(
+                    {"error": "Project role must be at most 255 characters."}, status=status.HTTP_400_BAD_REQUEST
+                )
+            designations[str(member.get("member_id"))] = designation
+
         # Initialize the bulk arrays
         bulk_project_members = []
         bulk_issue_props = []
@@ -88,11 +103,12 @@ class ProjectMemberViewSet(BaseViewSet):
             member_id__in=[member.get("member_id") for member in members],
         ):
             project_member.role = member_roles[str(project_member.member_id)]
+            project_member.designation = designations[str(project_member.member_id)]
             project_member.is_active = True
             bulk_project_members.append(project_member)
 
         # Update the roles of the existing members
-        ProjectMember.objects.bulk_update(bulk_project_members, ["is_active", "role"], batch_size=100)
+        ProjectMember.objects.bulk_update(bulk_project_members, ["is_active", "role", "designation"], batch_size=100)
 
         # Get the minimum sort_order for each member in the workspace
         member_sort_orders = (
@@ -116,6 +132,7 @@ class ProjectMemberViewSet(BaseViewSet):
                 ProjectMember(
                     member_id=member.get("member_id"),
                     role=member.get("role", 5),
+                    designation=designations[member_id],
                     project_id=project_id,
                     workspace_id=project.workspace_id,
                 )
@@ -165,7 +182,9 @@ class ProjectMemberViewSet(BaseViewSet):
             member__member_workspace__is_active=True,
         ).select_related("project", "member", "workspace")
 
-        serializer = ProjectMemberRoleSerializer(project_members, fields=("id", "member", "role"), many=True)
+        serializer = ProjectMemberRoleSerializer(
+            project_members, fields=("id", "member", "role", "designation"), many=True
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
@@ -279,6 +298,16 @@ class ProjectMemberViewSet(BaseViewSet):
                     {"error": "You cannot update the status of a member with a role equal to or higher than your own"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+
+        # The project role (job) is managed by admins and cannot be emptied
+        if "designation" in request.data:
+            if requested_project_member.role < ROLE.ADMIN.value and not is_workspace_admin:
+                return Response(
+                    {"error": "Only project admins can change project roles"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if not str(request.data.get("designation") or "").strip():
+                return Response({"error": "Project role is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProjectMemberSerializer(project_member, data=request.data, partial=True)
 

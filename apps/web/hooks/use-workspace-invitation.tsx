@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable promise/always-return -- upstream code
 import { useEffect } from "react";
 import type { Control, FieldArrayWithId, FormState, UseFormWatch } from "react-hook-form";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -13,6 +14,8 @@ import { EUserPermissions } from "@plane/constants";
 type EmailRole = {
   email: string;
   role: EUserPermissions;
+  /** job of the person, e.g. "Developer" or "Graphic Designer" (compulsory) */
+  designation: string;
 };
 
 export type InvitationFormValues = {
@@ -24,6 +27,7 @@ const SEND_WORKSPACE_INVITATION_MODAL_DEFAULT_VALUES: InvitationFormValues = {
     {
       email: "",
       role: EUserPermissions.MEMBER,
+      designation: "",
     },
   ],
 };
@@ -65,17 +69,20 @@ export const useWorkspaceInvitationActions = (props: TUseWorkspaceInvitationProp
   };
 
   const appendField = () => {
-    append({ email: "", role: EUserPermissions.MEMBER });
+    append({ email: "", role: EUserPermissions.MEMBER, designation: "" });
   };
 
   const onSubmitForm = async (data: InvitationFormValues) => {
-    await onSubmit(data)?.then(() => {
+    const payload = {
+      emails: data.emails.map((email) => ({ ...email, designation: email.designation.trim() })),
+    };
+    await onSubmit(payload)?.then(() => {
       reset(SEND_WORKSPACE_INVITATION_MODAL_DEFAULT_VALUES);
     });
   };
 
   useEffect(() => {
-    if (fields.length === 0) append([{ email: "", role: EUserPermissions.MEMBER }]);
+    if (fields.length === 0) append([{ email: "", role: EUserPermissions.MEMBER, designation: "" }]);
   }, [fields, append]);
 
   return {

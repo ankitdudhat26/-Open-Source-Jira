@@ -16,6 +16,7 @@ import { useTranslation } from "@plane/i18n";
 import type { IState, TPaginatedResponse } from "@plane/types";
 // hooks
 import { useProjectState } from "@/hooks/store/use-project-state";
+import { useProjectWorkflow } from "@/hooks/use-project-workflow";
 
 type StateSelectWebProps = {
   /** Project whose states are offered. */
@@ -35,6 +36,8 @@ type StateSelectWebProps = {
   testId?: string;
   /** Tab order of the trigger, for forms that sequence focus explicitly (`ETabIndices`). */
   tabIndex?: number;
+  /** Only offer the states the project's workflow allows from the current state (editing a work item). */
+  enforceWorkflow?: boolean;
 };
 
 const toOption = (state: IState): StateOption => ({
@@ -68,11 +71,18 @@ export const StateSelect = observer(function StateSelect(props: StateSelectWebPr
     appendElement,
     testId,
     tabIndex,
+    enforceWorkflow = false,
   } = props;
   // router params
   const { workspaceSlug } = useParams();
   // store hooks
   const { getProjectStateIds, getStateById, fetchProjectStates } = useProjectState();
+  const { getAllowedStateIds } = useProjectWorkflow(workspaceSlug?.toString(), projectId, enforceWorkflow);
+  // stable between renders, so the options are only reloaded when the workflow or the current state changes
+  const allowedStateIds = useMemo(
+    () => (enforceWorkflow ? getAllowedStateIds(value) : undefined),
+    [enforceWorkflow, getAllowedStateIds, value]
+  );
   // translation
   const { t } = useTranslation();
   const resolvedTooltip = useMemo<SelectTooltipOverride | undefined>(() => {
@@ -96,11 +106,13 @@ export const StateSelect = observer(function StateSelect(props: StateSelectWebPr
       const results = (stateIds ?? [])
         .map((stateId) => getStateById(stateId))
         .filter((state): state is IState => !!state)
+        // Jira style workflow: only the permitted next states
+        .filter((state) => !allowedStateIds || allowedStateIds.has(state.id))
         .filter((state) => !query || state.name.toLowerCase().includes(query))
         .map(toOption);
       return { results, next_page_results: false };
     },
-    [workspaceSlug, projectId, getProjectStateIds, fetchProjectStates, getStateById]
+    [workspaceSlug, projectId, getProjectStateIds, fetchProjectStates, getStateById, allowedStateIds]
   );
 
   // Resolved in the observer render (not in a memo) so MobX re-renders when the state loads.

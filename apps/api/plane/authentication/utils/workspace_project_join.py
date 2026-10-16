@@ -24,6 +24,7 @@ def process_workspace_project_invitations(user):
                 workspace_id=workspace_member_invite.workspace_id,
                 member=user,
                 role=workspace_member_invite.role,
+                company_role=workspace_member_invite.designation,
             )
             for workspace_member_invite in workspace_member_invites
         ],

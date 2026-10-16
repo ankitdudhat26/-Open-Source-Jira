@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable unicorn/consistent-function-scoping -- upstream helper kept next to its only caller
 // plane imports
 import type { SyntheticEvent } from "react";
 import { useMemo } from "react";
@@ -96,6 +97,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
     <div className="relative flex items-center gap-2">
       <WithDisplayPropertiesHOC displayProperties={displayProperties} displayPropertyKey="state">
         <StateSelect
+          enforceWorkflow
           value={issue.state_id}
           projectId={issue.project_id ?? undefined}
           onChange={(val) =>

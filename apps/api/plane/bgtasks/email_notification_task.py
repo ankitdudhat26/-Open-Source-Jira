@@ -14,6 +14,7 @@ from django.core.mail import EmailMultiAlternatives, get_connection
 from django.template.loader import render_to_string
 
 # Django imports
+from django.conf import settings
 from django.utils import timezone
 
 # Module imports
@@ -22,6 +23,7 @@ from plane.license.utils.instance_value import get_email_configuration
 from plane.settings.redis import redis_instance
 from plane.utils.email import generate_plain_text_from_html
 from plane.utils.exception_logger import log_exception
+from plane.utils.work_item_email import build_work_item_email, get_brand_name, thread_headers
 
 
 def remove_unwanted_characters(input_text):
@@ -62,14 +64,16 @@ def stack_email_notification():
         ]
         # create payload for all issues
         payload = {}
-        email_notification_ids = []
+        email_notification_ids = {}
         for receiver_notification in receiver_notifications:
-            payload.setdefault(receiver_notification.get("entity_identifier"), {}).setdefault(
-                str(receiver_notification.get("triggered_by_id")), []
-            ).append(receiver_notification.get("data"))
+            issue_key = receiver_notification.get("entity_identifier")
+            payload.setdefault(issue_key, {}).setdefault(str(receiver_notification.get("triggered_by_id")), []).append(
+                receiver_notification.get("data")
+            )
             # append processed notifications
             processed_notifications.append(receiver_notification.get("id"))
-            email_notification_ids.append(receiver_notification.get("id"))
+            # the logs of each work item are marked sent by that work item's email only
+            email_notification_ids.setdefault(issue_key, []).append(receiver_notification.get("id"))
 
         # Create emails for all the issues
         for issue_id, notification_data in payload.items():
@@ -77,7 +81,7 @@ def stack_email_notification():
                 issue_id=issue_id,
                 notification_data=notification_data,
                 receiver_id=receiver_id,
-                email_notification_ids=email_notification_ids,
+                email_notification_ids=email_notification_ids[issue_id],
             )
 
     # Update the email notification log
@@ -162,12 +166,14 @@ def send_email_notification(issue_id, notification_data, receiver_id, email_noti
             # get the redis instance
             ri = redis_instance()
             base_api = ri.get(str(issue_id)).decode() if ri.get(str(issue_id)) else None
+            # The request origin is kept in redis for 10 minutes and is missing for changes made through the
+            # public API, so fall back to the configured app url instead of dropping the watchers' email
+            if not base_api:
+                base_api = (settings.APP_BASE_URL or settings.WEB_URL or "").rstrip("/") or None
 
             # Skip if base api is not present
             if not base_api:
                 return
-
-            data = create_payload(notification_data=notification_data)
 
             # Get email configurations
             (
@@ -181,85 +187,21 @@ def send_email_notification(issue_id, notification_data, receiver_id, email_noti
             ) = get_email_configuration()
 
             receiver = User.objects.get(pk=receiver_id)
-            issue = Issue.objects.get(pk=issue_id)
-            template_data = []
-            total_changes = 0
-            comments = []
-            actors_involved = []
-            for actor_id, changes in data.items():
-                actor = User.objects.get(pk=actor_id)
-                total_changes = total_changes + len(changes)
-                comment = changes.pop("comment", False)
-                mention = changes.pop("mention", False)
-                actors_involved.append(actor_id)
-                if comment:
-                    comments.append(
-                        {
-                            "actor_comments": comment,
-                            "actor_detail": {
-                                "avatar_url": f"{base_api}{actor.avatar_url}",
-                                "first_name": actor.first_name,
-                                "last_name": actor.last_name,
-                            },
-                        }
-                    )
-                if mention:
-                    mention["new_value"] = process_html_content(mention.get("new_value"))
-                    mention["old_value"] = process_html_content(mention.get("old_value"))
-                    comments.append(
-                        {
-                            "actor_comments": mention,
-                            "actor_detail": {
-                                "avatar_url": f"{base_api}{actor.avatar_url}",
-                                "first_name": actor.first_name,
-                                "last_name": actor.last_name,
-                            },
-                        }
-                    )
-                activity_time = changes.pop("activity_time")
-                # Parse the input string into a datetime object
-                formatted_time = datetime.strptime(activity_time, "%Y-%m-%d %H:%M:%S").strftime("%H:%M %p")
-
-                if changes:
-                    template_data.append(
-                        {
-                            "actor_detail": {
-                                "avatar_url": f"{base_api}{actor.avatar_url}",
-                                "first_name": actor.first_name,
-                                "last_name": actor.last_name,
-                            },
-                            "changes": changes,
-                            "issue_details": {
-                                "name": issue.name,
-                                "identifier": f"{issue.project.identifier}-{issue.sequence_id}",
-                            },
-                            "activity_time": str(formatted_time),
-                        }
-                    )
-
-            summary = "Updates were made to the issue by"
-
-            # Send the mail
-            subject = f"{issue.project.identifier}-{issue.sequence_id} {remove_unwanted_characters(issue.name)}"
-            context = {
-                "data": template_data,
-                "summary": summary,
-                "actors_involved": len(set(actors_involved)),
-                "issue": {
-                    "issue_identifier": f"{str(issue.project.identifier)}-{str(issue.sequence_id)}",
-                    "name": issue.name,
-                    "issue_url": f"{base_api}/{str(issue.project.workspace.slug)}/projects/{str(issue.project.id)}/issues/{str(issue.id)}",  # noqa: E501
-                },
-                "receiver": {"email": receiver.email},
-                "issue_url": f"{base_api}/{str(issue.project.workspace.slug)}/projects/{str(issue.project.id)}/issues/{str(issue.id)}",  # noqa: E501
-                "project_url": f"{base_api}/{str(issue.project.workspace.slug)}/projects/{str(issue.project.id)}/issues/",  # noqa: E501
-                "workspace": str(issue.project.workspace.slug),
-                "project": str(issue.project.name),
-                "user_preference": f"{base_api}/{str(issue.project.workspace.slug)}/settings/account/notifications/",
-                "comments": comments,
-                "entity_type": "issue",
-            }
-            html_content = render_to_string("emails/notifications/issue-updates.html", context)
+            issue = Issue.objects.select_related(
+                "project", "project__workspace", "state", "type", "parent", "milestone"
+            ).get(pk=issue_id)
+            email = build_work_item_email(
+                issue=issue,
+                receiver=receiver,
+                notification_data=notification_data,
+                base_url=base_api.rstrip("/"),
+                brand=get_brand_name(),
+            )
+            if email is None:
+                release_lock(lock_id=lock_id)
+                return
+            subject = remove_unwanted_characters(email["subject"])
+            html_content = render_to_string("emails/notifications/work-item-updates.html", email["context"])
             text_content = generate_plain_text_from_html(html_content)
 
             try:
@@ -278,6 +220,8 @@ def send_email_notification(issue_id, notification_data, receiver_id, email_noti
                     from_email=EMAIL_FROM,
                     to=[receiver.email],
                     connection=connection,
+                    # all emails about one work item form one conversation in the mail client
+                    headers=thread_headers(issue, EMAIL_FROM),
                 )
                 msg.attach_alternative(html_content, "text/html")
                 msg.send()

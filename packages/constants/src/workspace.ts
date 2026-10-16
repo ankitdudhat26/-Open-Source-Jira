@@ -78,7 +78,7 @@ export const RESTRICTED_URLS: string[] = [
 ];
 
 export const ROLE = {
-  [EUserWorkspaceRoles.GUEST]: "Guest",
+  [EUserWorkspaceRoles.GUEST]: "Client",
   [EUserWorkspaceRoles.MEMBER]: "Member",
   [EUserWorkspaceRoles.ADMIN]: "Admin",
 };

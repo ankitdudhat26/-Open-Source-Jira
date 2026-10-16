@@ -30,6 +30,7 @@ import {
   IssueAttachmentActivity,
   IssueArchivedAtActivity,
   IssueInboxActivity,
+  IssueTypeMilestoneActivity,
 } from "./actions";
 
 type TIssueActivityItem = {
@@ -86,6 +87,9 @@ export const IssueActivityItem = observer(function IssueActivityItem(props: TIss
       return <IssueLinkActivity {...componentDefaultProps} showIssue={false} />;
     case "attachment":
       return <IssueAttachmentActivity {...componentDefaultProps} showIssue={false} />;
+    case "type":
+    case "milestone":
+      return <IssueTypeMilestoneActivity {...componentDefaultProps} />;
     case "archived_at":
       return <IssueArchivedAtActivity {...componentDefaultProps} />;
     case "intake":

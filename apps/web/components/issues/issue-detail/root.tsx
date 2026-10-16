@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-shadow -- upstream code
 import { useMemo } from "react";
 import { observer } from "mobx-react";
 // plane imports
@@ -96,10 +97,15 @@ export const IssueDetailRoot = observer(function IssueDetailRoot(props: TIssueDe
           await updateIssue(workspaceSlug, projectId, issueId, data);
         } catch (error) {
           console.log("Error in updating issue:", error);
+          const workflowError = error as { error?: string; code?: string } | undefined;
           setToast({
             title: t("common.error.label"),
             type: "error",
-            message: t("entity.update.failed", { entity: t("issue.label") }),
+            // a state change the project workflow does not permit says which moves are allowed
+            message:
+              workflowError?.code === "WORKFLOW_TRANSITION_NOT_ALLOWED" && workflowError.error
+                ? workflowError.error
+                : t("entity.update.failed", { entity: t("issue.label") }),
           });
         }
       },

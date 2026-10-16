@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-constant-binary-expression -- upstream code
+import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
@@ -20,10 +22,11 @@ import { useTranslation } from "@plane/i18n";
 import type { EUserProjectRoles, IUser, IWorkspaceMember, TProjectMembership } from "@plane/types";
 import { getFileURL } from "@plane/utils";
 // hooks
+import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
-export interface RowData extends Pick<TProjectMembership, "original_role"> {
+export interface RowData extends Pick<TProjectMembership, "original_role" | "designation"> {
   member: IWorkspaceMember;
 }
 
@@ -214,5 +217,55 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         </div>
       )}
     </>
+  );
+});
+
+type ProjectRoleProps = {
+  rowData: RowData;
+  workspaceSlug: string;
+  projectId: string;
+  /** project admins can change it */
+  isEditable: boolean;
+};
+
+/** The member's job on the project ("Developer", "Graphic Designer", ...), editable by project admins. */
+export const ProjectRoleColumn = observer(function ProjectRoleColumn(props: ProjectRoleProps) {
+  const { rowData, workspaceSlug, projectId, isEditable } = props;
+  const {
+    project: { updateMemberDesignation },
+  } = useMember();
+  const saved = rowData.designation ?? "";
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+
+  if (!isEditable) return <div className="w-44 truncate">{saved || "—"}</div>;
+
+  const save = () => {
+    const value = draft.trim();
+    if (value === saved) return;
+    if (!value) {
+      setDraft(saved);
+      setToast({ type: "error", title: "Project role is required", message: "Enter the member's job on the project." });
+      return;
+    }
+    void updateMemberDesignation(workspaceSlug, projectId, rowData.member.id, value)
+      .then(() => setToast({ type: "success", title: "Project role updated", message: value }))
+      .catch((error: { error?: string } | undefined) => {
+        setDraft(saved);
+        setToast({ type: "error", title: "Error!", message: error?.error ?? "Project role could not be updated." });
+      });
+  };
+
+  return (
+    <div className="w-44">
+      <ProjectRoleInput
+        value={draft}
+        onChange={setDraft}
+        onBlur={save}
+        invalid={!draft.trim()}
+        placeholder="Add project role"
+        ariaLabel={`Project role of ${rowData.member.display_name}`}
+      />
+    </div>
   );
 });

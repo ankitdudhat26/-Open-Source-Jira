@@ -103,6 +103,8 @@ export interface IProjectMemberLite {
 export type TProjectMembership = {
   member: string;
   role: TUserPermissions | EUserProjectRoles;
+  /** job on the project, e.g. "Developer" or "Graphic Designer" */
+  designation?: string;
 } & (
   | {
       id: string;
@@ -117,7 +119,7 @@ export type TProjectMembership = {
 );
 
 export interface IProjectBulkAddFormData {
-  members: { role: TUserPermissions | EUserProjectRoles; member_id: string }[];
+  members: { role: TUserPermissions | EUserProjectRoles; member_id: string; designation: string }[];
 }
 
 export type IProjectMemberNavigationPreferences = {

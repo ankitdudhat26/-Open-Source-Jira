@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-shadow -- upstream: catch params named `error` next to the hook's `error`
 import { useState, useMemo, useCallback } from "react";
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
@@ -83,11 +84,15 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
               fetchActivities(workspaceSlug, projectId, issueId);
               return;
             })
-            .catch((_error) => {
+            .catch((updateError: { error?: string; code?: string } | undefined) => {
               setToast({
                 title: t("toast.error"),
                 type: "error",
-                message: t("entity.update.failed", { entity: t("issue.label", { count: 1 }) }),
+                // a state change the project workflow does not permit says which moves are allowed
+                message:
+                  updateError?.code === "WORKFLOW_TRANSITION_NOT_ALLOWED" && updateError.error
+                    ? updateError.error
+                    : t("entity.update.failed", { entity: t("issue.label", { count: 1 }) }),
               });
             });
         }

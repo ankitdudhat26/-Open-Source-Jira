@@ -316,23 +316,31 @@ def notifications(
                 else:
                     sender = "in_app:issue_activities:subscribed"
 
-                preference = UserNotificationPreference.objects.get(user_id=subscriber)
+                # every user gets a preference row on sign up; create one if it is missing instead of
+                # stopping the notifications of every remaining watcher
+                preference, _ = UserNotificationPreference.objects.get_or_create(user_id=subscriber)
 
                 for issue_activity in issue_activities_created:
                     # If activity done in blocking then blocked by email should not go
                     if issue_activity.get("issue_detail").get("id") != issue_id:
                         continue
 
-                    # Do not send notification for description update
-                    if issue_activity.get("field") == "description":
-                        continue
+                    field = issue_activity.get("field")
+                    # The editor saves the description while typing, so it does not get an in-app notification
+                    # for every save; the email shows one "updated the description" line per batch instead
+                    is_description = field == "description"
 
-                    # Check if the value should be sent or not
-                    send_email = False
-                    if issue_activity.get("field") == "state" and preference.state_change:
+                    # Which emails go out, like Jira's default notification scheme
+                    if field is None and issue_activity.get("verb") == "created":
+                        # work item created: the assignees and watchers always hear about it
+                        send_email = True
+                    elif field == "assignees" and str(issue_activity.get("new_identifier")) == str(subscriber):
+                        # "<actor> assigned SALES-1 to you" is always sent
+                        send_email = True
+                    elif field == "state" and preference.state_change:
                         send_email = True
                     elif (
-                        issue_activity.get("field") == "state"
+                        field == "state"
                         and preference.issue_completed
                         and State.objects.filter(
                             project_id=project_id,
@@ -341,12 +349,14 @@ def notifications(
                         ).exists()
                     ):
                         send_email = True
-                    elif issue_activity.get("field") == "comment" and preference.comment:
-                        send_email = True
-                    elif preference.property_change:
-                        send_email = True
+                    elif field == "comment":
+                        # comments only follow the "comment" preference
+                        send_email = preference.comment
                     else:
-                        send_email = False
+                        send_email = preference.property_change
+
+                    if is_description and not send_email:
+                        continue
 
                     # If activity is of issue comment fetch the comment
                     issue_comment = (
@@ -361,49 +371,49 @@ def notifications(
                     )
 
                     # Create in app notification
-                    bulk_notifications.append(
-                        Notification(
-                            workspace=project.workspace,
-                            sender=sender,
-                            triggered_by_id=actor_id,
-                            receiver_id=subscriber,
-                            entity_identifier=issue_id,
-                            entity_name="issue",
-                            project=project,
-                            title=issue_activity.get("comment"),
-                            data={
-                                "issue": {
-                                    "id": str(issue_id),
-                                    "name": str(issue.name),
-                                    "identifier": str(issue.project.identifier),
-                                    "sequence_id": issue.sequence_id,
-                                    "state_name": issue.state.name,
-                                    "state_group": issue.state.group,
-                                },
-                                "issue_activity": {
-                                    "id": str(issue_activity.get("id")),
-                                    "verb": str(issue_activity.get("verb")),
-                                    "field": str(issue_activity.get("field")),
-                                    "actor": str(issue_activity.get("actor_id")),
-                                    "new_value": str(issue_activity.get("new_value")),
-                                    "old_value": str(issue_activity.get("old_value")),
-                                    "issue_comment": str(
-                                        issue_comment.comment_stripped if issue_comment is not None else ""
-                                    ),
-                                    "old_identifier": (
-                                        str(issue_activity.get("old_identifier"))
-                                        if issue_activity.get("old_identifier")
-                                        else None
-                                    ),
-                                    "new_identifier": (
-                                        str(issue_activity.get("new_identifier"))
-                                        if issue_activity.get("new_identifier")
-                                        else None
-                                    ),
-                                },
+                    in_app_notification = Notification(
+                        workspace=project.workspace,
+                        sender=sender,
+                        triggered_by_id=actor_id,
+                        receiver_id=subscriber,
+                        entity_identifier=issue_id,
+                        entity_name="issue",
+                        project=project,
+                        title=issue_activity.get("comment"),
+                        data={
+                            "issue": {
+                                "id": str(issue_id),
+                                "name": str(issue.name),
+                                "identifier": str(issue.project.identifier),
+                                "sequence_id": issue.sequence_id,
+                                "state_name": issue.state.name,
+                                "state_group": issue.state.group,
                             },
-                        )
+                            "issue_activity": {
+                                "id": str(issue_activity.get("id")),
+                                "verb": str(issue_activity.get("verb")),
+                                "field": str(issue_activity.get("field")),
+                                "actor": str(issue_activity.get("actor_id")),
+                                "new_value": str(issue_activity.get("new_value")),
+                                "old_value": str(issue_activity.get("old_value")),
+                                "issue_comment": str(
+                                    issue_comment.comment_stripped if issue_comment is not None else ""
+                                ),
+                                "old_identifier": (
+                                    str(issue_activity.get("old_identifier"))
+                                    if issue_activity.get("old_identifier")
+                                    else None
+                                ),
+                                "new_identifier": (
+                                    str(issue_activity.get("new_identifier"))
+                                    if issue_activity.get("new_identifier")
+                                    else None
+                                ),
+                            },
+                        },
                     )
+                    if not is_description:
+                        bulk_notifications.append(in_app_notification)
                     # Create email notification
                     if send_email:
                         bulk_email_logs.append(
@@ -464,7 +474,7 @@ def notifications(
 
             for mention_id in comment_mentions:
                 if mention_id != actor_id:
-                    preference = UserNotificationPreference.objects.get(user_id=mention_id)
+                    preference, _ = UserNotificationPreference.objects.get_or_create(user_id=mention_id)
                     for issue_activity in issue_activities_created:
                         notification = create_mention_notification(
                             project=project,
@@ -499,6 +509,7 @@ def notifications(
                                             "id": str(issue_activity.get("id")),
                                             "verb": str(issue_activity.get("verb")),
                                             "field": str("mention"),
+                                            "source": "comment",
                                             "actor": str(issue_activity.get("actor_id")),
                                             "new_value": str(issue_activity.get("new_value")),
                                             "old_value": str(issue_activity.get("old_value")),
@@ -521,7 +532,7 @@ def notifications(
 
             for mention_id in new_mentions:
                 if mention_id != actor_id:
-                    preference = UserNotificationPreference.objects.get(user_id=mention_id)
+                    preference, _ = UserNotificationPreference.objects.get_or_create(user_id=mention_id)
                     if (
                         last_activity is not None
                         and last_activity.field == "description"
@@ -589,6 +600,7 @@ def notifications(
                                             "id": str(last_activity.id),
                                             "verb": str(last_activity.verb),
                                             "field": "mention",
+                                            "source": "description",
                                             "actor": str(last_activity.actor_id),
                                             "new_value": str(last_activity.new_value),
                                             "old_value": str(last_activity.old_value),
@@ -638,6 +650,7 @@ def notifications(
                                                 "id": str(issue_activity.get("id")),
                                                 "verb": str(issue_activity.get("verb")),
                                                 "field": str("mention"),
+                                                "source": "description",
                                                 "actor": str(issue_activity.get("actor_id")),
                                                 "new_value": str(issue_activity.get("new_value")),
                                                 "old_value": str(issue_activity.get("old_value")),

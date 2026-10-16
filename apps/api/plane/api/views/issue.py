@@ -87,6 +87,7 @@ from plane.utils.order_queryset import (
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from .base import BaseAPIView
 from plane.utils.host import base_host
+from plane.utils.workflow import check_transition
 from plane.utils.issue_relation_mapper import get_actual_relation
 from plane.bgtasks.webhook_task import model_activity
 from plane.app.permissions import ROLE
@@ -779,6 +780,15 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Supports external ID validation to prevent conflicts.
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
+
+        # Jira style workflow: only the permitted state changes are allowed
+        requested_state_id = request.data.get("state_id") or request.data.get("state")
+        workflow_error = check_transition(project_id, issue.state_id, requested_state_id, request.user.id)
+        if workflow_error:
+            return Response(
+                {"error": workflow_error, "code": "WORKFLOW_TRANSITION_NOT_ALLOWED"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         project = Project.objects.get(pk=project_id)
         current_instance = json.dumps(IssueSerializer(issue).data, cls=DjangoJSONEncoder)
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
@@ -1502,6 +1512,9 @@ class IssueCommentListCreateAPIEndpoint(BaseAPIView):
                 project_id=str(self.kwargs.get("project_id")),
                 current_instance=None,
                 epoch=int(timezone.now().timestamp()),
+                # notify the work item's watchers, the same as comments made in the app
+                notification=True,
+                origin=base_host(request=request, is_app=True),
             )
 
             # Send the model activity
@@ -1642,6 +1655,9 @@ class IssueCommentDetailAPIEndpoint(BaseAPIView):
                 project_id=str(project_id),
                 current_instance=current_instance,
                 epoch=int(timezone.now().timestamp()),
+                # notify the work item's watchers, the same as comments made in the app
+                notification=True,
+                origin=base_host(request=request, is_app=True),
             )
             # Send the model activity
             model_activity.delay(
