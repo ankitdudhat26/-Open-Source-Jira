@@ -3,7 +3,6 @@
 # See the LICENSE file for details.
 
 # Python Imports
-import uuid
 
 # Django Imports
 from django.utils import timezone
@@ -45,6 +44,7 @@ from plane.utils.openapi import (
     asset_docs,
 )
 from plane.utils.exception_logger import log_exception
+from plane.utils.asset_paths import asset_storage_key
 
 
 class UserAssetEndpoint(BaseAPIView):
@@ -149,7 +149,7 @@ class UserAssetEndpoint(BaseAPIView):
             )
 
         # asset key
-        asset_key = f"{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, user_id=request.user.id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(
@@ -322,7 +322,7 @@ class UserServerAssetEndpoint(BaseAPIView):
             )
 
         # asset key
-        asset_key = f"{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, user_id=request.user.id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(
@@ -543,7 +543,9 @@ class GenericAssetEndpoint(BaseAPIView):
         workspace = Workspace.objects.get(slug=slug)
 
         # asset key
-        asset_key = f"{workspace.id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(
+            name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=workspace.id
+        )
 
         # Check for existing asset with same external details if provided
         if external_id and external_source:

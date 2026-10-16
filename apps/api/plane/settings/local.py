@@ -17,8 +17,13 @@ if DEBUG:
 
     DEBUG_TOOLBAR_PATCH_SETTINGS = False
 
-# Only show emails in console don't send it to smtp
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+# Print emails to the console, unless SendGrid is configured: then they are really sent
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if os.environ.get("SENDGRID_API_KEY", "").strip()
+    else "django.core.mail.backends.console.EmailBackend",
+)
 
 CACHES = {
     "default": {

@@ -12,15 +12,16 @@ from django.db import models
 
 # Module import
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.asset_paths import asset_storage_key
 
 from .base import BaseModel
 
 
 def get_upload_path(instance, filename):
     filename = sanitize_filename(filename) or uuid4().hex
-    if instance.workspace_id is not None:
-        return f"{instance.workspace.id}/{uuid4().hex}-{filename}"
-    return f"user-{uuid4().hex}-{filename}"
+    return asset_storage_key(
+        filename, entity_type=instance.entity_type, workspace_id=instance.workspace_id, user_id=instance.user_id
+    )
 
 
 def file_size(value):

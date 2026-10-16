@@ -3,7 +3,6 @@
 # See the LICENSE file for details.
 
 # Python imports
-import uuid
 import base64
 import requests
 from bs4 import BeautifulSoup
@@ -17,6 +16,7 @@ from plane.utils.exception_logger import log_exception
 from plane.settings.storage import S3Storage
 from celery import shared_task
 from plane.utils.url import normalize_url_path
+from plane.utils.asset_paths import asset_storage_key
 
 
 def get_entity_id_field(entity_type, entity_id):
@@ -92,7 +92,9 @@ def copy_assets(entity, entity_identifier, project_id, asset_ids, user_id):
     original_assets = FileAsset.objects.filter(workspace=workspace, project_id=project_id, id__in=asset_ids)
 
     for original_asset in original_assets:
-        destination_key = f"{workspace.id}/{uuid.uuid4().hex}-{original_asset.attributes.get('name')}"
+        destination_key = asset_storage_key(
+            original_asset.attributes.get("name"), entity_type=original_asset.entity_type, workspace_id=workspace.id
+        )
         duplicated_asset = FileAsset.objects.create(
             attributes={
                 "name": original_asset.attributes.get("name"),

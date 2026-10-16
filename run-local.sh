@@ -77,7 +77,9 @@ trap cleanup EXIT INT TERM
 
 "$PY" manage.py runserver 0.0.0.0:8000 >"$LOG_DIR/api.log" 2>&1 &
 api_pid=$!
-.venv/bin/celery -A plane worker -l info >"$LOG_DIR/worker.log" 2>&1 &
+# Threads pool: on macOS the default prefork pool's forked children silently fail on network/TLS calls
+# (e.g. sending email through SendGrid), so tasks were received but never completed.
+.venv/bin/celery -A plane worker -l info --pool=threads --concurrency=8 >"$LOG_DIR/worker.log" 2>&1 &
 .venv/bin/celery -A plane beat -l info >"$LOG_DIR/beat.log" 2>&1 &
 
 # Wait for the API before starting the frontends, and show why if it fails.

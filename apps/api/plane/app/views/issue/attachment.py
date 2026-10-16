@@ -4,7 +4,6 @@
 
 # Python imports
 import json
-import uuid
 
 # Django imports
 from django.utils import timezone
@@ -27,6 +26,7 @@ from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.utils.host import base_host
+from plane.utils.asset_paths import asset_storage_key
 
 
 class IssueAttachmentEndpoint(BaseAPIView):
@@ -112,7 +112,9 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
         workspace = Workspace.objects.get(slug=slug)
 
         # asset key
-        asset_key = f"{workspace.id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(
+            name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=workspace.id
+        )
 
         # Get the size limit
         size_limit = min(size, settings.FILE_SIZE_LIMIT)

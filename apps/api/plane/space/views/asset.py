@@ -3,7 +3,6 @@
 # See the LICENSE file for details.
 
 # Python imports
-import uuid
 
 # Django imports
 from django.conf import settings
@@ -19,6 +18,7 @@ from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.db.models import DeployBoard, FileAsset
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.asset_paths import asset_storage_key
 
 # Module imports
 from .base import BaseAPIView
@@ -126,7 +126,7 @@ class EntityAssetEndpoint(BaseAPIView):
             )
 
         # asset key
-        asset_key = f"{deploy_board.workspace_id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, workspace_id=deploy_board.workspace_id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(

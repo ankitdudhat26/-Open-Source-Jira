@@ -39,7 +39,34 @@ def get_configuration_value(keys):
     return tuple(environment_list)
 
 
+SENDGRID_SMTP_HOST = "smtp.sendgrid.net"
+SENDGRID_SMTP_PORT = "587"
+
+
+def is_sendgrid_configured():
+    return bool(os.environ.get("SENDGRID_API_KEY", "").strip())
+
+
+def get_sendgrid_email_configuration():
+    """SMTP settings for SendGrid: the API key is the password of the fixed "apikey" user."""
+    from_email = os.environ.get("MAIL_FROM_EMAIL", "").strip()
+    from_name = os.environ.get("MAIL_FROM_NAME", "").strip()
+    sender = f"{from_name} <{from_email}>" if from_name and from_email else from_email
+    return (
+        SENDGRID_SMTP_HOST,
+        "apikey",
+        os.environ.get("SENDGRID_API_KEY", "").strip(),
+        SENDGRID_SMTP_PORT,
+        "1",  # STARTTLS
+        "0",
+        sender or os.environ.get("EMAIL_FROM", "Team Plane <team@mailer.plane.so>"),
+    )
+
+
 def get_email_configuration():
+    # SendGrid credentials in the environment take precedence over the SMTP settings of God Mode
+    if is_sendgrid_configured():
+        return get_sendgrid_email_configuration()
     return get_configuration_value(
         [
             {"key": "EMAIL_HOST", "default": os.environ.get("EMAIL_HOST")},

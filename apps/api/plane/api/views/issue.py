@@ -4,7 +4,6 @@
 
 # Python imports
 import json
-import uuid
 import re
 
 # Django imports
@@ -159,6 +158,7 @@ from plane.utils.openapi import (
     WORKSPACE_NOT_FOUND_RESPONSE,
 )
 from plane.bgtasks.work_item_link_task import crawl_work_item_link_title
+from plane.utils.asset_paths import asset_storage_key
 
 
 def user_has_issue_permission(user_id, project_id, issue=None, allowed_roles=None, allow_creator=True):
@@ -1935,7 +1935,9 @@ class IssueAttachmentListCreateAPIEndpoint(BaseAPIView):
         workspace = Workspace.objects.get(slug=slug)
 
         # asset key
-        asset_key = f"{workspace.id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(
+            name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=workspace.id
+        )
 
         if (
             request.data.get("external_id")

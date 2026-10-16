@@ -33,6 +33,8 @@ x-aws-s3-env: &aws-s3-env
   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-secret-key}
   AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://plane-minio:9000}
   AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+  # folder in the bucket that holds Plane's uploads (the bucket may be shared with other apps)
+  AWS_S3_FOLDER: ${AWS_S3_FOLDER:-plane}
 
 x-proxy-env: &proxy-env
   APP_DOMAIN: ${APP_DOMAIN:-localhost}
@@ -71,6 +73,10 @@ x-app-env: &app-env
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
   WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
   WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+  # SendGrid: when the API key is set every email is sent through SendGrid
+  SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+  MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-}
 
 services:
   web:

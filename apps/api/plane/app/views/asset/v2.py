@@ -26,6 +26,7 @@ from plane.utils.cache import invalidate_cache_directly
 from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.throttles.asset import AssetRateThrottle
+from plane.utils.asset_paths import asset_storage_key
 
 
 class UserAssetsV2Endpoint(BaseAPIView):
@@ -143,7 +144,7 @@ class UserAssetsV2Endpoint(BaseAPIView):
             )
 
         # asset key
-        asset_key = f"{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, user_id=request.user.id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(
@@ -387,7 +388,7 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
         workspace = Workspace.objects.get(slug=slug)
 
         # asset key
-        asset_key = f"{workspace.id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, workspace_id=workspace.id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(
@@ -616,7 +617,7 @@ class ProjectAssetEndpoint(BaseAPIView):
         workspace = Workspace.objects.get(slug=slug)
 
         # asset key
-        asset_key = f"{workspace.id}/{uuid.uuid4().hex}-{name}"
+        asset_key = asset_storage_key(name, entity_type=entity_type, workspace_id=workspace.id)
 
         # Create a File Asset
         asset = FileAsset.objects.create(
@@ -842,7 +843,9 @@ class DuplicateAssetEndpoint(BaseAPIView):
             return Response({"error": "Asset not found"}, status=status.HTTP_404_NOT_FOUND)
 
         sanitized_name = sanitize_filename(original_asset.attributes.get("name")) or "unnamed"
-        destination_key = f"{workspace.id}/{uuid.uuid4().hex}-{sanitized_name}"
+        destination_key = asset_storage_key(
+            sanitized_name, entity_type=original_asset.entity_type, workspace_id=workspace.id
+        )
         duplicated_asset = FileAsset.objects.create(
             attributes={
                 "name": original_asset.attributes.get("name"),
