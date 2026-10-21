@@ -100,6 +100,11 @@ export const coreRoutes: RouteConfigEntry[] = [
           ),
         ]),
 
+        // Queues (group queues, e.g. DevOps)
+        layout("./(all)/[workspaceSlug]/(projects)/queues/layout.tsx", [
+          route(":workspaceSlug/queues", "./(all)/[workspaceSlug]/(projects)/queues/page.tsx"),
+        ]),
+
         // Stickies
         layout("./(all)/[workspaceSlug]/(projects)/stickies/layout.tsx", [
           route(":workspaceSlug/stickies", "./(all)/[workspaceSlug]/(projects)/stickies/page.tsx"),
@@ -273,6 +278,10 @@ export const coreRoutes: RouteConfigEntry[] = [
           route(
             ":workspaceSlug/settings/members",
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/members/page.tsx"
+          ),
+          route(
+            ":workspaceSlug/settings/groups",
+            "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/groups/page.tsx"
           ),
           route(
             ":workspaceSlug/settings/billing",

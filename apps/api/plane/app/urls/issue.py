@@ -4,6 +4,8 @@
 
 from django.urls import path
 
+from plane.app.views.workspace.group import WorkItemQueueEndpoint
+
 from plane.app.views import (
     BulkCreateIssueLabelsEndpoint,
     BulkDeleteIssuesEndpoint,
@@ -282,5 +284,10 @@ urlpatterns = [
         "workspaces/<str:slug>/work-items/<str:project_identifier>-<str:issue_identifier>/",
         IssueDetailIdentifierEndpoint.as_view(),
         name="issue-detail-identifier",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/queue/",
+        WorkItemQueueEndpoint.as_view(),
+        name="project-issue-queue",
     ),
 ]

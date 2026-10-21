@@ -38,6 +38,7 @@ FIELD_LABELS = {
     "estimate_categories": "Estimate",
     "type": "Type",
     "milestone": "Milestone",
+    "queue": "Queue",
     "link": "Link",
     "attachment": "Attachment",
     "blocking": "Blocks",

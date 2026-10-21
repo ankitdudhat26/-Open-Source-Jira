@@ -84,6 +84,7 @@ from .issue_type import IssueType, ProjectIssueType
 
 from .milestone import Milestone, MilestoneModule, Deliverable, ProjectResource
 from .workflow import ProjectWorkflow, WorkflowTransition
+from .group import QueueItem, WorkspaceGroup, WorkspaceGroupMember
 
 from .recent_visit import UserRecentVisit
 

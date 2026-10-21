@@ -484,6 +484,9 @@
         "heading": "Scripts",
         "new_script": "New Script",
         "description": "Automate your workflows with custom scripts and automation rules."
+      },
+      "groups": {
+        "title": "Groups & queues"
       }
     },
     "empty_state": {

@@ -4,6 +4,16 @@
 
 from django.urls import path
 
+from plane.app.views.workspace.group import (
+    QueueItemAssignEndpoint,
+    QueueItemCommentEndpoint,
+    QueueItemDetailEndpoint,
+    QueueItemsEndpoint,
+    QueueListEndpoint,
+    WorkspaceGroupDetailEndpoint,
+    WorkspaceGroupEndpoint,
+)
+
 
 from plane.app.views import (
     UserWorkspaceInvitationsViewSet,
@@ -256,5 +266,33 @@ urlpatterns = [
         "workspaces/<str:slug>/sidebar-preferences/",
         WorkspaceUserPreferenceViewSet.as_view(),
         name="workspace-user-preference",
+    ),
+    # groups (e.g. DevOps) and their queues
+    path("workspaces/<str:slug>/groups/", WorkspaceGroupEndpoint.as_view(), name="workspace-groups"),
+    path(
+        "workspaces/<str:slug>/groups/<uuid:group_id>/",
+        WorkspaceGroupDetailEndpoint.as_view(),
+        name="workspace-group-detail",
+    ),
+    path("workspaces/<str:slug>/queues/", QueueListEndpoint.as_view(), name="workspace-queues"),
+    path(
+        "workspaces/<str:slug>/queues/<uuid:group_id>/items/",
+        QueueItemsEndpoint.as_view(),
+        name="workspace-queue-items",
+    ),
+    path(
+        "workspaces/<str:slug>/queues/<uuid:group_id>/items/<uuid:issue_id>/",
+        QueueItemDetailEndpoint.as_view(),
+        name="workspace-queue-item",
+    ),
+    path(
+        "workspaces/<str:slug>/queues/<uuid:group_id>/items/<uuid:issue_id>/assign/",
+        QueueItemAssignEndpoint.as_view(),
+        name="workspace-queue-item-assign",
+    ),
+    path(
+        "workspaces/<str:slug>/queues/<uuid:group_id>/items/<uuid:issue_id>/comments/",
+        QueueItemCommentEndpoint.as_view(),
+        name="workspace-queue-item-comments",
     ),
 ]

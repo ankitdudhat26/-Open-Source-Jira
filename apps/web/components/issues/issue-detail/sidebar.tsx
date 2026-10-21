@@ -15,6 +15,7 @@ import {
   LabelsOutline,
   MembersOutline,
   ModuleOutline,
+  InboxOutline,
   PriorityOutline,
   ShowOutline,
   StartDateOutline,
@@ -42,6 +43,7 @@ import { IssueCycleSelect } from "./cycle-select";
 import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
 import { IssueWatchersSelect } from "./watchers-select";
+import { IssueQueueSelect } from "./queue-select";
 import { IssueWorkItemStructureProperties } from "./work-item-structure-properties";
 import type { TIssueOperations } from "./root";
 
@@ -116,6 +118,15 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
 
             <SidebarPropertyListItem icon={ShowOutline} label="Watchers">
               <IssueWatchersSelect
+                workspaceSlug={workspaceSlug}
+                projectId={projectId}
+                issueId={issueId}
+                disabled={!isEditable}
+              />
+            </SidebarPropertyListItem>
+
+            <SidebarPropertyListItem icon={InboxOutline} label="Queue">
+              <IssueQueueSelect
                 workspaceSlug={workspaceSlug}
                 projectId={projectId}
                 issueId={issueId}

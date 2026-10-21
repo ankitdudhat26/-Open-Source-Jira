@@ -15,6 +15,7 @@ import {
   LabelsOutline,
   MembersOutline,
   ModuleOutline,
+  InboxOutline,
   PriorityOutline,
   ShowOutline,
   StartDateOutline,
@@ -43,6 +44,7 @@ import { IssueCycleSelect } from "../issue-detail/cycle-select";
 import { IssueLabel } from "../issue-detail/label";
 import { IssueModuleSelect } from "../issue-detail/module-select";
 import { IssueWatchersSelect } from "../issue-detail/watchers-select";
+import { IssueQueueSelect } from "../issue-detail/queue-select";
 
 interface IPeekOverviewProperties {
   workspaceSlug: string;
@@ -116,6 +118,10 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
             issueId={issueId}
             disabled={disabled}
           />
+        </SidebarPropertyListItem>
+
+        <SidebarPropertyListItem icon={InboxOutline} label="Queue">
+          <IssueQueueSelect workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
         </SidebarPropertyListItem>
 
         <SidebarPropertyListItem icon={PriorityOutline} label={t("common.priority")}>

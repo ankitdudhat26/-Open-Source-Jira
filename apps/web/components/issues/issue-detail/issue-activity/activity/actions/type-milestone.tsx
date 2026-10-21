@@ -5,7 +5,7 @@
  */
 
 import { observer } from "mobx-react";
-import { LayerStackOutline, MilestoneOutline } from "@makeplane/propel/icons";
+import { InboxOutline, LayerStackOutline, MilestoneOutline } from "@makeplane/propel/icons";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 // components
@@ -13,7 +13,7 @@ import { IssueActivityBlockComponent } from "./";
 
 type TIssueTypeMilestoneActivity = { activityId: string; ends: "top" | "bottom" | undefined };
 
-/** Change of the work item type (Feature / Task / Bug) or of its milestone. */
+/** Change of the work item type (Feature / Task / Bug), its milestone or its queue (e.g. DevOps). */
 export const IssueTypeMilestoneActivity = observer(function IssueTypeMilestoneActivity(
   props: TIssueTypeMilestoneActivity
 ) {
@@ -27,8 +27,28 @@ export const IssueTypeMilestoneActivity = observer(function IssueTypeMilestoneAc
   if (!activity) return <></>;
 
   const isType = activity.field === "type";
+  const isQueue = activity.field === "queue";
   const label = isType ? "type" : "milestone";
-  const Icon = isType ? LayerStackOutline : MilestoneOutline;
+  const Icon = isQueue ? InboxOutline : isType ? LayerStackOutline : MilestoneOutline;
+
+  if (isQueue)
+    return (
+      <IssueActivityBlockComponent
+        icon={<Icon className="h-3.5 w-3.5 text-secondary" aria-hidden="true" />}
+        activityId={activityId}
+        ends={ends}
+      >
+        {activity.new_value ? (
+          <>
+            sent the work item to the <span className="font-medium text-primary">{activity.new_value}</span> queue.
+          </>
+        ) : (
+          <>
+            removed the work item from the <span className="font-medium text-primary">{activity.old_value}</span> queue.
+          </>
+        )}
+      </IssueActivityBlockComponent>
+    );
 
   return (
     <IssueActivityBlockComponent

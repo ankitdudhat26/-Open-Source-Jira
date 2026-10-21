@@ -89,6 +89,7 @@ export const IssueActivityItem = observer(function IssueActivityItem(props: TIss
       return <IssueAttachmentActivity {...componentDefaultProps} showIssue={false} />;
     case "type":
     case "milestone":
+    case "queue":
       return <IssueTypeMilestoneActivity {...componentDefaultProps} />;
     case "archived_at":
       return <IssueArchivedAtActivity {...componentDefaultProps} />;
