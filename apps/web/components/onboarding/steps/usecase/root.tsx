@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-unneeded-ternary, no-unused-expressions -- upstream code
 import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
 // plane imports
@@ -83,7 +84,10 @@ export const UseCaseSetupStep = observer(function UseCaseSetupStep({ handleStepC
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-10">
       {/* Header */}
-      <CommonOnboardingHeader title="What brings you to Plane?" description="Tell us your goals and team size." />
+      <CommonOnboardingHeader
+        title="What brings you to Hlink Sprint?"
+        description="Tell us your goals and team size."
+      />
 
       {/* Use Case Selection */}
       <div className="flex flex-col gap-3">

@@ -16,7 +16,7 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 
 # Module imports
-from plane.utils.otlp_endpoints import get_otlp_grpc_endpoint, get_otlp_http_metrics_url
+from plane.utils.otlp_endpoints import get_otlp_grpc_endpoint, get_otlp_http_metrics_url, is_otlp_configured
 from plane.license.models import Instance
 from plane.db.models import (
     User,
@@ -81,11 +81,16 @@ def _collect_and_push_metrics() -> None:
         logger.debug("Telemetry disabled, skipping metrics push")
         return
 
+    # Only push to a collector configured for this installation (never to a third party by default)
+    if not is_otlp_configured():
+        logger.debug("OTLP_ENDPOINT not set, skipping metrics push")
+        return
+
     # Configure OTEL metrics (gRPC default, or HTTP if OTLP_METRICS_PROTOCOL=http)
     protocol = (os.environ.get("OTLP_METRICS_PROTOCOL") or "grpc").strip().lower()
     export_endpoint = get_otlp_grpc_endpoint() if protocol == "grpc" else get_otlp_http_metrics_url()
 
-    service_name = os.environ.get("SERVICE_NAME", "plane-ce-api")
+    service_name = os.environ.get("SERVICE_NAME", "hlink-sprint-api")
 
     # Create resource with instance identification for the collector
     resource = Resource.create({
@@ -173,7 +178,7 @@ def _collect_and_push_metrics() -> None:
         # Register observable gauges for instance metrics
         meter.create_observable_gauge(
             name="plane_instance_users_total",
-            description="Total number of users in the Plane instance",
+            description="Total number of users in the Hlink Sprint instance",
             callbacks=[users_callback],
         )
         meter.create_observable_gauge(

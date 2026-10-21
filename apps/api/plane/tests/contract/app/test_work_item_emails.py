@@ -122,7 +122,7 @@ class TestWorkItemEmails:
 
         key = f"SALES-{item['sequence_id']}"
         assert message.to == [asha.email]
-        assert message.subject == f"[Plane] ({key}) Login page"
+        assert message.subject == f"[Hlink Sprint] ({key}) Login page"
         html = html_of(message)
         assert f"Test User created {key} and assigned it to you" in html.replace("  ", " ") or (
             f"created {key} and assigned it to you" in html
@@ -160,7 +160,7 @@ class TestWorkItemEmails:
         assert "Please check the <strong>API</strong>" in html
         assert "<script>" not in html
         # same subject as the first email, so mail clients keep one conversation per work item
-        assert message.subject == f"[Plane] (SALES-{item['sequence_id']}) Login page"
+        assert message.subject == f"[Hlink Sprint] (SALES-{item['sequence_id']}) Login page"
         assert message.extra_headers["References"] == f"<work-item-{item['id']}@mail.example.com>"
         assert message.extra_headers["In-Reply-To"] == message.extra_headers["References"]
 

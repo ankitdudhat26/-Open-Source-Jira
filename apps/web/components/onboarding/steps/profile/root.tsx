@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/no-autofocus, no-unneeded-ternary -- upstream code
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
@@ -147,7 +148,7 @@ export const ProfileSetupStep = observer(function ProfileSetupStep({ handleStepC
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-10">
       {/* Header */}
-      <CommonOnboardingHeader title="Create your profile." description="This is how you will appear in Plane." />
+      <CommonOnboardingHeader title="Create your profile." description="This is how you will appear in Hlink Sprint." />
 
       {/* Profile Picture Section */}
       <Controller

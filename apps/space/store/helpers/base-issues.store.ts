@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable no-shadow -- upstream code
 import { concat, get, set, uniq, update } from "lodash-es";
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
@@ -67,6 +68,9 @@ export const ISSUE_FILTER_DEFAULT_DATA: Record<TIssueDisplayFilterOptions, keyof
   created_by: "created_by",
   assignees: "assignee_ids",
   target_date: "target_date",
+  // published boards are not grouped by work item type / milestone; listed to complete the mapping
+  type: "type_id" as keyof IIssue,
+  milestone: "milestone_id" as keyof IIssue,
 };
 
 export abstract class BaseIssuesStore implements IBaseIssuesStore {

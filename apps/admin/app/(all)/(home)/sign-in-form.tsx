@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable jsx-a11y/no-autofocus, no-unneeded-ternary -- upstream code
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { HideOutline, ShowOutline } from "@makeplane/propel/icons";
@@ -114,7 +115,7 @@ export function InstanceSignInForm() {
       <div className="mt-10 flex w-full flex-grow flex-col items-center justify-center py-6">
         <div className="relative flex w-full max-w-[22.5rem] flex-col gap-6">
           <FormHeader
-            heading="Manage your Plane instance"
+            heading="Manage your Hlink Sprint instance"
             subHeading="Configure instance-wide settings to secure your instance"
           />
           <form

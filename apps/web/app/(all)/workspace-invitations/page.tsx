@@ -8,14 +8,7 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import {
-  BoxesOutline,
-  CloseOutline,
-  LogOutOutline,
-  ShareAltOutline,
-  TickOutline,
-  UserOutline,
-} from "@makeplane/propel/icons";
+import { BoxesOutline, CloseOutline, LogOutOutline, TickOutline, UserOutline } from "@makeplane/propel/icons";
 import { setToast } from "@plane/blocks/toast";
 // components
 import { LogoSpinner } from "@/components/common/logo-spinner";
@@ -121,7 +114,7 @@ function WorkspaceInvitationPage() {
     return (
       <EmptySpace
         title={title}
-        description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Plane account."
+        description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
       >
         <EmptySpaceItem Icon={TickOutline} title={isSubmitting ? "Joining…" : "Accept"} action={() => respond(true)} />
         <EmptySpaceItem Icon={CloseOutline} title="Ignore" action={() => respond(false)} />
@@ -144,14 +137,14 @@ function WorkspaceInvitationPage() {
           invitationDetail?.accepted ? (
             <EmptySpace
               title={`You are already a member of ${invitationDetail.workspace.name}`}
-              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Plane account."
+              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
             >
               <EmptySpaceItem Icon={BoxesOutline} title="Continue to home" href="/" />
             </EmptySpace>
           ) : (
             <EmptySpace
               title="This invitation link is not active anymore."
-              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Plane account."
+              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
               link={{ text: "Or start from an empty project", href: "/" }}
             >
               {!currentUser ? (
@@ -159,11 +152,6 @@ function WorkspaceInvitationPage() {
               ) : (
                 <EmptySpaceItem Icon={BoxesOutline} title="Continue to home" href="/" />
               )}
-              <EmptySpaceItem
-                Icon={ShareAltOutline}
-                title="Join our community of active creators"
-                href="https://forum.plane.so"
-              />
             </EmptySpace>
           )
         ) : (

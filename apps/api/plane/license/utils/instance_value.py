@@ -59,7 +59,7 @@ def get_sendgrid_email_configuration():
         SENDGRID_SMTP_PORT,
         "1",  # STARTTLS
         "0",
-        sender or os.environ.get("EMAIL_FROM", "Team Plane <team@mailer.plane.so>"),
+        sender or os.environ.get("EMAIL_FROM", "Hlink Sprint <no-reply@localhost>"),
     )
 
 
@@ -80,7 +80,7 @@ def get_email_configuration():
             {"key": "EMAIL_USE_SSL", "default": os.environ.get("EMAIL_USE_SSL", "0")},
             {
                 "key": "EMAIL_FROM",
-                "default": os.environ.get("EMAIL_FROM", "Team Plane <team@mailer.plane.so>"),
+                "default": os.environ.get("EMAIL_FROM", "Hlink Sprint <no-reply@localhost>"),
             },
         ]
     )

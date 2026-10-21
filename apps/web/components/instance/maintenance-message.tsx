@@ -5,23 +5,17 @@
  */
 
 export function MaintenanceMessage() {
-  const linkMap = [
-    {
-      key: "mail_to",
-      label: "Contact Support",
-      value: "mailto:support@plane.so",
-    },
-  ];
+  const linkMap: { key: string; label: string; value: string }[] = [];
 
   return (
     <>
       <div className="flex flex-col gap-2.5">
         <h1 className="text-left text-18 font-semibold text-primary">
-          &#x1F6A7; Looks like Plane didn&apos;t start up correctly!
+          &#x1F6A7; Looks like Hlink Sprint didn&apos;t start up correctly!
         </h1>
         <span className="text-left text-14 font-medium text-secondary">
           Some services might have failed to start. Please check your container logs to identify and resolve the issue.
-          If you&apos;re stuck, reach out to our support team for more help.
+          If you&apos;re stuck, contact your administrator.
         </span>
       </div>
       <div className="mt-1 flex items-center justify-start gap-6">

@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable jsx-a11y/no-autofocus, no-unneeded-ternary -- upstream code
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 // icons
@@ -142,8 +143,8 @@ export function InstanceSetupForm() {
       <div className="mt-10 flex w-full flex-grow flex-col items-center justify-center py-6">
         <div className="relative flex w-full max-w-[22.5rem] flex-col gap-6">
           <FormHeader
-            heading="Setup your Plane Instance"
-            subHeading="Post setup you will be able to manage this Plane instance."
+            heading="Setup your Hlink Sprint Instance"
+            subHeading="Post setup you will be able to manage this Hlink Sprint instance."
           />
           {errorData?.message &&
             !(errorData.type && [EErrorCodes.INVALID_EMAIL, EErrorCodes.INVALID_PASSWORD].includes(errorData.type)) && (
@@ -346,21 +347,13 @@ export function InstanceSetupForm() {
               <div>
                 <Checkbox
                   id="is_telemetry_enabled"
-                  aria-label="Allow Plane to anonymously collect usage events"
+                  aria-label="Send anonymous usage events to your telemetry collector"
                   onCheckedChange={(checked) => handleFormChange("is_telemetry_enabled", checked)}
                   checked={formData.is_telemetry_enabled}
                 />
               </div>
               <label className="cursor-pointer text-13 font-medium text-tertiary" htmlFor="is_telemetry_enabled">
-                Allow Plane to anonymously collect usage events.{" "}
-                <a
-                  href="https://developers.plane.so/self-hosting/telemetry"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-600 flex-shrink-0 text-13 font-medium"
-                >
-                  See More
-                </a>
+                Send anonymous usage events to your own telemetry collector (only when OTLP_ENDPOINT is set).
               </label>
             </div>
 

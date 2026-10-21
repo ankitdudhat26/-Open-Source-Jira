@@ -82,7 +82,7 @@ WEBHOOK_ALLOWED_HOSTS = [
 # Webhook disallowed domains — comma-separated hostnames. Webhooks targeting
 # these domains or any of their subdomains are rejected (the request host is
 # always appended at validation time as a loop-back guard). Empty by default
-# for self-hosted deployments; set to e.g. "plane.so" to block specific domains.
+# for self-hosted deployments; set to e.g. "example.com" to block specific domains.
 _webhook_disallowed_domains_raw = os.environ.get("WEBHOOK_DISALLOWED_DOMAINS", "")
 WEBHOOK_DISALLOWED_DOMAINS = [
     _d.strip().rstrip(".").lower()
@@ -310,7 +310,7 @@ AWS_DEFAULT_ACL = "public-read"
 AWS_QUERYSTRING_AUTH = False
 AWS_S3_FILE_OVERWRITE = False
 AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", None) or os.environ.get("MINIO_ENDPOINT_URL", None)
-# Folder in the bucket that holds every file Plane uploads (the bucket may be shared with other apps)
+# Folder in the bucket that holds every file the app uploads (the bucket may be shared with other apps)
 AWS_S3_FOLDER = os.environ.get("AWS_S3_FOLDER", "plane").strip("/")
 if AWS_S3_ENDPOINT_URL and USE_MINIO:
     parsed_url = urlparse(os.environ.get("WEB_URL", "http://localhost"))
@@ -566,3 +566,6 @@ if ENABLE_DRF_SPECTACULAR:
     REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
     INSTALLED_APPS.append("drf_spectacular")
     from .openapi import SPECTACULAR_SETTINGS  # noqa: F401
+
+# Product name used in emails and other server generated text
+BRAND_NAME = os.environ.get("BRAND_NAME", "Hlink Sprint")

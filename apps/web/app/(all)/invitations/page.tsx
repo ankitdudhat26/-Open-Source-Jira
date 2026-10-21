@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+// oxlint-disable promise/always-return -- upstream code
 import { useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
@@ -15,7 +16,7 @@ import { ROLE } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // types
 import { Button } from "@makeplane/propel/components/button";
-import { PlaneLogo } from "@plane/blocks/icons";
+import { HlinkLogo } from "@plane/blocks/icons";
 import { setToast } from "@plane/blocks/toast";
 import type { IWorkspaceMemberInvitation } from "@plane/types";
 import { truncateText } from "@plane/utils";
@@ -117,7 +118,7 @@ function UserInvitationsPage() {
             href="/"
             className="absolute top-1/2 left-5 z-10 grid -translate-y-1/2 place-items-center px-3 sm:top-12 sm:left-1/2 sm:-translate-x-[15px] sm:translate-y-0 sm:px-0 sm:py-5 md:left-1/3"
           >
-            <PlaneLogo className="h-9 w-auto text-primary" />
+            <HlinkLogo className="h-9 w-auto text-primary" />
           </Link>
           <div className="absolute top-1/4 right-4 -translate-y-1/2 text-13 text-primary sm:fixed sm:top-12 sm:right-16 sm:translate-y-0 sm:py-5">
             {currentUser?.email}

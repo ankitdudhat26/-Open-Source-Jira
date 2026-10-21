@@ -10,36 +10,13 @@ import Link from "next/link";
 import { WEB_BASE_URL } from "@plane/constants";
 // plane internal packages
 import { Tooltip } from "@makeplane/propel/components/tooltip";
-import {
-  ArrowNarrowLeftOutline,
-  ChatOutline,
-  Github,
-  HelpOutline,
-  NewTabOutline,
-  PagesOutline,
-} from "@makeplane/propel/icons";
+import { ArrowNarrowLeftOutline, HelpOutline, NewTabOutline } from "@makeplane/propel/icons";
 import { cn } from "@plane/utils";
 // hooks
 import { useInstance, useTheme } from "@/hooks/store";
 // assets
 
-const helpOptions = [
-  {
-    name: "Documentation",
-    href: "https://docs.plane.so/",
-    Icon: PagesOutline,
-  },
-  {
-    name: "Join our Forum",
-    href: "https://forum.plane.so",
-    Icon: ChatOutline,
-  },
-  {
-    name: "Report a bug",
-    href: "https://github.com/makeplane/plane/issues/new/choose",
-    Icon: Github,
-  },
-];
+const helpOptions: { name: string; href: string; Icon: React.FC<{ className?: string }> }[] = [];
 
 export const AdminSidebarHelpSection = observer(function AdminSidebarHelpSection() {
   // states
@@ -69,17 +46,17 @@ export const AdminSidebarHelpSection = observer(function AdminSidebarHelpSection
               className={`relative flex items-center gap-1 rounded-sm bg-layer-1 px-2 py-1 text-body-xs-medium whitespace-nowrap text-secondary`}
             >
               <NewTabOutline width={14} height={14} />
-              {!isSidebarCollapsed && "Redirect to Plane"}
+              {!isSidebarCollapsed && "Open Hlink Sprint"}
             </a>
           </>
         ) : (
-          <Tooltip label="Redirect to Plane" side="right">
+          <Tooltip label="Open Hlink Sprint" side="right">
             <a
               href={redirectionLink}
               className={`relative flex items-center gap-1 rounded-sm bg-layer-1 px-2 py-1 text-body-xs-medium whitespace-nowrap text-secondary`}
             >
               <NewTabOutline width={14} height={14} />
-              {!isSidebarCollapsed && "Redirect to Plane"}
+              {!isSidebarCollapsed && "Open Hlink Sprint"}
             </a>
           </Tooltip>
         )}

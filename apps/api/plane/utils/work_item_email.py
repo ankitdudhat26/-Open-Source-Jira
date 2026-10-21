@@ -20,7 +20,6 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 
 from plane.db.models import CycleIssue, IssueAssignee, User
-from plane.license.models import Instance
 
 FIELD_LABELS = {
     "name": "Title",
@@ -290,9 +289,8 @@ def unwatch_url(issue, receiver, base_url):
 
 
 def get_brand_name():
-    """Name shown in the subject ("[Plane] (SALES-12) ..."): the instance name set in God mode."""
-    instance = Instance.objects.only("instance_name").first()
-    return (instance.instance_name or "").strip() if instance and instance.instance_name else "Plane"
+    """Product name in the subject ("[Hlink Sprint] (SALES-12) ...")."""
+    return settings.BRAND_NAME
 
 
 def thread_headers(issue, email_from):
