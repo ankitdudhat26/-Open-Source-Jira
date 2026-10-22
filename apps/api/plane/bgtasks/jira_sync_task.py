@@ -10,7 +10,7 @@ from django.utils import timezone
 from plane.db.models import JiraConnection, JiraSyncRun
 from plane.license.utils.encryption import decrypt_data
 from plane.utils.exception_logger import log_exception
-from plane.utils.jira.client import JiraClient
+from plane.utils.jira.client import AtlassianAdminClient, JiraClient, JiraError
 from plane.utils.jira.importer import JiraImporter
 
 logger = logging.getLogger("plane.worker")
@@ -29,11 +29,30 @@ def jira_sync_task(run_id):
     try:
         connection = JiraConnection.objects.get(workspace=run.workspace)
         client = JiraClient(connection.site_url, connection.email, decrypt_data(connection.api_token))
-        JiraImporter(run, client, run.workspace, run.initiated_by).run_all()
+        JiraImporter(run, client, run.workspace, run.initiated_by, directory_for(run, connection)).run_all()
         run.status = "completed"
     except Exception as error:  # the run shows what went wrong; nothing in Jira is touched either way
         log_exception(error)
         run.status = "failed"
         run.error = str(error)[:2000]
     run.finished_at = timezone.now()
-    run.save(update_fields=["status", "error", "finished_at", "updated_at"])
+    # the uploaded users file is only needed while the run works
+    run.options.pop("directory", None)
+    run.save(update_fields=["status", "error", "finished_at", "options", "updated_at"])
+
+
+def directory_for(run, connection):
+    """Emails, status and org role of the organization's people: the uploaded users file, else the admin API."""
+    if run.options.get("kind") != "users":
+        return {}
+    if run.options.get("directory"):
+        return run.options["directory"]
+    if not (connection.admin_api_key and connection.org_id):
+        return {}
+    run.current_step = "Reading the organization's users"
+    run.save(update_fields=["current_step", "updated_at"])
+    try:
+        return AtlassianAdminClient(decrypt_data(connection.admin_api_key)).users(connection.org_id)
+    except JiraError as error:
+        run.warnings.append(f"Organization users not read ({error}); only emails Jira shows are used.")
+        return {}

@@ -21,6 +21,10 @@ class JiraConnection(BaseModel):
     api_token = models.TextField()
     account_name = models.CharField(max_length=255, blank=True, default="")
     verified_at = models.DateTimeField(null=True, blank=True)
+    # optional Atlassian organization admin API key (encrypted): the only read only way to the people's emails
+    admin_api_key = models.TextField(blank=True, default="")
+    org_id = models.CharField(max_length=255, blank=True, default="")
+    org_name = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         verbose_name = "Jira Connection"

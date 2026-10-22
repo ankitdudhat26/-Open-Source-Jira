@@ -35,9 +35,9 @@ from plane.db.models import (
     User,
     WorkspaceMember,
 )
-from plane.license.utils.encryption import decrypt_data
+from plane.license.utils.encryption import decrypt_data, encrypt_data
 from plane.utils.jira.adf import adf_to_html
-from plane.utils.jira.client import JiraClient, JiraError, normalize_site_url
+from plane.utils.jira.client import AtlassianAdminClient, JiraClient, JiraError, normalize_site_url, parse_user_export
 from plane.utils.jira.importer import JiraImporter
 
 
@@ -711,3 +711,130 @@ class TestJiraUserSync:
 )
 def test_jira_project_role_names(name, expected):
     assert JiraImporter.project_role(name) == expected
+
+
+USERS_FILE = (
+    "﻿User id,User name,email,User status,Added to org,Org role,Last seen in Jira\n"
+    "h8,Hidden Person,Hidden@Example.com,Active,2024-01-01,Basic,2026-10-01\n"
+    "o9,Org Admin,boss@example.com,Active,2024-01-01,Organization admin,2026-10-01\n"
+    "s1,Suspended Person,sus@example.com,Suspended,2024-01-01,Basic,2025-01-01\n"
+)
+
+
+@pytest.mark.contract
+class TestJiraUserDirectory:
+    def test_users_file_is_read_by_column_name(self):
+        people = parse_user_export(USERS_FILE)
+        assert people["h8"] == {
+            "email": "hidden@example.com",
+            "name": "Hidden Person",
+            "active": True,
+            "org_admin": False,
+            "time_zone": "",
+            "avatar": "",
+        }
+        assert people["o9"]["org_admin"] and not people["s1"]["active"]
+        with pytest.raises(JiraError):
+            parse_user_export("name,phone\nAda,1\n")
+        assert parse_user_export("Name,Email\nAda Byron,ada@x.com\n")["name:ada byron"]["email"] == "ada@x.com"
+
+    def test_admin_client_only_reads_and_follows_cursors(self):
+        session = mock.Mock()
+        session.headers = {}
+        pages = {
+            "https://api.atlassian.com/admin/v1/orgs": {"data": [{"id": "org1", "attributes": {"name": "Acme"}}]},
+            "https://api.atlassian.com/admin/v2/orgs/org1/directories": {"data": [{"directoryId": "d1"}]},
+        }
+        users = [
+            {
+                "data": [{"accountId": "h8", "email": "h@x.com", "name": "H", "accountStatus": "active"}],
+                "links": {"next": "c2"},
+            },
+            {
+                "data": [
+                    {
+                        "accountId": "o9",
+                        "email": "o@x.com",
+                        "name": "O",
+                        "accountStatus": "suspended",
+                        "platformRoles": ["atlassian/org-admin"],
+                    }
+                ],
+                "links": {},
+            },
+        ]
+
+        def get(url, params=None, **kwargs):
+            body = users.pop(0) if url.endswith("/users") else pages[url]
+            return mock.Mock(status_code=200, json=lambda: body, headers={})
+
+        session.get.side_effect = get
+        client = AtlassianAdminClient("key", session=session)
+        assert client.orgs() == [{"id": "org1", "name": "Acme"}]
+        people = client.users("org1")
+        assert people["h8"]["email"] == "h@x.com" and people["h8"]["active"]
+        assert people["o9"]["org_admin"] and not people["o9"]["active"]
+        assert session.headers["Authorization"] == "Bearer key"
+        for method in ("post", "put", "patch", "delete", "request"):
+            getattr(session, method).assert_not_called()
+
+    @pytest.mark.django_db
+    def test_directory_gives_hidden_emails_status_and_org_admins(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.jira_users = [
+            jira_person("h8", "Hidden Person", None),
+            jira_person("o9", "Org Admin", None),
+            jira_person("s1", "Suspended Person", None),
+        ]
+        directory = parse_user_export(USERS_FILE)
+        run = JiraSyncRun.objects.create(
+            workspace=workspace, initiated_by=create_user, project_keys=[], options={"kind": "users"}
+        )
+        JiraImporter(run, fake, workspace, create_user, directory).run_all()
+
+        roles = dict(WorkspaceMember.objects.filter(workspace=workspace).values_list("member__email", "role"))
+        assert roles["hidden@example.com"] == 15 and roles["boss@example.com"] == 20
+        assert "sus@example.com" not in roles
+        assert User.objects.get(email="hidden@example.com").display_name == "Hidden Person"
+
+        # deactivated in Jira later: access here ends too (the history keeps the name)
+        fake.jira_users = [jira_person("h8", "Hidden Person", None, active=False)]
+        run = JiraSyncRun.objects.create(
+            workspace=workspace, initiated_by=create_user, project_keys=[], options={"kind": "users"}
+        )
+        JiraImporter(run, fake, workspace, create_user, directory).run_all()
+        assert not WorkspaceMember.objects.get(workspace=workspace, member__email="hidden@example.com").is_active
+
+    @pytest.mark.django_db
+    def test_users_file_upload_and_admin_key(self, session_client, workspace):
+        JiraConnection.objects.create(
+            workspace=workspace, site_url="https://acme.atlassian.net", email="a@b.c", api_token=encrypt_data("x")
+        )
+        url = f"/api/workspaces/{workspace.slug}/jira/syncs/"
+        with mock.patch("plane.app.views.workspace.jira.jira_sync_task.delay"):
+            bad = session_client.post(url, {"kind": "users", "users_file": "a,b\n1,2\n"}, format="json")
+            assert bad.status_code == status.HTTP_400_BAD_REQUEST
+            response = session_client.post(url, {"kind": "users", "users_file": USERS_FILE}, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        # the emails stay on the server
+        assert response.data["options"] == {"kind": "users"}
+        assert JiraSyncRun.objects.get(pk=response.data["id"]).options["directory"]["h8"]["email"] == (
+            "hidden@example.com"
+        )
+
+        with (
+            mock.patch("plane.app.views.workspace.jira.JiraClient") as jira,
+            mock.patch("plane.app.views.workspace.jira.AtlassianAdminClient") as admin,
+        ):
+            jira.return_value.myself.return_value = {"displayName": "Ada"}
+            admin.return_value.orgs.return_value = [{"id": "org1", "name": "Acme"}]
+            data = session_client.put(
+                f"/api/workspaces/{workspace.slug}/jira/connection/",
+                {"site_url": "acme.atlassian.net", "email": "a@b.c", "admin_api_key": "secret"},
+                format="json",
+            ).data
+        assert (data["has_admin_api_key"], data["org_name"]) == (True, "Acme")
+        assert "secret" not in str(data)
+        connection = JiraConnection.objects.get(workspace=workspace)
+        assert connection.org_id == "org1" and decrypt_data(connection.admin_api_key) == "secret"

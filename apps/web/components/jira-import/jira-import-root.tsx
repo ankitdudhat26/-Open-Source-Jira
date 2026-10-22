@@ -37,7 +37,10 @@ const STAT_LABELS: Record<string, string> = {
   attachments_copied: "attachments",
   links_created: "links",
   users_created: "accounts created",
+  users_updated: "accounts updated",
   users_added: "added to the workspace",
+  users_role_updated: "roles updated",
+  users_deactivated: "deactivated (inactive in Jira)",
   users_existing: "already here",
   users_without_email: "without a visible email",
   project_members_added: "project members added",
@@ -77,6 +80,8 @@ function RunCard({ run, workspaceSlug }: { run: TJiraSyncRun; workspaceSlug: str
   const stats = Object.entries(STAT_LABELS)
     .filter(([key]) => run.stats?.[key])
     .map(([key, label]) => `${run.stats[key]} ${label}`);
+  const noEmail = (run.unmatched_users ?? []).filter((user) => user.reason === "no_email");
+  const unmatched = (run.unmatched_users ?? []).filter((user) => user.reason !== "no_email");
   return (
     <div className="rounded-md border border-subtle px-3 py-2.5">
       <button
@@ -115,13 +120,22 @@ function RunCard({ run, workspaceSlug }: { run: TJiraSyncRun; workspaceSlug: str
             </p>
           )}
           {run.error && <p className="text-danger-primary">Error: {run.error}</p>}
-          {run.unmatched_users?.length > 0 && (
+          {noEmail.length > 0 && (
             <div>
               <p className="text-primary">
-                People in Jira without an account here ({run.unmatched_users.length}). Invite them and sync again to
-                assign their work items to them:
+                No email from Jira for {noEmail.length} people, so no account was made. Upload the users file from
+                admin.atlassian.com or add the organization admin API key and sync users again:
               </p>
-              <p className="text-tertiary">{run.unmatched_users.map((user) => user.email || user.name).join(", ")}</p>
+              <p className="text-tertiary">{noEmail.map((user) => user.name || user.account_id).join(", ")}</p>
+            </div>
+          )}
+          {unmatched.length > 0 && (
+            <div>
+              <p className="text-primary">
+                People in Jira without an account here ({unmatched.length}). Sync users (or invite them) and sync again
+                to assign their work items to them:
+              </p>
+              <p className="text-tertiary">{unmatched.map((user) => user.email || user.name).join(", ")}</p>
             </div>
           )}
           {run.warnings?.length > 0 && (
@@ -175,7 +189,8 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
     if (latestStatus === "completed") void refreshProjects();
   }, [latestStatus, refreshProjects]);
 
-  const [form, setForm] = useState({ site_url: "", email: "", api_token: "" });
+  const [form, setForm] = useState({ site_url: "", email: "", api_token: "", admin_api_key: "" });
+  const [usersFile, setUsersFile] = useState<{ name: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -222,7 +237,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
       await refreshConnection();
       void refreshProjects();
       setEditing(false);
-      setForm((current) => ({ ...current, api_token: "" }));
+      setForm((current) => ({ ...current, api_token: "", admin_api_key: "" }));
       setToast({
         type: "success",
         title: "Jira connected",
@@ -259,7 +274,8 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
   const startUserSync = async () => {
     setStarting(true);
     try {
-      await jiraImportService.startUserSync(workspaceSlug);
+      await jiraImportService.startUserSync(workspaceSlug, usersFile?.text);
+      setUsersFile(null);
       await refreshRuns();
       setToast({
         type: "success",
@@ -304,6 +320,11 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
             <div className="text-body-xs-regular text-secondary">
               Connected to <span className="font-medium text-primary">{connection.site_url}</span> as{" "}
               <span className="font-medium text-primary">{connection.account_name || connection.email}</span>
+              <span className="block text-caption-md-regular text-tertiary">
+                {connection.has_admin_api_key
+                  ? `Organization admin API key saved (${connection.org_name || "organization"}): people's emails are read from it.`
+                  : "No organization admin API key: Jira hides most people's email (see “Sync Jira users”)."}
+              </span>
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" stretch="auto" label="Change" onClick={() => setEditing(true)} />
@@ -318,7 +339,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
           </div>
         ) : (
           <form
-            className="grid grid-cols-1 gap-3 md:grid-cols-3"
+            className="grid grid-cols-1 gap-3 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
               void saveConnection();
@@ -329,6 +350,14 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                 ["site_url", "Jira site", "https://your-team.atlassian.net", "url"],
                 ["email", "Account email", "you@company.com", "email"],
                 ["api_token", isConnected ? "API token (leave empty to keep)" : "API token", "••••••••", "password"],
+                [
+                  "admin_api_key",
+                  connection.connected && connection.has_admin_api_key
+                    ? "Organization admin API key (empty keeps it, “-” removes it)"
+                    : "Organization admin API key (optional, for emails)",
+                  "admin.atlassian.com → Settings → API keys",
+                  "password",
+                ],
               ] as const
             ).map(([key, label, placeholder, type]) => (
               <label key={key} className="space-y-1 text-caption-md-medium text-secondary">
@@ -340,12 +369,12 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                     value={form[key]}
                     onChange={(event) => setForm({ ...form, [key]: event.target.value })}
                     placeholder={placeholder}
-                    autoComplete={key === "api_token" ? "new-password" : "off"}
+                    autoComplete={type === "password" ? "new-password" : "off"}
                   />
                 </InputGroup>
               </label>
             ))}
-            <div className="flex gap-2 md:col-span-3">
+            <div className="flex gap-2 md:col-span-2">
               <Button
                 variant="primary"
                 size="sm"
@@ -367,7 +396,44 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
           title="2. Sync Jira users"
           description="Every active person in Jira gets an account here with the same name, email, avatar and time zone, and joins this workspace. Jira admins become Admins, everyone else a Member. In each imported project people get their Jira project role (Administrators → Admin, Viewers → Client, others → Member, with the role name as their project role). No email is sent; people sign in with their email (login code or “Forgot password”). Run this before syncing projects so work items are assigned to the right people."
         >
+          <div className="mb-3 rounded-md bg-layer-2 px-3 py-2 text-caption-md-regular text-secondary">
+            Jira does not give people&apos;s emails to an API token, and an account needs one. Give the sync the emails
+            in one of two ways (both only read):
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              <li>
+                Upload the users file: admin.atlassian.com → Directory → Users → ⋯ → <b>Export users</b> (CSV). It also
+                brings each person&apos;s status and organization role.
+              </li>
+              <li>
+                Or save an <b>organization admin API key</b> (admin.atlassian.com → Settings → API keys) in “Connect
+                Jira” above: then every user sync reads the emails itself.
+              </li>
+            </ul>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-subtle px-3 py-1.5 text-body-xs-medium text-secondary hover:bg-layer-1">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  void file.text().then((text) => setUsersFile({ name: file.name, text }));
+                }}
+              />
+              {usersFile ? `File: ${usersFile.name}` : "Upload users file (CSV)"}
+            </label>
+            {usersFile && (
+              <button
+                type="button"
+                className="text-caption-md-medium text-accent-primary hover:underline"
+                onClick={() => setUsersFile(null)}
+              >
+                Remove file
+              </button>
+            )}
             <Button
               variant="primary"
               size="md"
@@ -377,8 +443,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
               onClick={() => void startUserSync()}
             />
             <span className="text-caption-md-regular text-tertiary">
-              Apps, bots and deactivated Jira users are skipped. Jira hides some people&apos;s email: those are listed
-              in the sync history and can be invited by hand.
+              Apps and bots are skipped. People deactivated in Jira lose access here too (their history stays).
             </span>
           </div>
         </Section>
@@ -610,7 +675,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
           setConfirmDisconnect(false);
           await jiraImportService.deleteConnection(workspaceSlug);
           await refreshConnection();
-          setForm({ site_url: "", email: "", api_token: "" });
+          setForm({ site_url: "", email: "", api_token: "", admin_api_key: "" });
         }}
         title="Disconnect Jira?"
         content="The saved credentials are removed. Projects and work items already imported stay. Nothing in Jira changes."

@@ -344,8 +344,10 @@ def type_key(issue_type):
 
 
 class JiraImporter:
-    def __init__(self, run, client, workspace, actor):
+    def __init__(self, run, client, workspace, actor, directory=None):
         self.run = run
+        # accountId -> {email, name, active, org_admin, ...} from the organization directory (see sync_users)
+        self.directory = directory or {}
         self.client = client
         self.workspace = workspace
         self.actor = actor
@@ -512,6 +514,19 @@ class JiraImporter:
                     self.count("project_roles_updated")
             self.set_map("project_member", key, str(user_id), jira_key=synced)
 
+    def deactivate_user(self, mapped):
+        """A person deactivated in Jira (or the organization) loses access here too; history keeps their name."""
+        if mapped is None or str(mapped.plane_id) == str(self.actor.id):
+            return
+        changed = WorkspaceMember.objects.filter(
+            workspace=self.workspace, member_id=mapped.plane_id, is_active=True
+        ).update(is_active=False)
+        ProjectMember.objects.filter(workspace=self.workspace, member_id=mapped.plane_id, is_active=True).update(
+            is_active=False
+        )
+        if changed:
+            self.count("users_deactivated")
+
     def group_people(self, group_id):
         if group_id not in self.group_cache:
             try:
@@ -535,41 +550,61 @@ class JiraImporter:
         return ids
 
     def sync_users(self):
-        """Every active Jira person gets an account (same name, email, avatar, time zone) in this workspace."""
+        """Every active Jira person gets an account (same name, email, avatar, time zone) in this workspace.
+
+        Jira hides most emails from API tokens, so emails (and the organization's own user status and admin role)
+        come from the organization directory when one is given: the admin API or the exported users file.
+        """
         self.save_progress("Reading Jira users")
         people = [
             person
             for person in self.client.users()
-            if person.get("accountType") == "atlassian" and person.get("active") and person.get("accountId")
+            if person.get("accountType") == "atlassian" and person.get("accountId")
         ]
         admins = self.jira_admin_ids()
+        without_email = []
         self.save_progress(f"Adding {len(people)} users")
         for person in people:
-            email = (person.get("emailAddress") or "").strip().lower()
-            name = (person.get("displayName") or "").strip()
-            if not email:
-                self.count("users_without_email")
-                self.warn(f"{name or person['accountId']}: Jira hides this person's email, no account made")
+            account_id = person["accountId"]
+            listed = (
+                self.directory.get(account_id)
+                or self.directory.get(f"name:{(person.get('displayName') or '').strip().lower()}")
+                or {}
+            )
+            mapped = self.get_map("user", account_id)
+            if not person.get("active") or (listed and not listed["active"]):
+                self.deactivate_user(mapped)
                 continue
-            role = ADMIN if person["accountId"] in admins else MEMBER
+            email = (person.get("emailAddress") or listed.get("email") or "").strip().lower()
+            name = (person.get("displayName") or listed.get("name") or "").strip()
+            if not email:
+                without_email.append(name or account_id)
+                self.unmatched[account_id] = {"account_id": account_id, "name": name, "email": "", "reason": "no_email"}
+                continue
+            role = ADMIN if account_id in admins or listed.get("org_admin") else MEMBER
+            time_zone = person.get("timeZone") or listed.get("time_zone")
+            details = {
+                "display_name": name or email.split("@")[0],
+                "first_name": name.partition(" ")[0][:255],
+                "last_name": name.partition(" ")[2][:255],
+                "avatar": (person.get("avatarUrls") or {}).get("48x48") or listed.get("avatar") or "",
+                "user_timezone": time_zone if time_zone in TIMEZONES else "UTC",
+            }
             user = User.objects.filter(email__iexact=email).first()
+            # accounts this sync made follow Jira (name, avatar, role); accounts people made themselves are kept
+            made_here = user is None or (mapped is not None and mapped.jira_updated == "created")
             if user is None:
-                first, _, last = name.partition(" ")
-                timezone_name = person.get("timeZone") if person.get("timeZone") in TIMEZONES else "UTC"
-                user = User(
-                    email=email,
-                    username=uuid.uuid4().hex,
-                    display_name=name or email.split("@")[0],
-                    first_name=first[:255],
-                    last_name=last[:255],
-                    avatar=(person.get("avatarUrls") or {}).get("48x48", ""),
-                    user_timezone=timezone_name,
-                    is_password_autoset=True,
-                    is_email_verified=True,
-                )
+                user = User(email=email, username=uuid.uuid4().hex, is_password_autoset=True, is_email_verified=True)
                 user.set_password(uuid.uuid4().hex)
+                for key, value in details.items():
+                    setattr(user, key, value)
                 user.save()
                 self.count("users_created")
+            elif made_here and any(getattr(user, key) != value for key, value in details.items()):
+                for key, value in details.items():
+                    setattr(user, key, value)
+                user.save(update_fields=[*details, "updated_at"])
+                self.count("users_updated")
             Profile.objects.get_or_create(
                 user=user,
                 defaults={
@@ -587,15 +622,24 @@ class JiraImporter:
             if membership is None:
                 WorkspaceMember.objects.create(workspace=self.workspace, member=user, role=role)
                 self.count("users_added")
-            elif not membership.is_active or membership.role < role:
-                # Jira admins are raised to Admin; nobody is lowered
-                membership.is_active, membership.role = True, max(membership.role, role)
-                membership.save(update_fields=["is_active", "role", "updated_at"])
-                self.count("users_added")
             else:
-                self.count("users_existing")
-            self.set_map("user", person["accountId"], str(user.id), jira_key=email)
-            self.unmatched.pop(person["accountId"], None)
+                # Jira admins are raised to Admin; only accounts this sync made are also lowered
+                new_role = role if made_here and user.id != self.actor.id else max(membership.role, role)
+                if not membership.is_active or membership.role != new_role:
+                    self.count("users_role_updated" if membership.is_active else "users_added")
+                    membership.is_active, membership.role = True, new_role
+                    membership.save(update_fields=["is_active", "role", "updated_at"])
+                else:
+                    self.count("users_existing")
+            self.set_map("user", account_id, str(user.id), jira_key=email, jira_updated="created" if made_here else "")
+            self.unmatched.pop(account_id, None)
+        if without_email:
+            self.count("users_without_email", len(without_email))
+            self.warn(
+                f"{len(without_email)} people: Jira does not share their email, so no account was made. Add the "
+                "Atlassian organization admin API key or upload the users file exported from admin.atlassian.com "
+                "and sync users again."
+            )
         self.members = list(
             WorkspaceMember.objects.filter(
                 workspace=self.workspace, is_active=True, member__is_bot=False

@@ -10,7 +10,16 @@ import { APIService } from "@/services/api.service";
 
 export type TJiraConnection =
   | { connected: false }
-  | { connected: true; site_url: string; email: string; account_name: string; verified_at: string | null };
+  | {
+      connected: true;
+      site_url: string;
+      email: string;
+      account_name: string;
+      verified_at: string | null;
+      /** an Atlassian organization admin API key is saved (it gives the emails Jira hides) */
+      has_admin_api_key: boolean;
+      org_name: string;
+    };
 
 export type TJiraProject = {
   id: string;
@@ -40,7 +49,7 @@ export type TJiraSyncRun = {
   stats: Record<string, number>;
   projects: Record<string, { project_id: string; name: string }>;
   warnings: string[];
-  unmatched_users: { account_id: string; name: string; email: string }[];
+  unmatched_users: { account_id: string; name: string; email: string; reason?: "no_email" }[];
   error: string;
   initiated_by: string | null;
   created_at: string;
@@ -93,7 +102,7 @@ export class JiraImportService extends APIService {
 
   saveConnection(
     workspaceSlug: string,
-    data: { site_url: string; email: string; api_token: string }
+    data: { site_url: string; email: string; api_token: string; admin_api_key?: string }
   ): Promise<TJiraConnection> {
     return unwrap(this.put(`/api/workspaces/${workspaceSlug}/jira/connection/`, data));
   }
@@ -114,8 +123,14 @@ export class JiraImportService extends APIService {
     return unwrap(this.post(`/api/workspaces/${workspaceSlug}/jira/syncs/`, { project_keys: projectKeys, options }));
   }
 
-  startUserSync(workspaceSlug: string): Promise<TJiraSyncRun> {
-    return unwrap(this.post(`/api/workspaces/${workspaceSlug}/jira/syncs/`, { kind: "users" }));
+  /** usersFile: the CSV exported from admin.atlassian.com → Users (gives everyone's email, status and org role) */
+  startUserSync(workspaceSlug: string, usersFile?: string): Promise<TJiraSyncRun> {
+    return unwrap(
+      this.post(`/api/workspaces/${workspaceSlug}/jira/syncs/`, {
+        kind: "users",
+        ...(usersFile ? { users_file: usersFile } : {}),
+      })
+    );
   }
 
   getHistory(

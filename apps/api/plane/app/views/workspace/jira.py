@@ -28,7 +28,13 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.license.utils.encryption import decrypt_data, encrypt_data
-from plane.utils.jira.client import JiraClient, JiraError, normalize_site_url
+from plane.utils.jira.client import (
+    AtlassianAdminClient,
+    JiraClient,
+    JiraError,
+    normalize_site_url,
+    parse_user_export,
+)
 from plane.utils.uuid import is_valid_uuid
 
 SYNC_OPTIONS = ("attachments", "history", "comments", "full")
@@ -43,6 +49,8 @@ def serialize_connection(connection):
         "email": connection.email,
         "account_name": connection.account_name,
         "verified_at": connection.verified_at,
+        "has_admin_api_key": bool(connection.admin_api_key),
+        "org_name": connection.org_name,
     }
 
 
@@ -51,7 +59,7 @@ def serialize_run(run):
         "id": str(run.id),
         "status": run.status,
         "project_keys": run.project_keys,
-        "options": run.options,
+        "options": {key: value for key, value in (run.options or {}).items() if key != "directory"},
         "current_step": run.current_step,
         "stats": run.stats,
         "projects": run.projects,
@@ -87,7 +95,23 @@ class JiraConnectionEndpoint(BaseAPIView):
             account = JiraClient(site_url, email, token).myself()
         except JiraError as error:
             return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        # optional organization admin API key: "" keeps the saved one, "-" removes it
+        admin_key = str(request.data.get("admin_api_key") or "").strip()
+        org = {}
+        if admin_key == "-":
+            org = {"admin_api_key": "", "org_id": "", "org_name": ""}
+        elif admin_key:
+            try:
+                orgs = AtlassianAdminClient(admin_key).orgs()
+            except JiraError as error:
+                return Response({"error": f"Organization admin API key: {error}"}, status=status.HTTP_400_BAD_REQUEST)
+            if not orgs:
+                return Response(
+                    {"error": "That admin API key has no organization."}, status=status.HTTP_400_BAD_REQUEST
+                )
+            org = {"admin_api_key": encrypt_data(admin_key), "org_id": orgs[0]["id"], "org_name": orgs[0]["name"]}
         values = {
+            **org,
             "site_url": site_url,
             "email": email,
             "api_token": encrypt_data(token),
@@ -182,9 +206,14 @@ class JiraSyncEndpoint(BaseAPIView):
                 {"error": "A sync is already running. Wait for it to finish."}, status=status.HTTP_409_CONFLICT
             )
         options = request.data.get("options") or {}
-        options = (
-            {"kind": "users"} if user_sync else {key: bool(options[key]) for key in SYNC_OPTIONS if key in options}
-        )
+        options = {key: bool(options[key]) for key in SYNC_OPTIONS if key in options}
+        if user_sync:
+            options = {"kind": "users"}
+            if request.data.get("users_file"):
+                try:
+                    options["directory"] = parse_user_export(str(request.data["users_file"]))
+                except JiraError as error:
+                    return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
         run = JiraSyncRun.objects.create(
             workspace=workspace,
             initiated_by=request.user,

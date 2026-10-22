@@ -8,6 +8,8 @@ Only HTTP GET requests are ever sent: there is no method in this class that can 
 anything in Jira. Rate limits (429) and short outages (5xx) are retried with back off.
 """
 
+import csv
+import io
 import time
 from urllib.parse import urlparse
 
@@ -191,3 +193,119 @@ class JiraClient:
         return [
             issue["id"] for issue in self._offset_pages(f"{AGILE}/sprint/{sprint_id}/issue", "issues", {"fields": "id"})
         ]
+
+
+ADMIN_API = "https://api.atlassian.com/admin"
+
+
+class AtlassianAdminClient(JiraClient):
+    """The organization's user directory (admin.atlassian.com → Users), read only like JiraClient: GET only."""
+
+    def __init__(self, api_key, session=None):
+        self.base_url = "https://api.atlassian.com"
+        self.session = session or requests.Session()
+        self.session.headers.update({"Accept": "application/json", "Authorization": f"Bearer {api_key}"})
+
+    def _cursor_pages(self, path, params=None):
+        cursor = None
+        for _ in range(500):
+            page = self._get(path, {**(params or {}), **({"cursor": cursor} if cursor else {})})
+            yield from page.get("data") or []
+            following = (page.get("links") or {}).get("next")
+            if not following or following == cursor:
+                return
+            if following.startswith("http"):
+                path, params, cursor = following, None, None
+            else:
+                cursor = following
+
+    def orgs(self):
+        return [
+            {"id": org.get("id"), "name": (org.get("attributes") or {}).get("name") or ""}
+            for org in self._cursor_pages(f"{ADMIN_API}/v1/orgs")
+        ]
+
+    def users(self, org_id):
+        """{accountId: {email, name, status, org_admin, time_zone, avatar}} of everyone in the organization."""
+        people = {}
+        try:
+            directories = list(self._cursor_pages(f"{ADMIN_API}/v2/orgs/{org_id}/directories"))
+            for directory in directories:
+                for user in self._cursor_pages(
+                    f"{ADMIN_API}/v2/orgs/{org_id}/directories/{directory['directoryId']}/users", {"limit": 100}
+                ):
+                    people[user.get("accountId")] = directory_person(
+                        email=user.get("email"),
+                        name=user.get("name") or user.get("nickname"),
+                        status=user.get("accountStatus") or user.get("status"),
+                        org_admin=any("org-admin" in str(role) for role in user.get("platformRoles") or []),
+                        time_zone=user.get("timeZone"),
+                        avatar=user.get("avatar") or user.get("picture"),
+                    )
+        except JiraError:
+            people = {}
+        if not any(person["email"] for person in people.values()):
+            # older organizations: the v1 user list
+            for user in self._cursor_pages(f"{ADMIN_API}/v1/orgs/{org_id}/users"):
+                people[user.get("account_id")] = directory_person(
+                    email=user.get("email"),
+                    name=user.get("name"),
+                    status=user.get("account_status"),
+                    avatar=user.get("picture"),
+                )
+        people.pop(None, None)
+        return people
+
+
+def directory_person(email=None, name=None, status=None, org_admin=False, time_zone=None, avatar=None):
+    return {
+        "email": (email or "").strip().lower(),
+        "name": (name or "").strip(),
+        "active": (status or "active").strip().lower() in ("active", "enabled"),
+        "org_admin": bool(org_admin),
+        "time_zone": time_zone or "",
+        "avatar": avatar or "",
+    }
+
+
+def parse_user_export(text):
+    """The CSV of admin.atlassian.com → Users → Export users: {accountId: person} (columns found by name)."""
+    rows = list(csv.reader(io.StringIO((text or "").lstrip("\ufeff"))))
+    if len(rows) < 2:
+        raise JiraError("The file has no users.")
+    header = [cell.strip().lower() for cell in rows[0]]
+
+    def column(*names, contains=None):
+        for index, cell in enumerate(header):
+            if cell in names or (contains and contains in cell):
+                return index
+        return None
+
+    id_col = column("user id", "account id", "atlassian id", "accountid", "id")
+    email_col = column("email", "email address", contains="email")
+    name_col = column("user name", "name", "full name", "display name")
+    status_col = column("user status", "status", "account status")
+    role_col = column("org role", "organization role", "role")
+    if email_col is None or (id_col is None and name_col is None):
+        raise JiraError("Upload the users file exported from admin.atlassian.com (it needs the user and email).")
+    people = {}
+    for row in rows[1:]:
+
+        def cell(index, row=row):
+            return row[index].strip() if index is not None and index < len(row) else ""
+
+        # without an id column people are matched by their name ("name:<name>")
+        account_id = (
+            cell(id_col) if id_col is not None else (f"name:{cell(name_col).lower()}" if cell(name_col) else "")
+        )
+        if not account_id:
+            continue
+        people[account_id] = directory_person(
+            email=cell(email_col),
+            name=cell(name_col),
+            status=cell(status_col) or "active",
+            org_admin="admin" in cell(role_col).lower(),
+        )
+    if not people:
+        raise JiraError("The file has no users.")
+    return people
