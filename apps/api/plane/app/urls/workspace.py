@@ -4,6 +4,14 @@
 
 from django.urls import path
 
+from plane.app.views.workspace.jira import (
+    JiraConnectionEndpoint,
+    JiraProjectsEndpoint,
+    JiraSyncEndpoint,
+    JiraSyncRunEndpoint,
+    WorkspaceHistoryEndpoint,
+)
+
 from plane.app.views.workspace.group import (
     QueueItemAssignEndpoint,
     QueueItemCommentEndpoint,
@@ -295,4 +303,10 @@ urlpatterns = [
         QueueItemCommentEndpoint.as_view(),
         name="workspace-queue-item-comments",
     ),
+    # Jira import (read only) and the change history
+    path("workspaces/<str:slug>/jira/connection/", JiraConnectionEndpoint.as_view(), name="jira-connection"),
+    path("workspaces/<str:slug>/jira/projects/", JiraProjectsEndpoint.as_view(), name="jira-projects"),
+    path("workspaces/<str:slug>/jira/syncs/", JiraSyncEndpoint.as_view(), name="jira-syncs"),
+    path("workspaces/<str:slug>/jira/syncs/<uuid:run_id>/", JiraSyncRunEndpoint.as_view(), name="jira-sync"),
+    path("workspaces/<str:slug>/history/", WorkspaceHistoryEndpoint.as_view(), name="workspace-history"),
 ]

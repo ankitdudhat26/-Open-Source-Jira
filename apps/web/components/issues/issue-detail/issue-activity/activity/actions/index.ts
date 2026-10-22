@@ -23,6 +23,7 @@ export * from "./attachment";
 export * from "./archived-at";
 export * from "./inbox";
 export * from "./type-milestone";
+export * from "./external-history";
 export * from "./label-activity-chip";
 
 // helpers

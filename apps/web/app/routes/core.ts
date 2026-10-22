@@ -100,6 +100,11 @@ export const coreRoutes: RouteConfigEntry[] = [
           ),
         ]),
 
+        // History: every change to work items (including history imported from Jira)
+        layout("./(all)/[workspaceSlug]/(projects)/history/layout.tsx", [
+          route(":workspaceSlug/history", "./(all)/[workspaceSlug]/(projects)/history/page.tsx"),
+        ]),
+
         // Queues (group queues, e.g. DevOps)
         layout("./(all)/[workspaceSlug]/(projects)/queues/layout.tsx", [
           route(":workspaceSlug/queues", "./(all)/[workspaceSlug]/(projects)/queues/page.tsx"),
@@ -280,6 +285,10 @@ export const coreRoutes: RouteConfigEntry[] = [
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/members/page.tsx"
           ),
           route(
+            ":workspaceSlug/settings/jira-import",
+            "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/jira-import/page.tsx"
+          ),
+          route(
             ":workspaceSlug/settings/groups",
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/groups/page.tsx"
           ),
@@ -341,6 +350,10 @@ export const coreRoutes: RouteConfigEntry[] = [
               "./(all)/[workspaceSlug]/(settings)/settings/projects/[projectId]/features/intake/page.tsx"
             ),
             // Project States
+            route(
+              ":workspaceSlug/settings/projects/:projectId/custom-fields",
+              "./(all)/[workspaceSlug]/(settings)/settings/projects/[projectId]/custom-fields/page.tsx"
+            ),
             route(
               ":workspaceSlug/settings/projects/:projectId/states",
               "./(all)/[workspaceSlug]/(settings)/settings/projects/[projectId]/states/page.tsx"

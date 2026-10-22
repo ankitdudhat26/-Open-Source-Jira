@@ -19,6 +19,11 @@ from plane.app.views import (
     ProjectArchiveUnarchiveEndpoint,
     ProjectMemberPreferenceEndpoint,
 )
+from plane.app.views.project.custom_field import (
+    IssueCustomFieldValuesEndpoint,
+    ProjectCustomFieldDetailEndpoint,
+    ProjectCustomFieldEndpoint,
+)
 from plane.app.views.project.workflow import ProjectWorkflowEndpoint, ProjectWorkflowTemplateEndpoint
 from plane.app.views.project.milestone import (
     DeliverableEndpoint,
@@ -192,5 +197,20 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/workflow/apply-template/",
         ProjectWorkflowTemplateEndpoint.as_view(),
         name="project-workflow-template",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/custom-fields/",
+        ProjectCustomFieldEndpoint.as_view(),
+        name="project-custom-fields",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/custom-fields/<uuid:field_id>/",
+        ProjectCustomFieldDetailEndpoint.as_view(),
+        name="project-custom-field",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/custom-field-values/",
+        IssueCustomFieldValuesEndpoint.as_view(),
+        name="issue-custom-field-values",
     ),
 ]

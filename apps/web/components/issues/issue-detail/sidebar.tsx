@@ -44,6 +44,7 @@ import { IssueLabel } from "./label";
 import { IssueModuleSelect } from "./module-select";
 import { IssueWatchersSelect } from "./watchers-select";
 import { IssueQueueSelect } from "./queue-select";
+import { IssueCustomFields } from "@/components/custom-fields/issue-custom-fields";
 import { IssueWorkItemStructureProperties } from "./work-item-structure-properties";
 import type { TIssueOperations } from "./root";
 
@@ -133,6 +134,13 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 disabled={!isEditable}
               />
             </SidebarPropertyListItem>
+
+            <IssueCustomFields
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              issueId={issueId}
+              disabled={!isEditable}
+            />
 
             <SidebarPropertyListItem icon={PriorityOutline} label={t("common.priority")}>
               <PrioritySelect

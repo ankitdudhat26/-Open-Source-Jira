@@ -9,7 +9,7 @@ import uniq from "lodash-es/uniq";
 import { observer } from "mobx-react";
 // plane package imports
 import type { TActivityFilters } from "@plane/constants";
-import { E_SORT_ORDER, defaultActivityFilters } from "@plane/constants";
+import { E_SORT_ORDER, EActivityFilterType, defaultActivityFilters } from "@plane/constants";
 import { useLocalStorage } from "@plane/hooks";
 // i18n
 import { useTranslation } from "@plane/i18n";
@@ -67,6 +67,21 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
     setFilterValue(uniq(_filters));
   };
 
+  // Jira style tabs over the same filters
+  const TABS: { key: string; label: string; filters: TActivityFilters[] }[] = [
+    { key: "all", label: "All", filters: defaultActivityFilters },
+    { key: "comments", label: t("common.comments"), filters: [EActivityFilterType.COMMENT] },
+    {
+      key: "history",
+      label: "History",
+      filters: [EActivityFilterType.ACTIVITY, EActivityFilterType.STATE, EActivityFilterType.ASSIGNEE],
+    },
+  ];
+  const currentFilters = selectedFilters || defaultActivityFilters;
+  const activeTab = TABS.find(
+    (tab) => tab.filters.length === currentFilters.length && tab.filters.every((f) => currentFilters.includes(f))
+  )?.key;
+
   const toggleSortOrder = () => {
     setSortOrder(sortOrder === E_SORT_ORDER.ASC ? E_SORT_ORDER.DESC : E_SORT_ORDER.ASC);
   };
@@ -93,7 +108,25 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
     <div className="space-y-4">
       {/* header */}
       <div className="flex items-center justify-between">
-        <div className="text-h5-medium text-primary">{t("common.activity")}</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-h5-medium text-primary">{t("common.activity")}</div>
+          <div className="flex items-center rounded-md border border-subtle p-0.5" role="tablist" aria-label="Activity">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.key}
+                onClick={() => setFilterValue(tab.filters)}
+                className={`rounded-sm px-2.5 py-1 text-body-xs-medium ${
+                  activeTab === tab.key ? "bg-accent-subtle text-accent-primary" : "text-tertiary hover:text-secondary"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <ActivitySortRoot sortOrder={sortOrder || E_SORT_ORDER.ASC} toggleSort={toggleSortOrder} />
           <ActivityFilterRoot

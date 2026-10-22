@@ -31,6 +31,8 @@ import {
   IssueArchivedAtActivity,
   IssueInboxActivity,
   IssueTypeMilestoneActivity,
+  ExternalHistoryActivity,
+  isHistoryEntry,
 } from "./actions";
 
 type TIssueActivityItem = {
@@ -51,7 +53,11 @@ export const IssueActivityItem = observer(function IssueActivityItem(props: TIss
 
   const componentDefaultProps = { activityId, ends };
 
-  const activityField = getActivityById(activityId)?.field;
+  const activity = getActivityById(activityId);
+  // changes (imported from Jira or made here) are shown the way Jira's History tab shows them
+  if (isHistoryEntry(activity)) return <ExternalHistoryActivity {...componentDefaultProps} />;
+
+  const activityField = activity?.field;
   switch (activityField) {
     case null: // default issue creation
       return <IssueDefaultActivity {...componentDefaultProps} />;

@@ -38,6 +38,10 @@ export type TIssueActivity = {
   new_identifier: string | undefined;
   epoch: number;
   issue_comment: string | null;
+  /** history imported from another tool ("jira"): the person and field as named there */
+  external_source?: string | null;
+  external_actor_name?: string;
+  external_field_name?: string;
   source_data: {
     source: EInboxIssueSource;
     source_email?: string;

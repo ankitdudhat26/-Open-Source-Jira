@@ -26,6 +26,7 @@ import {
   useWorkspaceNavigationPreferences,
 } from "@/hooks/use-navigation-preferences";
 import { SidebarItemBase } from "./sidebar-item";
+import { HistorySidebarItem } from "@/components/workspace/sidebar/history-sidebar-item";
 import { QueueSidebarItem } from "@/components/workspace/sidebar/queue-sidebar-item";
 
 export const SidebarMenuItems = observer(function SidebarMenuItems() {
@@ -101,6 +102,7 @@ export const SidebarMenuItems = observer(function SidebarMenuItems() {
           <SidebarItemBase key={`static_${_index}`} item={item} />
         ))}
         <QueueSidebarItem />
+        <HistorySidebarItem />
       </div>
       <Collapsible
         placement="sidebar"

@@ -443,6 +443,10 @@ class IssueActivity(ProjectBaseModel):
     old_identifier = models.UUIDField(null=True)
     new_identifier = models.UUIDField(null=True)
     epoch = models.FloatField(null=True)
+    # history imported from another tool (e.g. "jira"): who made the change there and the field's name there
+    external_source = models.CharField(max_length=50, null=True, blank=True)
+    external_actor_name = models.CharField(max_length=255, blank=True, default="")
+    external_field_name = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         verbose_name = "Issue Activity"

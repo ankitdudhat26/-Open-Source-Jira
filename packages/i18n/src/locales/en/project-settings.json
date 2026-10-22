@@ -521,6 +521,9 @@
           }
         }
       }
+    },
+    "custom_fields": {
+      "label": "Custom fields"
     }
   }
 }

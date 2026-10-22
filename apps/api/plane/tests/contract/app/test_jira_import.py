@@ -1,0 +1,713 @@
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
+
+"""Jira import / sync against an in-memory Jira, the read only client and the history page."""
+
+import copy
+import uuid
+from unittest import mock
+
+import pytest
+from rest_framework import status
+
+from plane.db.models import (
+    CustomField,
+    CustomFieldValue,
+    Cycle,
+    CycleIssue,
+    FileAsset,
+    Issue,
+    IssueActivity,
+    IssueAssignee,
+    IssueComment,
+    IssueRelation,
+    IssueSubscriber,
+    JiraConnection,
+    JiraEntityMap,
+    JiraSyncRun,
+    Module,
+    ModuleIssue,
+    Profile,
+    Project,
+    ProjectMember,
+    State,
+    User,
+    WorkspaceMember,
+)
+from plane.license.utils.encryption import decrypt_data
+from plane.utils.jira.adf import adf_to_html
+from plane.utils.jira.client import JiraClient, JiraError, normalize_site_url
+from plane.utils.jira.importer import JiraImporter
+
+
+def adf(text):
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+    }
+
+
+def person(account_id, name, email=None):
+    return {"accountId": account_id, "displayName": name, "emailAddress": email, "accountType": "atlassian"}
+
+
+STATUSES = [
+    {"id": "1", "name": "To Do", "statusCategory": {"key": "new"}},
+    {"id": "3", "name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+    {"id": "10", "name": "Code Review", "statusCategory": {"key": "indeterminate"}},
+    {"id": "5", "name": "Done", "statusCategory": {"key": "done"}},
+    {"id": "6", "name": "Won't Do", "statusCategory": {"key": "done"}},
+]
+
+
+def jira_issue(issue_id, key, summary, status_id, **fields):
+    status_value = next(s for s in STATUSES if s["id"] == status_id)
+    return {
+        "id": issue_id,
+        "key": key,
+        "fields": {
+            "summary": summary,
+            "description": adf(f"Description of {summary}"),
+            "status": status_value,
+            "priority": {"name": fields.pop("priority", "Medium")},
+            "issuetype": {"name": fields.pop("type", "Task"), "hierarchyLevel": 0},
+            "created": "2024-01-02T10:00:00.000+0000",
+            "updated": fields.pop("updated", "2024-01-05T10:00:00.000+0000"),
+            "labels": fields.pop("labels", []),
+            "attachment": fields.pop("attachment", []),
+            "issuelinks": fields.pop("issuelinks", []),
+            "components": fields.pop("components", []),
+            **fields,
+        },
+    }
+
+
+class FakeJira:
+    """The calls JiraImporter makes, served from memory (like the real client, it only reads)."""
+
+    def __init__(self, ada, bob):
+        self.project_data = {
+            "id": "10000",
+            "key": "SHOP",
+            "name": "Web Shop",
+            "description": "Online store",
+            "lead": ada,
+            "components": [{"id": "100", "name": "Checkout"}],
+        }
+        epic = jira_issue("1", "SHOP-1", "Payments", "3", type="Epic")
+        epic["fields"]["issuetype"]["hierarchyLevel"] = 1
+        self.issue_data = [
+            epic,
+            jira_issue(
+                "2",
+                "SHOP-2",
+                "Card payments",
+                "10",
+                parent={"id": "1", "key": "SHOP-1"},
+                assignee=ada,
+                reporter=bob,
+                priority="Highest",
+                labels=["backend"],
+                duedate="2024-02-01",
+                timeoriginalestimate=18000,
+                timeestimate=7200,
+                customfield_10020=[{"id": 31, "name": "Sprint 1"}],  # sprint: imported as a sprint, not a field
+                customfield_10100={"value": "Backend"},
+                customfield_10101=5,
+                customfield_10102=[person("x7", "Parth Patel")],
+                customfield_10103=None,
+                components=[{"id": "100", "name": "Checkout"}],
+                attachment=[
+                    {
+                        "id": "900",
+                        "filename": "spec.pdf",
+                        "size": 4,
+                        "mimeType": "application/pdf",
+                        "content": "https://acme.atlassian.net/rest/api/3/attachment/content/900",
+                        "author": bob,
+                    }
+                ],
+            ),
+            jira_issue(
+                "3",
+                "SHOP-3",
+                "Refund button broken",
+                "6",
+                type="Bug",
+                issuelinks=[{"type": {"name": "Blocks"}, "outwardIssue": {"id": "2", "key": "SHOP-2"}}],
+            ),
+        ]
+        self.comment_data = {
+            "2": [{"id": "500", "author": bob, "body": adf("Looks good"), "created": "2024-01-03T09:00:00.000+0000"}]
+        }
+        self.history_data = {
+            "2": [
+                {
+                    "id": "700",
+                    "author": ada,
+                    "created": "2024-01-04T09:00:00.000+0000",
+                    "items": [{"field": "status", "fromString": "To Do", "toString": "In Progress"}],
+                }
+            ]
+        }
+        self.history_data["2"].append(
+            {
+                "id": "701",
+                "author": person("x7", "Parth Patel"),
+                "created": "2024-01-16T16:27:00.000+0000",
+                "items": [
+                    {"field": "issuetype", "fromString": "Sub-task", "toString": "Task"},
+                    {"field": "timeestimate", "from": "18000", "fromString": "18000", "to": "7200", "toString": "7200"},
+                ],
+            }
+        )
+        self.watcher_data = {"2": [bob, person("x9", "Outside Person")]}
+        self.calls = []
+
+    def project(self, key):
+        return copy.deepcopy(self.project_data)
+
+    def project_statuses(self, key):
+        return copy.deepcopy(STATUSES)
+
+    def issues(self, key):
+        return copy.deepcopy(self.issue_data)
+
+    def comments(self, issue_id):
+        return copy.deepcopy(self.comment_data.get(issue_id, []))
+
+    def changelog(self, issue_id):
+        return copy.deepcopy(self.history_data.get(issue_id, []))
+
+    def watchers(self, issue_id):
+        return copy.deepcopy(self.watcher_data.get(issue_id, []))
+
+    def attachment_content(self, url):
+        self.calls.append(("attachment", url))
+        return b"%PDF"
+
+    def boards(self, key):
+        return [{"id": 1}]
+
+    def sprints(self, board_id):
+        return [
+            {
+                "id": 31,
+                "name": "Sprint 1",
+                "state": "closed",
+                "startDate": "2024-01-01T00:00:00.000Z",
+                "endDate": "2024-01-14T00:00:00.000Z",
+                "goal": "Payments",
+            },
+        ]
+
+    def sprint_issue_ids(self, sprint_id):
+        return ["2", "3"]
+
+    jira_users = ()
+    jira_groups = {}
+    jira_roles = ()
+
+    def users(self):
+        return list(self.jira_users)
+
+    def groups(self):
+        return [{"groupId": group_id, "name": name} for group_id, (name, _) in self.jira_groups.items()]
+
+    def group_members(self, group_id):
+        return self.jira_groups[group_id][1]
+
+    def project_roles(self, key):
+        return list(self.jira_roles)
+
+    def fields(self):
+        return [
+            {
+                "id": "customfield_10020",
+                "name": "Sprint",
+                "custom": True,
+                "schema": {"type": "array", "items": "json", "custom": "com.pyxis.greenhopper.jira:gh-sprint"},
+            },
+            {
+                "id": "customfield_10100",
+                "name": "Task Type",
+                "custom": True,
+                "schema": {"type": "option", "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"},
+            },
+            {"id": "customfield_10101", "name": "Story points", "custom": True, "schema": {"type": "number"}},
+            {
+                "id": "customfield_10102",
+                "name": "Additional Assignees",
+                "custom": True,
+                "schema": {"type": "array", "items": "user"},
+            },
+            {"id": "customfield_10103", "name": "Empty field", "custom": True, "schema": {"type": "string"}},
+            {"id": "timeoriginalestimate", "name": "Original estimate", "custom": False, "schema": {"type": "number"}},
+        ]
+
+
+@pytest.fixture
+def people(workspace, create_user):
+    ada_user = User.objects.create(email="ada@example.com", username="ada", first_name="Ada", display_name="ada")
+    WorkspaceMember.objects.create(workspace=workspace, member=ada_user, role=15)
+    bob_user = User.objects.create(
+        email="bob@example.com", username="bob", first_name="Bob", last_name="Stone", display_name="bob"
+    )
+    WorkspaceMember.objects.create(workspace=workspace, member=bob_user, role=15)
+    # Bob hides his email in Jira, so he is matched by name
+    return ada_user, bob_user, person("a1", "Ada", "ada@example.com"), person("b2", "Bob Stone")
+
+
+def run_import(workspace, user, fake, **options):
+    keys = [] if options.get("kind") == "users" else ["SHOP"]
+    run = JiraSyncRun.objects.create(workspace=workspace, initiated_by=user, project_keys=keys, options=options)
+    with mock.patch("plane.settings.storage.S3Storage") as storage:
+        storage.return_value.upload_file.return_value = True
+        JiraImporter(run, fake, workspace, user).run_all()
+    run.refresh_from_db()
+    return run
+
+
+@pytest.mark.contract
+class TestJiraImport:
+    @pytest.mark.django_db
+    def test_full_import(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        run = run_import(workspace, create_user, FakeJira(ada, bob))
+
+        project = Project.objects.get(pk=run.projects["SHOP"]["project_id"])
+        assert (project.identifier, project.name, project.project_lead_id) == ("SHOP", "Web Shop", ada_user.id)
+        # statuses keep their Jira names, in the right group
+        groups = dict(State.objects.filter(project=project).values_list("name", "group"))
+        assert groups == {
+            "To Do": "unstarted",
+            "In Progress": "started",
+            "Code Review": "started",
+            "Done": "completed",
+            "Won't Do": "cancelled",
+        }
+        issues = {issue.external_id: issue for issue in Issue.objects.filter(project=project)}
+        epic, card, bug = issues["1"], issues["2"], issues["3"]
+        # every ticket keeps its Jira status
+        assert (epic.state.name, card.state.name, bug.state.name) == ("In Progress", "Code Review", "Won't Do")
+        assert (epic.type.name, card.type.name, bug.type.name) == ("Feature", "Task", "Bug")
+        assert card.parent_id == epic.id
+        assert card.priority == "urgent"
+        assert str(card.target_date) == "2024-02-01"
+        assert card.created_at.year == 2024 and card.created_by_id == bob_user.id
+        assert "Description of Card payments" in card.description_html
+        assert list(IssueAssignee.objects.filter(issue=card).values_list("assignee_id", flat=True)) == [ada_user.id]
+        assert card.label_ids if hasattr(card, "label_ids") else True
+        # links, sprint and component
+        assert IssueRelation.objects.filter(issue=card, related_issue=bug, relation_type="blocked_by").exists()
+        sprint = Cycle.objects.get(project=project, name="Sprint 1")
+        assert sprint.description == "Payments"
+        assert set(CycleIssue.objects.filter(cycle=sprint).values_list("issue_id", flat=True)) == {card.id, bug.id}
+        assert ModuleIssue.objects.filter(
+            issue=card, module=Module.objects.get(project=project, name="Checkout")
+        ).exists()
+        # comments, watchers, attachments, history
+        comment = IssueComment.objects.get(issue=card)
+        assert comment.actor_id == bob_user.id and "Looks good" in comment.comment_html
+        assert IssueSubscriber.objects.filter(issue=card, subscriber=bob_user).exists()
+        assert FileAsset.objects.filter(issue=card, external_id="900", is_uploaded=True).exists()
+        history = IssueActivity.objects.get(issue=card, field="state")
+        assert (history.old_value, history.new_value, history.actor_id) == ("To Do", "In Progress", ada_user.id)
+        assert history.created_at.year == 2024
+        # people are added to the project; the unknown watcher is reported
+        assert ProjectMember.objects.filter(project=project, member=ada_user, is_active=True).exists()
+        assert sorted(user["name"] for user in run.unmatched_users) == ["Outside Person", "Parth Patel"]
+        assert run.stats["issues_created"] == 3
+
+    @pytest.mark.django_db
+    def test_sync_again_updates_and_never_duplicates(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+
+        # nothing changed in Jira: everything is skipped
+        second = run_import(workspace, create_user, fake)
+        assert second.stats.get("issues_unchanged") == 3
+        assert Issue.objects.filter(external_source="jira").count() == 3
+        assert IssueComment.objects.count() == 1 and IssueActivity.objects.filter(field="state").count() == 1
+        assert len(fake.calls) == 1  # the attachment was downloaded once
+
+        # SHOP-2 moved to Done in Jira
+        fake.issue_data[1]["fields"]["status"] = STATUSES[3]
+        fake.issue_data[1]["fields"]["updated"] = "2024-03-01T10:00:00.000+0000"
+        third = run_import(workspace, create_user, fake)
+        assert third.stats["issues_updated"] == 1
+        card = Issue.objects.get(external_id="2")
+        assert card.state.name == "Done"
+        assert Issue.objects.filter(external_source="jira").count() == 3
+        assert Project.objects.filter(workspace=workspace).count() == 1
+
+    @pytest.mark.django_db
+    def test_items_deleted_here_are_not_recreated(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        Issue.objects.get(external_id="3").delete()
+
+        run_import(workspace, create_user, fake, full=True)
+
+        assert not Issue.objects.filter(external_id="3").exists()
+
+
+@pytest.mark.unit
+class TestReadOnlyClient:
+    def test_only_get_requests_are_sent(self):
+        session = mock.Mock()
+        session.headers = {}
+        session.get.return_value = mock.Mock(status_code=200, json=lambda: {"displayName": "Ada"}, headers={})
+        client = JiraClient("acme.atlassian.net", "a@example.com", "token", session=session)
+
+        assert client.myself() == {"displayName": "Ada"}
+        session.get.assert_called_once()
+        assert session.get.call_args[0][0] == "https://acme.atlassian.net/rest/api/3/myself"
+        for method in ("post", "put", "patch", "delete", "request"):
+            getattr(session, method).assert_not_called()
+        assert not any(hasattr(client, name) for name in ("post", "put", "patch", "delete", "update", "create"))
+
+    def test_rate_limit_is_retried(self):
+        session = mock.Mock()
+        session.headers = {}
+        busy = mock.Mock(status_code=429, headers={"Retry-After": "0"})
+        ok = mock.Mock(status_code=200, json=lambda: {"ok": True}, headers={})
+        session.get.side_effect = [busy, ok]
+        with mock.patch("plane.utils.jira.client.time.sleep"):
+            assert JiraClient("https://acme.atlassian.net", "a", "b", session=session).myself() == {"ok": True}
+
+    def test_bad_credentials_and_foreign_urls_are_refused(self):
+        session = mock.Mock()
+        session.headers = {}
+        session.get.return_value = mock.Mock(status_code=401, headers={})
+        client = JiraClient("https://acme.atlassian.net", "a", "b", session=session)
+        with pytest.raises(JiraError):
+            client.myself()
+        with pytest.raises(JiraError):
+            client.attachment_content("https://evil.example.com/file")
+        with pytest.raises(JiraError):
+            normalize_site_url("http://acme.atlassian.net")
+
+    def test_adf_is_converted_and_escaped(self):
+        html = adf_to_html(
+            {
+                "type": "doc",
+                "content": [
+                    {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Plan"}]},
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": "<b>bold</b>", "marks": [{"type": "strong"}]},
+                            {
+                                "type": "text",
+                                "text": " link",
+                                "marks": [{"type": "link", "attrs": {"href": "https://x.io"}}],
+                            },
+                        ],
+                    },
+                    {
+                        "type": "bulletList",
+                        "content": [
+                            {
+                                "type": "listItem",
+                                "content": [{"type": "paragraph", "content": [{"type": "text", "text": "one"}]}],
+                            }
+                        ],
+                    },
+                    {"type": "codeBlock", "content": [{"type": "text", "text": "a < b"}]},
+                ],
+            }
+        )
+        assert "<h2>Plan</h2>" in html
+        assert "<strong>&lt;b&gt;bold&lt;/b&gt;</strong>" in html
+        assert '<a href="https://x.io"' in html
+        assert "<ul><li><p>one</p></li></ul>" in html
+        assert "<pre><code>a &lt; b</code></pre>" in html
+
+
+@pytest.mark.contract
+class TestJiraApi:
+    @pytest.mark.django_db
+    def test_connection_is_checked_and_the_token_never_returned(self, session_client, workspace):
+        url = f"/api/workspaces/{workspace.slug}/jira/connection/"
+        with mock.patch("plane.app.views.workspace.jira.JiraClient") as client:
+            client.return_value.myself.return_value = {"displayName": "Ada Admin"}
+            response = session_client.put(
+                url, {"site_url": "acme.atlassian.net", "email": "ada@acme.com", "api_token": "secret"}, format="json"
+            )
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["site_url"] == "https://acme.atlassian.net"
+        assert "api_token" not in response.data and "secret" not in str(response.data)
+        connection = JiraConnection.objects.get(workspace=workspace)
+        assert connection.api_token != "secret" and decrypt_data(connection.api_token) == "secret"
+
+        with mock.patch("plane.app.views.workspace.jira.JiraClient") as client:
+            client.return_value.myself.side_effect = JiraError("Jira rejected the email / API token.", 401)
+            response = session_client.put(
+                url, {"site_url": "acme.atlassian.net", "email": "ada@acme.com", "api_token": "wrong"}, format="json"
+            )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.django_db
+    def test_sync_is_queued_once(self, session_client, workspace, create_user):
+        JiraConnection.objects.create(
+            workspace=workspace, site_url="https://acme.atlassian.net", email="a@b.c", api_token="x"
+        )
+        url = f"/api/workspaces/{workspace.slug}/jira/syncs/"
+        with mock.patch("plane.app.views.workspace.jira.jira_sync_task.delay") as delay:
+            response = session_client.post(
+                url, {"project_keys": ["SHOP"], "options": {"attachments": False}}, format="json"
+            )
+            assert response.status_code == status.HTTP_201_CREATED, response.data
+            delay.assert_called_once_with(response.data["id"])
+            again = session_client.post(url, {"project_keys": ["SHOP"]}, format="json")
+        assert again.status_code == status.HTTP_409_CONFLICT
+        assert session_client.get(url).data[0]["options"] == {"attachments": False}
+
+    @pytest.mark.django_db
+    def test_only_admins_use_the_import(self, api_client, workspace):
+        member = User.objects.create(email="m@example.com", username="m")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        api_client.force_authenticate(user=member)
+        assert api_client.get(f"/api/workspaces/{workspace.slug}/jira/connection/").status_code == 403
+
+
+@pytest.mark.contract
+class TestHistory:
+    @pytest.mark.django_db
+    def test_history_lists_changes_with_filters_and_respects_membership(
+        self, session_client, api_client, workspace, create_user, people
+    ):
+        _, _, ada, bob = people
+        run_import(workspace, create_user, FakeJira(ada, bob))
+        url = f"/api/workspaces/{workspace.slug}/history/"
+
+        data = session_client.get(url).data
+        assert data["results"] and data["results"][0]["created_at"] >= data["results"][-1]["created_at"]
+        state_change = session_client.get(url, {"field": "state"}).data["results"]
+        assert len(state_change) == 1
+        assert state_change[0]["issue"]["name"] == "Card payments"
+        assert state_change[0]["from_jira"] is True
+        assert (state_change[0]["old_value"], state_change[0]["new_value"]) == ("To Do", "In Progress")
+
+        # a workspace member outside the project sees nothing of it
+        outsider = User.objects.create(email=f"o-{uuid.uuid4().hex[:5]}@example.com", username=uuid.uuid4().hex[:8])
+        WorkspaceMember.objects.create(workspace=workspace, member=outsider, role=15)
+        api_client.force_authenticate(user=outsider)
+        assert api_client.get(url).data["results"] == []
+
+
+@pytest.mark.contract
+class TestJiraHistoryAndFields:
+    @pytest.mark.django_db
+    def test_history_keeps_jira_names_dates_and_fields(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        run_import(workspace, create_user, FakeJira(ada, bob))
+        card = Issue.objects.get(external_id="2")
+
+        entries = list(IssueActivity.objects.filter(issue=card, external_source="jira").order_by("created_at"))
+        created = entries[0]
+        assert (created.verb, created.external_actor_name) == ("created", "Bob Stone")
+        # Parth Patel has no account here: his name is kept anyway
+        issue_type = next(entry for entry in entries if entry.external_field_name == "Issue Type")
+        assert issue_type.actor_id is None and issue_type.external_actor_name == "Parth Patel"
+        assert (issue_type.old_value, issue_type.new_value) == ("Sub-task", "Task")
+        assert issue_type.created_at.isoformat().startswith("2024-01-16T16:27")
+        remaining = next(entry for entry in entries if entry.external_field_name == "Remaining Estimate")
+        assert (remaining.old_value, remaining.new_value) == ("5h", "2h")
+        status_change = next(entry for entry in entries if entry.external_field_name == "Status")
+        assert status_change.external_actor_name == "Ada"
+
+    @pytest.mark.django_db
+    def test_jira_fields_become_project_custom_fields(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        card = Issue.objects.get(external_id="2")
+
+        fields = {field.name: field for field in CustomField.objects.filter(project=card.project)}
+        assert set(fields) == {
+            "Task Type",
+            "Story points",
+            "Additional Assignees",
+            "Original estimate",
+            "Time remaining",
+            "Reporter",
+        }
+        assert (fields["Task Type"].field_type, fields["Task Type"].options) == ("select", ["Backend"])
+        values = {value.field.name: value.value for value in CustomFieldValue.objects.filter(issue=card)}
+        assert values == {
+            "Task Type": "Backend",
+            "Story points": 5,
+            "Additional Assignees": "Parth Patel",
+            "Original estimate": "5h",
+            "Time remaining": "2h",
+            # Bob has an account here, but Jira's reporter is always shown as in Jira
+            "Reporter": "Bob Stone",
+        }
+
+        # the value is cleared in Jira: it is cleared here on the next sync, no field is duplicated
+        fake.issue_data[1]["fields"]["customfield_10101"] = None
+        fake.issue_data[1]["fields"]["updated"] = "2024-04-01T10:00:00.000+0000"
+        run_import(workspace, create_user, fake)
+        assert not CustomFieldValue.objects.filter(issue=card, field=fields["Story points"]).exists()
+        assert CustomField.objects.filter(project=card.project).count() == 6
+
+    @pytest.mark.django_db
+    def test_keys_match_jira_and_work_logs_read_like_jira(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        # Jira skips numbers (deleted issues)
+        for jira_issue, key in zip(fake.issue_data, ["SHOP-5", "SHOP-57", "SHOP-60"]):
+            jira_issue["key"] = key
+        fake.issue_data[1]["fields"]["assignee"] = person("x8", "Nishant B")
+        fake.history_data["2"].append(
+            {
+                "id": "702",
+                "author": person("x8", "Nishant B"),
+                "created": "2024-01-03T11:24:00.000+0000",
+                "items": [
+                    {"field": "timespent", "from": None, "fromString": None, "to": "10800", "toString": "10800"},
+                    {"field": "WorklogId", "from": None, "fromString": None, "to": "10845", "toString": "10845"},
+                ],
+            }
+        )
+        run = run_import(workspace, create_user, fake)
+
+        project = Project.objects.get(pk=run.projects["SHOP"]["project_id"])
+        numbers = dict(Issue.objects.filter(project=project).values_list("external_id", "sequence_id"))
+        assert numbers == {"1": 5, "2": 57, "3": 60}
+        card = Issue.objects.get(external_id="2")
+        logged = IssueActivity.objects.get(issue=card, field="worklog")
+        assert (logged.verb, logged.new_value, logged.external_actor_name) == ("logged", "3h", "Nishant B")
+        spent = IssueActivity.objects.get(issue=card, external_field_name="Time Spent")
+        assert (spent.old_value, spent.new_value) == ("", "3h")
+        # the assignee has no account here: Jira's name is kept next to the work item
+        values = {value.field.name: value.value for value in CustomFieldValue.objects.filter(issue=card)}
+        assert values["Assignee (Jira)"] == "Nishant B"
+        # a work item created here afterwards continues after the highest Jira number
+        new = Issue.objects.create(name="New here", project=project, workspace=workspace)
+        assert new.sequence_id == 61
+
+        # syncing again keeps the numbers and does not add history twice
+        history_count = IssueActivity.objects.filter(issue=card).count()
+        run_import(workspace, create_user, fake, full=True)
+        assert (
+            dict(
+                Issue.objects.filter(project=project, external_source="jira").values_list("external_id", "sequence_id")
+            )
+            == numbers
+        )
+        assert IssueActivity.objects.filter(issue=card).count() == history_count
+
+
+def jira_person(account_id, name, email, **extra):
+    return {
+        **person(account_id, name, email),
+        "active": True,
+        "timeZone": "Asia/Kolkata",
+        "avatarUrls": {"48x48": f"https://avatar.example.com/{account_id}.png"},
+        **extra,
+    }
+
+
+@pytest.mark.contract
+class TestJiraUserSync:
+    @pytest.mark.django_db
+    def test_active_people_get_accounts_with_jira_details_and_roles(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.jira_users = [
+            jira_person("a1", "Ada", "ada@example.com"),
+            jira_person("c3", "Chitra Rao", "Chitra@Example.com"),
+            jira_person("d4", "Dev Shah", "dev@example.com"),
+            jira_person("e5", "Gone Person", "gone@example.com", active=False),
+            jira_person("f6", "Automation", "bot@example.com", accountType="app"),
+            jira_person("g7", "Hidden Email", None),
+        ]
+        fake.jira_groups = {"g-admin": ("jira-admins-acme", [{"accountId": "c3"}]), "g-all": ("jira-users", [])}
+
+        run = run_import(workspace, create_user, fake, kind="users")
+
+        assert run.stats["users_created"] == 2
+        assert run.stats["users_existing"] == 1
+        assert run.stats["users_without_email"] == 1
+        assert not User.objects.filter(email__in=["gone@example.com", "bot@example.com"]).exists()
+        chitra = User.objects.get(email="chitra@example.com")
+        assert (chitra.display_name, chitra.first_name, chitra.last_name) == ("Chitra Rao", "Chitra", "Rao")
+        assert chitra.user_timezone == "Asia/Kolkata"
+        assert chitra.avatar == "https://avatar.example.com/c3.png"
+        assert chitra.is_password_autoset and Profile.objects.get(user=chitra).is_onboarded
+        roles = dict(WorkspaceMember.objects.filter(workspace=workspace).values_list("member__email", "role"))
+        assert roles["chitra@example.com"] == 20 and roles["dev@example.com"] == 15
+        assert JiraEntityMap.objects.get(workspace=workspace, entity_type="user", jira_id="d4").jira_key == (
+            "dev@example.com"
+        )
+
+        # running it again changes nothing and duplicates nobody
+        run_import(workspace, create_user, fake, kind="users")
+        assert User.objects.filter(email="chitra@example.com").count() == 1
+        assert WorkspaceMember.objects.filter(workspace=workspace, member=chitra).count() == 1
+
+    @pytest.mark.django_db
+    def test_jira_project_roles_become_project_roles(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.jira_users = [jira_person("d4", "Dev Shah", "dev@example.com"), jira_person("k9", "Kim", "kim@x.com")]
+        fake.jira_groups = {"g-qa": ("qa-team", [{"accountId": "d4", "accountType": "atlassian"}])}
+        fake.jira_roles = [
+            {"name": "Administrators", "actors": [{"displayName": "Ada", "actorUser": {"accountId": "a1"}}]},
+            {"name": "Developers", "actors": [{"actorGroup": {"groupId": "g-qa"}}]},
+            {"name": "Viewers", "actors": [{"actorUser": {"accountId": "k9"}}, {"actorGroup": {"groupId": "g-qa"}}]},
+        ]
+        run_import(workspace, create_user, fake, kind="users")
+        run_import(workspace, create_user, fake)
+        project = Project.objects.get(identifier="SHOP")
+
+        members = {
+            m.member.email: (m.role, m.designation)
+            for m in ProjectMember.objects.filter(project=project).select_related("member")
+        }
+        assert members["ada@example.com"] == (20, "Administrator")
+        # in two roles: the higher one wins
+        assert members["dev@example.com"] == (15, "Developer")
+        assert members["kim@x.com"] == (5, "Viewer")
+
+        # a role changed here is kept; one still as the sync left it follows Jira
+        ProjectMember.objects.filter(project=project, member__email="kim@x.com").update(role=15, designation="QA")
+        fake.jira_roles = fake.jira_roles[:2] + [{"name": "Testers", "actors": [{"actorUser": {"accountId": "k9"}}]}]
+        fake.jira_roles[1] = {"name": "Leads", "actors": [{"actorGroup": {"groupId": "g-qa"}}]}
+        run_import(workspace, create_user, fake, full=True)
+        assert ProjectMember.objects.get(project=project, member__email="kim@x.com").designation == "QA"
+        assert ProjectMember.objects.get(project=project, member__email="dev@example.com").designation == "Lead"
+
+    @pytest.mark.django_db
+    def test_user_sync_api(self, session_client, workspace):
+        JiraConnection.objects.create(
+            workspace=workspace, site_url="https://acme.atlassian.net", email="a@b.c", api_token="x"
+        )
+        url = f"/api/workspaces/{workspace.slug}/jira/syncs/"
+        with mock.patch("plane.app.views.workspace.jira.jira_sync_task.delay") as delay:
+            response = session_client.post(url, {"kind": "users"}, format="json")
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        delay.assert_called_once()
+        assert (response.data["options"], response.data["project_keys"]) == ({"kind": "users"}, [])
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Administrators", (20, "Administrator")),
+        ("Read Only Admin", (5, "Read Only Admin")),
+        ("jira-guest-member", (5, "jira-guest-member")),
+        ("Dedicated Client", (5, "Dedicated Client")),
+        ("Project Manager", (15, "Project Manager")),
+        ("QA", (15, "QA")),
+    ],
+)
+def test_jira_project_role_names(name, expected):
+    assert JiraImporter.project_role(name) == expected

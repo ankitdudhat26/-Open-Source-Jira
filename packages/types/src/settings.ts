@@ -10,7 +10,14 @@ import type { EUserWorkspaceRoles } from "./workspace";
 
 export type TProfileSettingsTabs = "general" | "preferences" | "notifications" | "security" | "api-tokens";
 
-export type TWorkspaceSettingsTabs = "general" | "members" | "groups" | "billing-and-plans" | "export" | "webhooks";
+export type TWorkspaceSettingsTabs =
+  | "general"
+  | "members"
+  | "groups"
+  | "jira-import"
+  | "billing-and-plans"
+  | "export"
+  | "webhooks";
 export type TWorkspaceSettingsItem = {
   key: TWorkspaceSettingsTabs;
   i18n_label: string;
@@ -21,6 +28,7 @@ export type TWorkspaceSettingsItem = {
 
 export type TProjectSettingsTabs =
   | "general"
+  | "custom_fields"
   | "members"
   | "features_cycles"
   | "features_modules"

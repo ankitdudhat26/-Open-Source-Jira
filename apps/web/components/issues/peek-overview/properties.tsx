@@ -45,6 +45,7 @@ import { IssueLabel } from "../issue-detail/label";
 import { IssueModuleSelect } from "../issue-detail/module-select";
 import { IssueWatchersSelect } from "../issue-detail/watchers-select";
 import { IssueQueueSelect } from "../issue-detail/queue-select";
+import { IssueCustomFields } from "@/components/custom-fields/issue-custom-fields";
 
 interface IPeekOverviewProperties {
   workspaceSlug: string;
@@ -123,6 +124,8 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
         <SidebarPropertyListItem icon={InboxOutline} label="Queue">
           <IssueQueueSelect workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
         </SidebarPropertyListItem>
+
+        <IssueCustomFields workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
 
         <SidebarPropertyListItem icon={PriorityOutline} label={t("common.priority")}>
           <PrioritySelect

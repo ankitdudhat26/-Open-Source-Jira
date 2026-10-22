@@ -487,6 +487,9 @@
       },
       "groups": {
         "title": "Groups & queues"
+      },
+      "jira_import": {
+        "title": "Jira import"
       }
     },
     "empty_state": {
