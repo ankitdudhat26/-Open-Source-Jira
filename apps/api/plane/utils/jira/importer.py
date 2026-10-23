@@ -20,8 +20,12 @@ Nothing here sends notifications or emails.
 import io
 import logging
 import re
+import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from itertools import islice
 
 import pytz
 import requests
@@ -69,6 +73,9 @@ logger = logging.getLogger("plane.worker")
 
 SOURCE = "jira"
 ADMIN, MEMBER, CLIENT = 20, 15, 5
+# comments, history and watchers of the next work items are read from Jira in parallel (saving stays in order)
+READ_THREADS = 4
+READ_AHEAD = 16
 CLIENT_ROLE_WORDS = re.compile(r"viewer|customer|client|observer|guest|read.?only", re.I)
 TIMEZONES = set(pytz.common_timezones)
 STATE_COLORS = {
@@ -365,6 +372,9 @@ class JiraImporter:
         self.unmatched = {entry.get("account_id"): entry for entry in run.unmatched_users or []}
         self.jira_fields = None
         self.group_cache = {}
+        self.member_cache = set()
+        self.read_local = threading.local()
+        self.last_saved = 0.0
         self.members = list(
             WorkspaceMember.objects.filter(workspace=workspace, is_active=True, member__is_bot=False).select_related(
                 "member"
@@ -413,6 +423,7 @@ class JiraImporter:
                 ]
             )
         self.run = run
+        self.last_saved = time.monotonic()
         self.stats, self.new_warnings, self.new_projects = {}, [], {}
 
     def get_map(self, entity_type, jira_id):
@@ -471,6 +482,10 @@ class JiraImporter:
         return user
 
     def ensure_member(self, project, user, role=MEMBER):
+        # checked once per person and project (history alone asks for the same people thousands of times)
+        if (project.id, user.id) in self.member_cache:
+            return
+        self.member_cache.add((project.id, user.id))
         membership = ProjectMember.objects.filter(project=project, member=user).first()
         if membership is None:
             workspace_role = next((m.role for m in self.members if m.member_id == user.id), MEMBER)
@@ -1158,8 +1173,8 @@ class JiraImporter:
         if created_at:
             IssueActivity.objects.filter(pk=activity.pk).update(created_at=created_at)
 
-    def sync_comments(self, project, issue, jira_issue):
-        for comment in self.client.comments(jira_issue["id"]):
+    def sync_comments(self, project, issue, jira_issue, comments=None):
+        for comment in self.client.comments(jira_issue["id"]) if comments is None else comments:
             author = self.user_for(comment.get("author"), project)
             html = adf_to_html(comment.get("body"))
             if author is None:
@@ -1192,9 +1207,9 @@ class JiraImporter:
             IssueComment.all_objects.filter(pk=record.pk).update(**{k: v for k, v in dates.items() if v})
             self.set_map("comment", comment["id"], record.id, jira_issue.get("key"))
 
-    def sync_watchers(self, project, issue, jira_issue):
+    def sync_watchers(self, project, issue, jira_issue, watchers=None):
         try:
-            watchers = self.client.watchers(jira_issue["id"])
+            watchers = self.client.watchers(jira_issue["id"]) if watchers is None else watchers
         except JiraError:
             return
         for watcher in watchers:
@@ -1240,12 +1255,15 @@ class JiraImporter:
             rows.append((index, field, label, str(old_value)[:20000], str(new_value)[:20000], "updated"))
         return rows
 
-    def sync_history(self, project, issue, jira_issue):
+    def sync_history(self, project, issue, jira_issue, changelog=None):
         """Every entry of the Jira History tab: same person (also without an account here), date, time, field, values.
 
-        Entries imported before are corrected too, so the history always matches Jira.
+        Entries imported before are corrected too, so the history always matches Jira. Saved in bulk: an issue can
+        have thousands of entries.
         """
-        for history in self.client.changelog(jira_issue["id"]):
+        histories = self.client.changelog(jira_issue["id"]) if changelog is None else changelog
+        wanted = {}
+        for history in histories:
             author = self.user_for(history.get("author"), project)
             author_name = self.person_name(history.get("author")) if history.get("author") else "Jira"
             when = jira_datetime(history.get("created"))
@@ -1254,11 +1272,10 @@ class JiraImporter:
             except (TypeError, ValueError):
                 group_order = 0
             for index, field, label, old_value, new_value, verb in self.history_rows(history):
-                key = f"{history['id']}:{index}"
                 # keeps Jira's order of changes made in the same millisecond (less than 1 ms apart)
                 moment = (when + timedelta(microseconds=group_order * 10 + min(index, 9))) if when else None
                 values = {
-                    "actor": author,
+                    "actor_id": author.id if author else None,
                     "verb": verb,
                     "field": field,
                     "old_value": old_value,
@@ -1268,21 +1285,67 @@ class JiraImporter:
                     "external_actor_name": author_name,
                     "external_field_name": label,
                 }
-                existing = self.get_map("history", key)
-                activity = IssueActivity.objects.filter(pk=existing.plane_id).first() if existing else None
-                if activity is None:
-                    activity = IssueActivity.objects.create(
-                        issue=issue,
-                        project=project,
-                        workspace=self.workspace,
-                        epoch=int((when or timezone.now()).timestamp()),
-                        **values,
-                    )
-                    self.set_map("history", key, activity.id, jira_issue.get("key"))
-                    self.count("history_entries")
                 if moment:
                     values.update(created_at=moment, updated_at=moment)
-                IssueActivity.objects.filter(pk=activity.pk).update(**values)
+                wanted[f"{history['id']}:{index}"] = (values, when)
+        if not wanted:
+            return
+        maps = {
+            record.jira_id: record
+            for record in JiraEntityMap.objects.filter(
+                workspace=self.workspace, entity_type="history", jira_id__in=list(wanted)
+            )
+        }
+        activities = IssueActivity.objects.in_bulk([record.plane_id for record in maps.values()])
+        fields = sorted({name for values, _ in wanted.values() for name in values})
+        created, changed, remapped = [], [], []
+        for key, (values, when) in wanted.items():
+            record = maps.get(key)
+            activity = activities.get(record.plane_id) if record else None
+            if activity is None:
+                activity = IssueActivity(
+                    issue=issue,
+                    project=project,
+                    workspace=self.workspace,
+                    epoch=int((when or timezone.now()).timestamp()),
+                    created_by_id=self.actor.id,
+                    **values,
+                )
+                created.append((key, record, activity))
+            elif any(getattr(activity, name) != value for name, value in values.items()):
+                for name, value in values.items():
+                    setattr(activity, name, value)
+                changed.append(activity)
+        if created:
+            IssueActivity.objects.bulk_create([activity for _, _, activity in created], batch_size=500)
+            # bulk_create stamps "now" on created_at / updated_at: put Jira's moments back
+            for key, _record, activity in created:
+                values = wanted[key][0]
+                activity.created_at = values.get("created_at", activity.created_at)
+                activity.updated_at = values.get("updated_at", activity.updated_at)
+            IssueActivity.objects.bulk_update(
+                [activity for _, _, activity in created], ["created_at", "updated_at"], batch_size=500
+            )
+            new_maps = []
+            for key, record, activity in created:
+                if record is None:
+                    new_maps.append(
+                        JiraEntityMap(
+                            workspace=self.workspace,
+                            entity_type="history",
+                            jira_id=key,
+                            plane_id=activity.id,
+                            jira_key=jira_issue.get("key") or "",
+                        )
+                    )
+                else:  # its entry was removed here: point to the new one
+                    record.plane_id = activity.id
+                    remapped.append(record)
+            JiraEntityMap.objects.bulk_create(new_maps, batch_size=500)
+            JiraEntityMap.objects.bulk_update(remapped, ["plane_id"], batch_size=500)
+            self.count("history_entries", len(created))
+        if changed:
+            IssueActivity.objects.bulk_update(changed, fields, batch_size=500)
 
     def sync_attachments(self, project, issue, jira_issue):
         from plane.settings.storage import S3Storage
@@ -1545,25 +1608,83 @@ class JiraImporter:
         self.sync_project_people(project, project_key)
 
         jira_issues = []
-        for index, jira_issue in enumerate(self.client.issues(project_key), start=1):
-            issue, changed = self.upsert_issue(project, jira_issue, states, types)
-            if issue is not None and changed:
-                if self.options["comments"]:
-                    self.sync_comments(project, issue, jira_issue)
-                self.sync_watchers(project, issue, jira_issue)
-                if self.options["history"]:
-                    self.sync_history(project, issue, jira_issue)
-                if self.options["attachments"]:
-                    self.sync_attachments(project, issue, jira_issue)
-            jira_issues.append(jira_issue)
-            self.items_done = index
-            self.save_progress(f"{project_key}: {index} work items")
+        pages = iter(self.client.issues(project_key))
+        with ThreadPoolExecutor(READ_THREADS) as pool:
+            while batch := list(islice(pages, READ_AHEAD)):
+                details = self.read_details(pool, batch)
+                for jira_issue in batch:
+                    self.sync_issue(project, jira_issue, states, types, details.get(jira_issue["id"], {}))
+                    jira_issues.append(jira_issue)
+                    self.items_done = len(jira_issues)
+                    if time.monotonic() - self.last_saved > 5:
+                        self.save_progress(f"{project_key}: {self.items_done} work items")
+        self.save_progress(f"{project_key}: {len(jira_issues)} work items")
         self.save_progress(f"{project_key}: keys, parents, links and sprints")
         self.align_numbers(project, jira_issues)
         for jira_issue in jira_issues:
             self.link_issues(project, jira_issue, issue_cycle, modules)
         self.count("issues_seen", len(jira_issues))
         self.save_progress(f"{project_key}: done")
+
+    def sync_issue(self, project, jira_issue, states, types, details):
+        issue, changed = self.upsert_issue(project, jira_issue, states, types)
+        if issue is None or not changed:
+            return
+
+        def read(name):
+            # read ahead in parallel; read now when it was not (or the parallel read failed the same way)
+            if name not in details:
+                return getattr(self.client, name)(jira_issue["id"])
+            ok, value = details[name]
+            if not ok:
+                raise value
+            return value
+
+        if self.options["comments"]:
+            self.sync_comments(project, issue, jira_issue, comments=read("comments"))
+        try:
+            watchers = read("watchers")
+        except JiraError:
+            watchers = []
+        self.sync_watchers(project, issue, jira_issue, watchers=watchers)
+        if self.options["history"]:
+            self.sync_history(project, issue, jira_issue, changelog=read("changelog"))
+        if self.options["attachments"]:
+            self.sync_attachments(project, issue, jira_issue)
+
+    def needs_details(self, jira_issue):
+        """Whether the work item changed in Jira since the last sync (only those are read again)."""
+        if self.options["full"]:
+            return True
+        mapping = self.get_map("issue", jira_issue["id"])
+        updated = (jira_issue.get("fields") or {}).get("updated") or ""
+        return not (mapping and mapping.jira_updated and mapping.jira_updated == updated)
+
+    def read_details(self, pool, jira_issues):
+        """{issue id: {name: (ok, value)}}: comments, history and watchers read from Jira in parallel."""
+        if not hasattr(self.client, "clone"):
+            return {}
+        names = ["watchers"]
+        if self.options["comments"]:
+            names.append("comments")
+        if self.options["history"]:
+            names.append("changelog")
+        jobs = [(item["id"], name) for item in jira_issues if self.needs_details(item) for name in names]
+        local = self.read_local
+
+        def fetch(job):
+            if not hasattr(local, "client"):
+                local.client = self.client.clone()
+            issue_id, name = job
+            try:
+                return job, (True, getattr(local.client, name)(issue_id))
+            except Exception as error:  # raised again when the work item is saved
+                return job, (False, error)
+
+        details = {}
+        for (issue_id, name), outcome in pool.map(fetch, jobs):
+            details.setdefault(issue_id, {})[name] = outcome
+        return details
 
     def connection_name(self):
         connection = JiraConnection.objects.filter(workspace=self.workspace).first()

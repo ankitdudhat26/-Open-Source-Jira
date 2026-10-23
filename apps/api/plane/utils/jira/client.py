@@ -49,6 +49,15 @@ class JiraClient:
         self.session.auth = (email, api_token)
         self.session.headers.update({"Accept": "application/json"})
 
+    def clone(self):
+        """The same read only client on its own connection (one per thread when reading in parallel)."""
+        other = JiraClient.__new__(type(self))
+        other.base_url = self.base_url
+        other.session = requests.Session()
+        other.session.auth = self.session.auth
+        other.session.headers.update(self.session.headers)
+        return other
+
     # the only way this client talks to Jira
     def _get(self, path, params=None, raw=False):
         url = path if path.startswith("http") else f"{self.base_url}{path}"

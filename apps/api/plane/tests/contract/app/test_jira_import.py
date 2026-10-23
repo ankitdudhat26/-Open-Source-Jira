@@ -1122,3 +1122,50 @@ class TestNoSilentGaps:
         run = run_lanes(workspace, create_user, fake)
         assert run.progress["SHOP"]["status"] == "done"
         assert any("3 of 5 work items could be read" in warning for warning in run.warnings)
+
+
+class ParallelFakeJira(FakeJira):
+    """Offers clone(), so comments, history and watchers are read ahead by the thread pool."""
+
+    def clone(self):
+        return self
+
+
+def snapshot(workspace):
+    def rows(queryset):
+        return sorted(queryset, key=repr)
+
+    return {
+        "history": rows(
+            IssueActivity.objects.filter(workspace=workspace, external_source="jira").values_list(
+                "issue__sequence_id", "field", "old_value", "new_value", "external_actor_name", "created_at"
+            )
+        ),
+        "comments": rows(IssueComment.objects.filter(workspace=workspace).values_list("comment_html", "actor_id")),
+        "watchers": rows(IssueSubscriber.objects.filter(workspace=workspace).values_list("issue_id", "subscriber_id")),
+        "assets": rows(FileAsset.objects.filter(workspace=workspace).values_list("external_id", flat=True)),
+    }
+
+
+@pytest.mark.contract
+class TestFastSync:
+    @pytest.mark.django_db(transaction=True)
+    def test_parallel_reading_gives_the_same_data(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        run_import(workspace, create_user, ParallelFakeJira(ada, bob))
+        parallel = snapshot(workspace)
+        assert parallel["history"] and parallel["comments"] and parallel["watchers"]
+
+        # a full re-sync (sequential reading) finds nothing to change and duplicates nothing
+        run = run_import(workspace, create_user, FakeJira(ada, bob), full=True)
+        assert snapshot(workspace) == parallel
+        assert "history_entries" not in run.stats
+
+    @pytest.mark.django_db
+    def test_unchanged_work_items_are_not_read_again(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        run_import(workspace, create_user, ParallelFakeJira(ada, bob))
+        fake = ParallelFakeJira(ada, bob)
+        with mock.patch.object(fake, "changelog", wraps=fake.changelog) as changelog:
+            run_import(workspace, create_user, fake)
+        changelog.assert_not_called()
