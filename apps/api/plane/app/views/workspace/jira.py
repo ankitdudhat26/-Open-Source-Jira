@@ -4,6 +4,9 @@
 
 """Jira import (read only) and the workspace change history."""
 
+# Python imports
+from datetime import timedelta
+
 # Django imports
 from django.db.models import Q
 from django.utils import timezone
@@ -16,7 +19,7 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.base import BaseAPIView
-from plane.bgtasks.jira_sync_task import jira_sync_task
+from plane.bgtasks.jira_sync_task import jira_sync_task, recover_stale_runs
 from plane.db.models import (
     IssueActivity,
     JiraConnection,
@@ -54,8 +57,41 @@ def serialize_connection(connection):
     }
 
 
+def run_progress(run):
+    """Work items done / to do over all projects, and when the run should finish at the speed so far."""
+    states = run.progress or {}
+    if not states:
+        return None
+    total = sum(max(state.get("total") or 0, state.get("done") or 0) for state in states.values())
+    # what was really read (a gap to Jira's count stays visible and is explained in the warnings)
+    done = sum(state.get("done") or 0 for state in states.values())
+    counts = {}
+    for state in states.values():
+        counts[state.get("status")] = counts.get(state.get("status"), 0) + 1
+    eta = None
+    if run.status == "running" and run.started_at and done >= 10 and total > done:
+        elapsed = (timezone.now() - run.started_at).total_seconds()
+        if elapsed > 60:
+            eta = timezone.now() + timedelta(seconds=(total - done) * elapsed / done)
+    return {
+        "items_total": total,
+        "items_done": done,
+        "projects_total": len(states),
+        "projects_done": counts.get("done", 0),
+        "projects_failed": counts.get("failed", 0),
+        "projects_running": [
+            {"key": key, "done": state.get("done") or 0, "total": state.get("total") or 0}
+            for key, state in states.items()
+            if state.get("status") == "running"
+        ],
+        "failed": {key: state.get("error") or "" for key, state in states.items() if state.get("status") == "failed"},
+        "estimated_finish_at": eta,
+    }
+
+
 def serialize_run(run):
     return {
+        "progress": run_progress(run),
         "id": str(run.id),
         "status": run.status,
         "project_keys": run.project_keys,
@@ -172,6 +208,7 @@ class JiraProjectsEndpoint(BaseAPIView):
                     "name": item.get("name"),
                     "type": item.get("projectTypeKey"),
                     "lead": (item.get("lead") or {}).get("displayName"),
+                    "issue_count": (item.get("insight") or {}).get("totalIssueCount"),
                     "linked_project": (
                         {"id": str(project.id), "name": project.name, "identifier": project.identifier}
                         if project
@@ -186,7 +223,9 @@ class JiraProjectsEndpoint(BaseAPIView):
 class JiraSyncEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def get(self, request, slug):
-        runs = JiraSyncRun.objects.filter(workspace__slug=slug).order_by("-created_at")[:20]
+        workspace = Workspace.objects.get(slug=slug)
+        recover_stale_runs(workspace.id)
+        runs = JiraSyncRun.objects.filter(workspace=workspace).order_by("-created_at")[:20]
         return Response([serialize_run(run) for run in runs], status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
@@ -201,6 +240,7 @@ class JiraSyncEndpoint(BaseAPIView):
             not isinstance(keys, list) or not keys or not all(isinstance(key, str) and key.strip() for key in keys)
         ):
             return Response({"error": "Select at least one Jira project."}, status=status.HTTP_400_BAD_REQUEST)
+        recover_stale_runs(workspace.id)
         if JiraSyncRun.objects.filter(workspace=workspace, status__in=("queued", "running")).exists():
             return Response(
                 {"error": "A sync is already running. Wait for it to finish."}, status=status.HTTP_409_CONFLICT

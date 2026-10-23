@@ -27,7 +27,6 @@ import pytz
 import requests
 
 from crum import impersonate
-from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.utils import timezone
@@ -47,7 +46,9 @@ from plane.db.models import (
     IssueRelation,
     IssueSequence,
     IssueSubscriber,
+    JiraConnection,
     JiraEntityMap,
+    JiraSyncRun,
     Label,
     Module,
     ModuleIssue,
@@ -353,7 +354,13 @@ class JiraImporter:
         self.workspace = workspace
         self.actor = actor
         self.options = {"attachments": True, "history": True, "comments": True, "full": False, **(run.options or {})}
-        self.stats = run.stats or {}
+        # what this importer adds; merged into the run (other workers may sync other projects at the same time)
+        self.stats = {}
+        self.new_warnings = []
+        self.new_projects = {}
+        self.resolved = set()
+        self.project_key = None
+        self.items_done = 0
         self.user_cache = {}
         self.unmatched = {entry.get("account_id"): entry for entry in run.unmatched_users or []}
         self.jira_fields = None
@@ -369,15 +376,44 @@ class JiraImporter:
         self.stats[key] = self.stats.get(key, 0) + amount
 
     def warn(self, message):
-        if len(self.run.warnings) < 200:
-            self.run.warnings.append(message)
+        self.new_warnings.append(message)
 
     def save_progress(self, step=None):
-        if step:
-            self.run.current_step = step
-        self.run.stats = self.stats
-        self.run.unmatched_users = list(self.unmatched.values())
-        self.run.save(update_fields=["current_step", "stats", "warnings", "unmatched_users", "projects", "updated_at"])
+        """Merge what this importer did into the run, under a row lock (workers run in parallel)."""
+        with transaction.atomic():
+            run = JiraSyncRun.objects.select_for_update().get(pk=self.run.pk)
+            for key, amount in self.stats.items():
+                run.stats[key] = run.stats.get(key, 0) + amount
+            room = max(0, 200 - len(run.warnings))
+            run.warnings.extend(self.new_warnings[:room])
+            if len(self.new_warnings) > room:
+                run.stats["more_warnings"] = run.stats.get("more_warnings", 0) + len(self.new_warnings) - room
+            run.projects.update(self.new_projects)
+            unmatched = {entry.get("account_id"): entry for entry in run.unmatched_users or []}
+            unmatched.update(self.unmatched)
+            for account_id in self.resolved:
+                unmatched.pop(account_id, None)
+            run.unmatched_users = list(unmatched.values())
+            if step:
+                run.current_step = step[:255]
+            if self.project_key and self.project_key in run.progress:
+                state = run.progress[self.project_key]
+                state.update(done=self.items_done, step=(step or state.get("step", ""))[:255])
+                state["total"] = max(state.get("total") or 0, self.items_done)
+                state["heartbeat"] = timezone.now().isoformat()
+            run.save(
+                update_fields=[
+                    "current_step",
+                    "stats",
+                    "warnings",
+                    "unmatched_users",
+                    "projects",
+                    "progress",
+                    "updated_at",
+                ]
+            )
+        self.run = run
+        self.stats, self.new_warnings, self.new_projects = {}, [], {}
 
     def get_map(self, entity_type, jira_id):
         return JiraEntityMap.objects.filter(
@@ -668,6 +704,7 @@ class JiraImporter:
         self.members.append(membership)
         self.set_map("user", account_id, str(user.id), jira_key=user.email or "", jira_updated="former")
         self.unmatched.pop(account_id, None)
+        self.resolved.add(account_id)
         return user
 
     def deactivate_user(self, mapped, person):
@@ -814,6 +851,7 @@ class JiraImporter:
                     self.count("users_existing")
             self.set_map("user", account_id, str(user.id), jira_key=email, jira_updated="created" if made_here else "")
             self.unmatched.pop(account_id, None)
+            self.resolved.add(account_id)
         # former people (no longer on the Jira site) imported with a link to an outside picture: initials instead
         former_ids = JiraEntityMap.objects.filter(
             workspace=self.workspace, entity_type="user", jira_updated="former"
@@ -1208,7 +1246,7 @@ class JiraImporter:
         Entries imported before are corrected too, so the history always matches Jira.
         """
         for history in self.client.changelog(jira_issue["id"]):
-            author = self.user_for(history.get("author"), None)
+            author = self.user_for(history.get("author"), project)
             author_name = self.person_name(history.get("author")) if history.get("author") else "Jira"
             when = jira_datetime(history.get("created"))
             try:
@@ -1253,36 +1291,39 @@ class JiraImporter:
         for attachment in (jira_issue.get("fields") or {}).get("attachment") or []:
             if self.get_map("attachment", attachment["id"]):
                 continue
+            # Jira files are copied whatever their size (the upload limit is for people uploading here),
+            # streamed from Jira straight into storage so big videos never sit in memory
             size = int(attachment.get("size") or 0)
-            if size > settings.FILE_SIZE_LIMIT:
-                self.warn(
-                    f"{jira_issue.get('key')}: attachment '{attachment.get('filename')}' "
-                    "is larger than the upload limit."
-                )
-                continue
-            try:
-                content = self.client.attachment_content(attachment["content"])
-            except JiraError as error:
-                self.warn(f"{jira_issue.get('key')}: attachment '{attachment.get('filename')}' not copied ({error}).")
-                continue
             name = attachment.get("filename") or "attachment"
             mime = attachment.get("mimeType") or "application/octet-stream"
             key = asset_storage_key(
                 name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=self.workspace.id
             )
             storage = storage or S3Storage(request=None)
-            if not storage.upload_file(io.BytesIO(content), key, mime):
-                self.warn(f"{jira_issue.get('key')}: attachment '{name}' could not be stored.")
+            stored = False
+            for _attempt in range(3):
+                try:
+                    with self.client.attachment_stream(attachment["content"]) as stream:
+                        stored = storage.upload_file(stream, key, mime)
+                except JiraError as error:
+                    if error.status_code in (401, 403, 404):
+                        break  # gone or not visible in Jira: nothing to copy
+                except Exception as error:  # a dropped connection: try again
+                    logger.warning("Jira attachment %s: %s", attachment.get("id"), error)
+                if stored:
+                    break
+            if not stored:
+                self.warn(f"{jira_issue.get('key')}: attachment '{name}' could not be copied from Jira.")
                 continue
             asset = FileAsset.objects.create(
-                attributes={"name": name, "type": mime, "size": len(content)},
+                attributes={"name": name, "type": mime, "size": size},
                 asset=key,
-                size=len(content),
+                size=size,
                 workspace=self.workspace,
                 project_id=project.id,
                 issue=issue,
                 entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
-                created_by=self.user_for(attachment.get("author"), None) or self.actor,
+                created_by=self.user_for(attachment.get("author"), project) or self.actor,
                 is_uploaded=True,
                 external_source=SOURCE,
                 external_id=str(attachment["id"]),
@@ -1486,13 +1527,20 @@ class JiraImporter:
     # ---- one project ------------------------------------------------------------------------------------------
     def import_project(self, project_key):
         jira_project = self.client.project(project_key)
+        if not self.client.can_browse(project_key):
+            raise JiraError(
+                f"the connected Jira account ({self.connection_name()}) has no 'Browse projects' permission here, "
+                "so Jira shows none of its work items. Give that account access in Jira and sync again"
+            )
         self.save_progress(f"{project_key}: project and statuses")
         project = self.project_for(jira_project)
-        self.run.projects[project_key] = {"project_id": str(project.id), "name": project.name}
+        self.new_projects[project_key] = {"project_id": str(project.id), "name": project.name}
         states = self.states_for(project, project_key)
         types = ensure_project_work_item_types(project)
         self.save_progress(f"{project_key}: sprints and components")
-        issue_cycle = self.sprints_for(project, project_key)
+        # only Jira Software projects have boards and sprints (business projects do not)
+        is_software = jira_project.get("projectTypeKey", "software") == "software"
+        issue_cycle = self.sprints_for(project, project_key) if is_software else {}
         modules = self.modules_for(project, jira_project)
         self.sync_project_people(project, project_key)
 
@@ -1508,8 +1556,8 @@ class JiraImporter:
                 if self.options["attachments"]:
                     self.sync_attachments(project, issue, jira_issue)
             jira_issues.append(jira_issue)
-            if index % 25 == 0:
-                self.save_progress(f"{project_key}: {index} issues")
+            self.items_done = index
+            self.save_progress(f"{project_key}: {index} work items")
         self.save_progress(f"{project_key}: keys, parents, links and sprints")
         self.align_numbers(project, jira_issues)
         for jira_issue in jira_issues:
@@ -1517,10 +1565,20 @@ class JiraImporter:
         self.count("issues_seen", len(jira_issues))
         self.save_progress(f"{project_key}: done")
 
+    def connection_name(self):
+        connection = JiraConnection.objects.filter(workspace=self.workspace).first()
+        return (connection.account_name or connection.email) if connection else "Jira"
+
     def run_all(self):
         # records are saved as the person who started the sync (there is no web request in the worker)
         with impersonate(self.actor):
             self._run_all()
+
+    def sync_project(self, project_key):
+        """One project of a run (the background workers call this for each project in turn)."""
+        self.project_key = project_key
+        with impersonate(self.actor):
+            self.import_project(project_key)
 
     def _run_all(self):
         if self.options.get("kind") == "users":

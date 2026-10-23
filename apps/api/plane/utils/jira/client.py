@@ -11,6 +11,7 @@ anything in Jira. Rate limits (429) and short outages (5xx) are retried with bac
 import csv
 import io
 import time
+from contextlib import contextmanager
 from urllib.parse import urlparse
 
 import requests
@@ -87,7 +88,7 @@ class JiraClient:
         while True:
             page = self._get(
                 f"{API}/project/search",
-                {"startAt": start, "maxResults": 50, "expand": "description,lead"},
+                {"startAt": start, "maxResults": 50, "expand": "description,lead,insight"},
             )
             values = page.get("values", [])
             items.extend(values)
@@ -101,6 +102,13 @@ class JiraClient:
 
     def project(self, key):
         return self._get(f"{API}/project/{key}", {"expand": "description,lead"})
+
+    def can_browse(self, project_key):
+        """Whether this account may read the project's work items (Jira lists projects it cannot browse)."""
+        permissions = self._get(
+            f"{API}/mypermissions", {"projectKey": project_key, "permissions": "BROWSE_PROJECTS"}
+        ).get("permissions", {})
+        return bool((permissions.get("BROWSE_PROJECTS") or {}).get("havePermission"))
 
     def project_statuses(self, key):
         """Statuses used by the project's issue types: [{id, name, statusCategory: {key}}] (de-duplicated)."""
@@ -195,6 +203,24 @@ class JiraClient:
 
     def attachment_content(self, content_url):
         return self._get(content_url, raw=True)
+
+    @contextmanager
+    def attachment_stream(self, content_url):
+        """The file of an attachment as a stream (GET only), for copying big files without holding them in memory."""
+        url = content_url if content_url.startswith("http") else f"{self.base_url}{content_url}"
+        if not url.startswith(self.base_url):
+            raise JiraError("Refusing to call a URL outside the Jira site.")
+        try:
+            response = self.session.get(url, timeout=(30, 300), stream=True, allow_redirects=True)
+        except requests.RequestException as error:
+            raise JiraError(f"Could not reach Jira: {error}") from error
+        try:
+            if response.status_code >= 400:
+                raise JiraError(f"Jira returned HTTP {response.status_code}.", response.status_code)
+            response.raw.decode_content = True
+            yield response.raw
+        finally:
+            response.close()
 
     # ---- sprints (Jira Software) -----------------------------------------------------------------------------
     def boards(self, project_key):

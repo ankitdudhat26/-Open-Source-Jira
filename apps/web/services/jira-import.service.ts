@@ -27,6 +27,8 @@ export type TJiraProject = {
   name: string;
   type: string | null;
   lead: string | null;
+  /** work items in the Jira project (Jira's own count) */
+  issue_count: number | null;
   linked_project: { id: string; name: string; identifier: string } | null;
   last_synced_at: string | null;
 };
@@ -40,8 +42,21 @@ export type TJiraSyncOptions = {
   kind?: "users";
 };
 
+export type TJiraSyncProgress = {
+  items_total: number;
+  items_done: number;
+  projects_total: number;
+  projects_done: number;
+  projects_failed: number;
+  projects_running: { key: string; done: number; total: number }[];
+  failed: Record<string, string>;
+  /** at the speed so far; null until there is enough to tell */
+  estimated_finish_at: string | null;
+};
+
 export type TJiraSyncRun = {
   id: string;
+  progress: TJiraSyncProgress | null;
   status: "queued" | "running" | "completed" | "failed";
   project_keys: string[];
   options: TJiraSyncOptions;

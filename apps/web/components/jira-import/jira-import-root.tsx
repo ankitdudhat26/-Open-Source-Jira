@@ -75,7 +75,60 @@ function Section({ title, description, children }: { title: string; description?
   );
 }
 
-function RunCard({ run, workspaceSlug }: { run: TJiraSyncRun; workspaceSlug: string }) {
+const formatDuration = (seconds: number) => {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h ${minutes % 60} min`;
+};
+
+/** How far a running sync is and when it should finish. */
+function RunProgress({ run }: { run: TJiraSyncRun }) {
+  const progress = run.progress;
+  if (!progress) return null;
+  const percent = progress.items_total ? Math.min(100, (progress.items_done / progress.items_total) * 100) : 0;
+  const eta = progress.estimated_finish_at ? new Date(progress.estimated_finish_at) : null;
+  return (
+    <div className="space-y-1.5">
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-layer-3"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(percent)}
+      >
+        <div className="h-full rounded-full bg-accent-primary transition-all" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="text-secondary">
+        {progress.items_done.toLocaleString()} of {progress.items_total.toLocaleString()} work items ·{" "}
+        {progress.projects_done} of {progress.projects_total} projects done
+        {progress.projects_failed > 0 && ` · ${progress.projects_failed} not finished`}
+        {run.status === "running" &&
+          (eta
+            ? ` · about ${formatDuration((eta.getTime() - Date.now()) / 1000)} left (finishes around ${formatDateTime(eta.toISOString())})`
+            : " · estimating the time left…")}
+      </p>
+      {run.status === "running" && progress.projects_running.length > 0 && (
+        <p className="text-tertiary">
+          Now syncing:{" "}
+          {progress.projects_running
+            .map((item) => `${item.key} (${item.done.toLocaleString()} of ${item.total.toLocaleString()})`)
+            .join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RunCard({
+  run,
+  workspaceSlug,
+  onRetry,
+}: {
+  run: TJiraSyncRun;
+  workspaceSlug: string;
+  onRetry?: (keys: string[]) => void;
+}) {
   const [open, setOpen] = useState(run.status === "running");
   const stats = Object.entries(STAT_LABELS)
     .filter(([key]) => run.stats?.[key])
@@ -93,16 +146,42 @@ function RunCard({ run, workspaceSlug }: { run: TJiraSyncRun; workspaceSlug: str
           {run.status}
         </span>
         <span className="text-body-xs-medium text-primary">
-          {run.options?.kind === "users" ? "Jira users" : run.project_keys.join(", ")}
+          {run.options?.kind === "users"
+            ? "Jira users"
+            : run.project_keys.length > 8
+              ? `${run.project_keys.slice(0, 8).join(", ")} +${run.project_keys.length - 8} more`
+              : run.project_keys.join(", ")}
         </span>
         <span className="text-caption-md-regular text-tertiary">{formatDateTime(run.created_at)}</span>
         {run.status === "running" && (
           <span className="ml-auto text-caption-md-regular text-accent-primary">{run.current_step || "Starting"}…</span>
         )}
       </button>
+      {run.progress && (run.status === "running" || open) && (
+        <div className="mt-2 text-caption-md-regular">
+          <RunProgress run={run} />
+        </div>
+      )}
       {open && (
         <div className="mt-2 space-y-2 text-caption-md-regular text-secondary">
           {stats.length > 0 && <p>{stats.join(" · ")}</p>}
+          {run.status !== "running" && run.progress && Object.keys(run.progress.failed).length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-warning-primary">
+                Not finished: {Object.keys(run.progress.failed).join(", ")}. What was imported is kept; syncing them
+                again continues where they stopped.
+              </span>
+              {onRetry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  stretch="auto"
+                  label="Retry failed projects"
+                  onClick={() => onRetry(Object.keys(run.progress?.failed ?? {}))}
+                />
+              )}
+            </div>
+          )}
           {Object.entries(run.projects ?? {}).length > 0 && (
             <p>
               Projects:{" "}
@@ -213,6 +292,14 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
   }, [connection]);
 
   const allKeys = useMemo(() => (projects ?? []).map((project) => project.key), [projects]);
+  const [skipEmpty, setSkipEmpty] = useState(true);
+  // Jira projects without a single work item (Jira's count): nothing to import
+  const emptyKeys = useMemo(
+    () => new Set((projects ?? []).filter((project) => project.issue_count === 0).map((project) => project.key)),
+    [projects]
+  );
+  const withoutEmpty = (keys: string[]) => (skipEmpty ? keys.filter((key) => !emptyKeys.has(key)) : keys);
+  const syncAllKeys = withoutEmpty(allKeys);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (projects ?? []).filter((project) => {
@@ -262,7 +349,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
       setToast({
         type: "success",
         title: "Sync started",
-        message: `${keys.join(", ")} will be imported in the background.`,
+        message: `${keys.length > 5 ? `${keys.length} projects` : keys.join(", ")} will be imported in the background.`,
       });
     } catch (error) {
       setToast({ type: "error", title: "Sync not started", message: errorMessage(error, "Please try again.") });
@@ -519,13 +606,14 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                       <th className="py-2 pr-3 font-medium">Jira project</th>
                       <th className="py-2 pr-3 font-medium">Lead</th>
                       <th className="py-2 pr-3 font-medium">Imported as</th>
+                      <th className="py-2 pr-3 text-right font-medium">Work items</th>
                       <th className="py-2 pr-3 font-medium">Last synced</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageItems.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-tertiary">
+                        <td colSpan={6} className="px-3 py-6 text-center text-tertiary">
                           No Jira project matches.
                         </td>
                       </tr>
@@ -556,6 +644,9 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                           ) : (
                             <span className="text-tertiary">New project</span>
                           )}
+                        </td>
+                        <td className="py-2 pr-3 text-right text-secondary tabular-nums">
+                          {project.issue_count?.toLocaleString() ?? "—"}
                         </td>
                         <td className="py-2 pr-3 text-secondary">{formatDateTime(project.last_synced_at)}</td>
                       </tr>
@@ -626,23 +717,27 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                     {label}
                   </label>
                 ))}
+                <label className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={skipEmpty} onChange={(event) => setSkipEmpty(event.target.checked)} />
+                  Skip empty projects ({emptyKeys.size})
+                </label>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   variant="primary"
                   size="md"
                   stretch="auto"
-                  label={starting ? "Starting…" : `Sync selected (${selected.size})`}
-                  disabled={starting || isRunning || selected.size === 0}
-                  onClick={() => void startSync([...selected])}
+                  label={starting ? "Starting…" : `Sync selected (${withoutEmpty([...selected]).length})`}
+                  disabled={starting || isRunning || withoutEmpty([...selected]).length === 0}
+                  onClick={() => void startSync(withoutEmpty([...selected]))}
                 />
                 <Button
                   variant="secondary"
                   size="md"
                   stretch="auto"
-                  label="Sync all projects"
-                  disabled={starting || isRunning || allKeys.length === 0}
-                  onClick={() => void startSync(allKeys)}
+                  label={`Sync all projects (${syncAllKeys.length})`}
+                  disabled={starting || isRunning || syncAllKeys.length === 0}
+                  onClick={() => void startSync(syncAllKeys)}
                 />
                 {isRunning && (
                   <span className="self-center text-caption-md-regular text-accent-primary">A sync is running…</span>
@@ -662,7 +757,12 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
         ) : (
           <div className="space-y-2">
             {runs.map((run) => (
-              <RunCard key={run.id} run={run} workspaceSlug={workspaceSlug} />
+              <RunCard
+                key={run.id}
+                run={run}
+                workspaceSlug={workspaceSlug}
+                onRetry={isRunning ? undefined : (keys) => void startSync(keys)}
+              />
             ))}
           </div>
         )}

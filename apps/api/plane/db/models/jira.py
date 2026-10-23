@@ -66,6 +66,8 @@ class JiraSyncRun(BaseModel):
     warnings = models.JSONField(default=list)
     unmatched_users = models.JSONField(default=list)
     error = models.TextField(blank=True, default="")
+    # project key -> {status: pending|running|done|failed, total, done, attempts, heartbeat, error, ...}
+    progress = models.JSONField(default=dict)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 

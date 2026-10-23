@@ -4,7 +4,9 @@
 
 """Jira import / sync against an in-memory Jira, the read only client and the history page."""
 
+import contextlib
 import copy
+import io
 import uuid
 from unittest import mock
 
@@ -188,8 +190,24 @@ class FakeJira:
         self.calls.append(("attachment", url))
         return b"%PDF"
 
+    @contextlib.contextmanager
+    def attachment_stream(self, url):
+        self.calls.append(("attachment", url))
+        yield io.BytesIO(b"%PDF")
+
     def boards(self, key):
-        return [{"id": 1}]
+        self.boards_read = True
+        return list(self.board_data)
+
+    browsable = True
+    jira_count = None
+
+    def can_browse(self, key):
+        return self.browsable
+
+    def projects(self):
+        count = len(self.issue_data) if self.jira_count is None else self.jira_count
+        return [{"key": "SHOP", "insight": {"totalIssueCount": count}}]
 
     def sprints(self, board_id):
         return [
@@ -206,6 +224,7 @@ class FakeJira:
     def sprint_issue_ids(self, sprint_id):
         return ["2", "3"]
 
+    board_data = ({"id": 1},)
     jira_users = ()
     jira_groups = {}
     jira_roles = ()
@@ -326,8 +345,9 @@ class TestJiraImport:
         outsider = User.objects.get(display_name="Outside Person")
         assert (outsider.email, outsider.is_active) == (None, False)
         assert IssueSubscriber.objects.filter(issue=card, subscriber=outsider).exists()
-        # only seen in history: the name is kept there and the person is reported
-        assert [user["name"] for user in run.unmatched_users] == ["Parth Patel"]
+        # only seen in history: also a disabled account, so nobody is left unmatched
+        assert run.unmatched_users == []
+        assert not User.objects.get(display_name="Parth Patel").is_active
         assert run.stats["issues_created"] == 3
 
     @pytest.mark.django_db
@@ -521,9 +541,10 @@ class TestJiraHistoryAndFields:
         entries = list(IssueActivity.objects.filter(issue=card, external_source="jira").order_by("created_at"))
         created = entries[0]
         assert (created.verb, created.external_actor_name) == ("created", "Bob Stone")
-        # Parth Patel has no account here: his name is kept anyway
+        # Parth Patel has no login here: his disabled account and Jira's name are on the entry
         issue_type = next(entry for entry in entries if entry.external_field_name == "Issue Type")
-        assert issue_type.actor_id is None and issue_type.external_actor_name == "Parth Patel"
+        parth = User.objects.get(display_name="Parth Patel")
+        assert issue_type.actor_id == parth.id and issue_type.external_actor_name == "Parth Patel"
         assert (issue_type.old_value, issue_type.new_value) == ("Sub-task", "Task")
         assert issue_type.created_at.isoformat().startswith("2024-01-16T16:27")
         remaining = next(entry for entry in entries if entry.external_field_name == "Remaining Estimate")
@@ -972,3 +993,132 @@ class TestJiraAvatars:
             JiraImporter.avatar_source({"avatarUrls": {"48x48": "https://cdn/acc/uuid/48"}})
             == "https://cdn/acc/uuid/48"
         )
+
+
+@pytest.mark.contract
+class TestLargeSyncs:
+    @pytest.mark.django_db
+    def test_big_attachments_are_copied_and_business_projects_have_no_sprints(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.project_data["projectTypeKey"] = "business"
+        for jira_issue in fake.issue_data:
+            for attachment in jira_issue["fields"]["attachment"]:
+                attachment["size"] = 300 * 1024 * 1024  # a 300 MB video: far over the 5 MB upload limit
+        run = run_import(workspace, create_user, fake)
+        assert run.warnings == []
+        assert FileAsset.objects.get(external_id="900").size == 300 * 1024 * 1024
+        assert not getattr(fake, "boards_read", False)
+
+    @pytest.mark.django_db
+    def test_projects_run_in_lanes_and_one_failure_does_not_stop_the_rest(self, workspace, create_user, people):
+        from plane.bgtasks import jira_sync_task as task
+
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        project = fake.project
+
+        def project_or_fail(key):
+            if key == "BAD":
+                raise RuntimeError("boom")
+            return project(key)
+
+        fake.project = project_or_fail
+        JiraConnection.objects.create(
+            workspace=workspace, site_url="https://acme.atlassian.net", email="a@b.c", api_token=encrypt_data("x")
+        )
+        run = JiraSyncRun.objects.create(
+            workspace=workspace, initiated_by=create_user, project_keys=["BAD", "SHOP"], options={}
+        )
+        with (
+            mock.patch.object(task, "client_for", return_value=fake),
+            mock.patch.object(task.jira_sync_lane_task, "delay", side_effect=task.jira_sync_lane_task),
+        ):
+            task.jira_sync_task(str(run.id))
+        run.refresh_from_db()
+
+        assert run.status == "completed" and "BAD" in run.error
+        assert run.progress["SHOP"]["status"] == "done" and run.progress["SHOP"]["done"] == 3
+        assert run.progress["BAD"]["status"] == "failed"
+        assert Issue.objects.filter(project__identifier="SHOP").count() == 3
+
+    @pytest.mark.django_db
+    def test_interrupted_run_is_resumed_not_left_running(self, session_client, workspace, create_user):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from plane.bgtasks import jira_sync_task as task
+
+        run = JiraSyncRun.objects.create(
+            workspace=workspace,
+            initiated_by=create_user,
+            project_keys=["A", "B"],
+            status="running",
+            started_at=timezone.now() - timedelta(hours=2),
+            progress={
+                "A": {"status": "done", "total": 40, "done": 40, "attempts": 1},
+                "B": {"status": "running", "total": 60, "done": 20, "attempts": 1},
+            },
+        )
+        JiraSyncRun.objects.filter(pk=run.pk).update(updated_at=timezone.now() - timedelta(hours=1))
+        with mock.patch.object(task.jira_sync_lane_task, "delay") as delay:
+            data = session_client.get(f"/api/workspaces/{workspace.slug}/jira/syncs/").data[0]
+        assert delay.called
+        assert data["status"] == "running"
+        run.refresh_from_db()
+        assert run.progress["B"]["status"] == "pending"
+        # progress and the time left come with the run
+        assert (data["progress"]["items_done"], data["progress"]["items_total"]) == (60, 100)
+        assert data["progress"]["estimated_finish_at"] is not None
+
+        # interrupted again and again: given up on, the run ends instead of running forever
+        run.progress["B"].update(status="running", attempts=3)
+        run.save()
+        JiraSyncRun.objects.filter(pk=run.pk).update(updated_at=timezone.now() - timedelta(hours=1))
+        task.recover_stale_runs(workspace.id)
+        run.refresh_from_db()
+        assert run.status == "completed" and run.progress["B"]["status"] == "failed"
+
+
+def run_lanes(workspace, user, fake, keys=("SHOP",)):
+    from plane.bgtasks import jira_sync_task as task
+
+    if not JiraConnection.objects.filter(workspace=workspace).exists():
+        JiraConnection.objects.create(
+            workspace=workspace,
+            site_url="https://acme.atlassian.net",
+            email="a@b.c",
+            api_token=encrypt_data("x"),
+            account_name="Parth Patel",
+        )
+    run = JiraSyncRun.objects.create(workspace=workspace, initiated_by=user, project_keys=list(keys), options={})
+    with (
+        mock.patch.object(task, "client_for", return_value=fake),
+        mock.patch.object(task.jira_sync_lane_task, "delay", side_effect=task.jira_sync_lane_task),
+    ):
+        task.jira_sync_task(str(run.id))
+    run.refresh_from_db()
+    return run
+
+
+@pytest.mark.contract
+class TestNoSilentGaps:
+    @pytest.mark.django_db
+    def test_project_the_account_cannot_browse_is_reported_not_created_empty(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.browsable = False
+        run = run_lanes(workspace, create_user, fake)
+        assert run.progress["SHOP"]["status"] == "failed"
+        assert "Parth Patel" in run.progress["SHOP"]["error"] and "Browse projects" in run.progress["SHOP"]["error"]
+        assert not Project.objects.filter(identifier="SHOP").exists()
+
+    @pytest.mark.django_db
+    def test_work_items_hidden_from_the_account_are_reported(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        fake.jira_count = 5  # Jira counts 5, the account can read 3
+        run = run_lanes(workspace, create_user, fake)
+        assert run.progress["SHOP"]["status"] == "done"
+        assert any("3 of 5 work items could be read" in warning for warning in run.warnings)
