@@ -62,6 +62,9 @@ export function NameColumn(props: NameProps) {
   // derived values
   const { avatar_url, display_name, email, first_name, id, last_name } = rowData.member;
   const isSuspended = rowData.is_active === false;
+  // a picture that fails (or an outside link that is gone) falls back to the initial, never a broken image
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [avatar_url]);
 
   return (
     <div className="group relative">
@@ -71,13 +74,20 @@ export function NameColumn(props: NameProps) {
             <div className="rounded-full bg-layer-1">
               <DeactivatedUserOutline className="size-6 text-placeholder" />
             </div>
-          ) : avatar_url && avatar_url.trim() !== "" ? (
+          ) : avatar_url && avatar_url.trim() !== "" && !imageFailed ? (
             <Link href={`/${workspaceSlug}/profile/${id}`}>
               <span className="relative flex size-6 items-center justify-center rounded-full text-on-color capitalize">
+                {/* the initial shows while the picture loads */}
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-layer-3 text-11 text-tertiary">
+                  {(email ?? display_name ?? "?")[0]}
+                </span>
                 <img
                   src={getFileURL(avatar_url)}
                   className="absolute top-0 left-0 h-full w-full rounded-full object-cover"
                   alt={display_name || email}
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => setImageFailed(true)}
                 />
               </span>
             </Link>

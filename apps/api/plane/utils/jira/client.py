@@ -131,6 +131,20 @@ class JiraClient:
             self._offset_pages(f"{API}/group/member", "values", {"groupId": group_id, "includeInactiveUsers": "false"})
         )
 
+    def assignable_users(self, project_key):
+        """Everyone Jira lets you assign work to in the project (its permission scheme, groups and roles)."""
+        start, users = 0, []
+        while True:
+            page = self._get(
+                f"{API}/user/assignable/search", {"project": project_key, "startAt": start, "maxResults": 100}
+            )
+            if not isinstance(page, list) or not page:
+                return users
+            users.extend(page)
+            if len(page) < 100:
+                return users
+            start += len(page)
+
     def project_roles(self, project_key):
         """[{name, actors: [...]}] of a project (Administrators, Developers, ...)."""
         roles = []

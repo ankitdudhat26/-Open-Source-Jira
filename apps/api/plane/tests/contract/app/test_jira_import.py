@@ -172,7 +172,7 @@ class FakeJira:
     def project_statuses(self, key):
         return copy.deepcopy(STATUSES)
 
-    def issues(self, key):
+    def issues(self, key, fields="*all"):
         return copy.deepcopy(self.issue_data)
 
     def comments(self, issue_id):
@@ -221,6 +221,11 @@ class FakeJira:
 
     def project_roles(self, key):
         return list(self.jira_roles)
+
+    jira_assignable = ()
+
+    def assignable_users(self, key):
+        return list(self.jira_assignable)
 
     def fields(self):
         return [
@@ -316,9 +321,13 @@ class TestJiraImport:
         history = IssueActivity.objects.get(issue=card, field="state")
         assert (history.old_value, history.new_value, history.actor_id) == ("To Do", "In Progress", ada_user.id)
         assert history.created_at.year == 2024
-        # people are added to the project; the unknown watcher is reported
+        # people are added to the project; the watcher without an account gets a disabled one (shown, no login)
         assert ProjectMember.objects.filter(project=project, member=ada_user, is_active=True).exists()
-        assert sorted(user["name"] for user in run.unmatched_users) == ["Outside Person", "Parth Patel"]
+        outsider = User.objects.get(display_name="Outside Person")
+        assert (outsider.email, outsider.is_active) == (None, False)
+        assert IssueSubscriber.objects.filter(issue=card, subscriber=outsider).exists()
+        # only seen in history: the name is kept there and the person is reported
+        assert [user["name"] for user in run.unmatched_users] == ["Parth Patel"]
         assert run.stats["issues_created"] == 3
 
     @pytest.mark.django_db
@@ -586,9 +595,11 @@ class TestJiraHistoryAndFields:
         assert (logged.verb, logged.new_value, logged.external_actor_name) == ("logged", "3h", "Nishant B")
         spent = IssueActivity.objects.get(issue=card, external_field_name="Time Spent")
         assert (spent.old_value, spent.new_value) == ("", "3h")
-        # the assignee has no account here: Jira's name is kept next to the work item
+        # the assignee has no account here: a disabled account with Jira's name is the assignee
+        nishant = User.objects.get(display_name="Nishant B")
+        assert IssueAssignee.objects.get(issue=card).assignee_id == nishant.id and not nishant.is_active
         values = {value.field.name: value.value for value in CustomFieldValue.objects.filter(issue=card)}
-        assert values["Assignee (Jira)"] == "Nishant B"
+        assert "Assignee (Jira)" not in values
         # a work item created here afterwards continues after the highest Jira number
         new = Issue.objects.create(name="New here", project=project, workspace=workspace)
         assert new.sequence_id == 61
@@ -603,6 +614,17 @@ class TestJiraHistoryAndFields:
             == numbers
         )
         assert IssueActivity.objects.filter(issue=card).count() == history_count
+
+
+@pytest.fixture(autouse=True)
+def avatar_downloads():
+    """Photos are 'downloaded' from memory and 'stored' without a bucket."""
+    with (
+        mock.patch.object(JiraImporter, "fetch_avatar", return_value=(b"PNG", "image/png")) as fetch,
+        mock.patch("plane.settings.storage.S3Storage") as storage,
+    ):
+        storage.return_value.upload_file.return_value = True
+        yield fetch
 
 
 def jira_person(account_id, name, email, **extra):
@@ -640,7 +662,8 @@ class TestJiraUserSync:
         chitra = User.objects.get(email="chitra@example.com")
         assert (chitra.display_name, chitra.first_name, chitra.last_name) == ("Chitra Rao", "Chitra", "Rao")
         assert chitra.user_timezone == "Asia/Kolkata"
-        assert chitra.avatar == "https://avatar.example.com/c3.png"
+        # the photo is kept in this app's storage, not linked from outside
+        assert chitra.avatar == "" and chitra.avatar_asset.attributes["source"] == "https://avatar.example.com/c3.png"
         assert chitra.is_password_autoset and Profile.objects.get(user=chitra).is_onboarded
         roles = dict(WorkspaceMember.objects.filter(workspace=workspace).values_list("member__email", "role"))
         assert roles["chitra@example.com"] == 20 and roles["dev@example.com"] == 15
@@ -804,7 +827,10 @@ class TestJiraUserDirectory:
             workspace=workspace, initiated_by=create_user, project_keys=[], options={"kind": "users"}
         )
         JiraImporter(run, fake, workspace, create_user, directory).run_all()
-        assert not WorkspaceMember.objects.get(workspace=workspace, member__email="hidden@example.com").is_active
+        # an account the sync made stays listed (like Jira's deactivated users) but can no longer sign in
+        hidden = User.objects.get(email="hidden@example.com")
+        assert not hidden.is_active
+        assert WorkspaceMember.objects.get(workspace=workspace, member=hidden).is_active
 
     @pytest.mark.django_db
     def test_users_file_upload_and_admin_key(self, session_client, workspace):
@@ -838,3 +864,111 @@ class TestJiraUserDirectory:
         assert "secret" not in str(data)
         connection = JiraConnection.objects.get(workspace=workspace)
         assert connection.org_id == "org1" and decrypt_data(connection.admin_api_key) == "secret"
+
+
+@pytest.mark.contract
+class TestJiraPeopleAfterUserSync:
+    @pytest.mark.django_db
+    def test_assignable_people_join_and_old_work_items_get_their_people(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        carol = jira_person("c3", "Carol Diaz", None)
+        dave = jira_person("d4", "Dave Roy", None)
+        fake = FakeJira(ada, bob)
+        # SHOP-2 was Carol's, but she had no account at the first import: a disabled one stands in
+        for jira_issue in fake.issue_data:
+            if jira_issue["key"] == "SHOP-2":
+                jira_issue["fields"]["assignee"] = carol
+                jira_issue["fields"]["reporter"] = carol
+        run_import(workspace, create_user, fake)
+        issue = Issue.objects.get(project__identifier="SHOP", sequence_id=2)
+        stand_in = IssueAssignee.objects.get(issue=issue).assignee
+        assert (stand_in.display_name, stand_in.email, stand_in.is_active) == ("Carol Diaz", None, False)
+
+        fake.jira_users = [carol, dave]
+        fake.jira_assignable = [carol, dave, {**ada, "accountType": "app"}]
+        directory = {
+            "c3": {"email": "carol@example.com", "name": "", "active": True, "org_admin": False},
+            "d4": {"email": "dave@example.com", "name": "", "active": True, "org_admin": False},
+        }
+        run = JiraSyncRun.objects.create(
+            workspace=workspace, initiated_by=create_user, project_keys=[], options={"kind": "users"}
+        )
+        JiraImporter(run, fake, workspace, create_user, directory).run_all()
+
+        # the user sync turns the stand-in into Carol's real account (same account, now with email and login)
+        carol_user = User.objects.get(email="carol@example.com")
+        assert carol_user.id == stand_in.id and carol_user.is_active
+        project = issue.project
+        members = set(
+            ProjectMember.objects.filter(project=project, is_active=True).values_list("member__email", flat=True)
+        )
+        assert {"carol@example.com", "dave@example.com"} <= members
+        assert list(IssueAssignee.objects.filter(issue=issue).values_list("assignee_id", flat=True)) == [carol_user.id]
+        assert Issue.objects.get(pk=issue.pk).created_by_id == carol_user.id
+        assert User.objects.filter(display_name="Carol Diaz").count() == 1
+
+
+@pytest.mark.contract
+class TestFormerJiraPeople:
+    @pytest.mark.django_db
+    def test_deactivated_assignee_is_shown_with_a_disabled_account(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        former = {**person("x9", "Hitesh Pal"), "active": False}
+        fake = FakeJira(ada, bob)
+        for jira_issue in fake.issue_data:
+            if jira_issue["key"] == "SHOP-2":
+                jira_issue["fields"]["assignee"] = former
+        run_import(workspace, create_user, fake)
+
+        hitesh = User.objects.get(display_name="Hitesh Pal")
+        assert (hitesh.email, hitesh.is_active, hitesh.has_usable_password()) == (None, False, False)
+        issue = Issue.objects.get(project__identifier="SHOP", sequence_id=2)
+        assert list(IssueAssignee.objects.filter(issue=issue).values_list("assignee_id", flat=True)) == [hitesh.id]
+        assert ProjectMember.objects.get(project=issue.project, member=hitesh).is_active
+        assert WorkspaceMember.objects.get(workspace=workspace, member=hitesh).is_active
+
+        # a second sync reuses the account
+        run_import(workspace, create_user, fake, full=True)
+        assert User.objects.filter(display_name="Hitesh Pal").count() == 1
+
+        # never emailed
+        from plane.bgtasks.email_notification_task import send_email_notification
+
+        with mock.patch("plane.bgtasks.email_notification_task.build_work_item_email") as build:
+            send_email_notification(str(issue.id), {}, str(hitesh.id), [])
+        build.assert_not_called()
+
+
+@pytest.mark.contract
+class TestJiraAvatars:
+    @pytest.mark.django_db
+    def test_photos_are_stored_once_and_initials_are_drawn_here(self, workspace, create_user, people, avatar_downloads):
+        ada_user, bob_user, ada, bob = people
+        initials = (
+            "https://secure.gravatar.com/avatar/abc?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod"
+            ".public.atl-paas.net%2Finitials%2FJS-0.png"
+        )
+        fake = FakeJira(ada, bob)
+        fake.jira_users = [
+            jira_person("p1", "Photo Person", "photo@example.com"),
+            jira_person("i1", "Initials Person", "initials@example.com", avatarUrls={"48x48": initials}),
+        ]
+        run_import(workspace, create_user, fake, kind="users")
+        photo = User.objects.get(email="photo@example.com")
+        plain = User.objects.get(email="initials@example.com")
+        assert photo.avatar_url == f"/api/assets/v2/static/{photo.avatar_asset_id}/"
+        assert (plain.avatar, plain.avatar_asset_id, plain.avatar_url) == ("", None, None)
+        assert FileAsset.objects.get(pk=photo.avatar_asset_id).entity_type == "USER_AVATAR"
+        assert avatar_downloads.call_count == 1
+
+        # a second sync does not download the same photo again
+        run_import(workspace, create_user, fake, kind="users")
+        assert avatar_downloads.call_count == 1
+
+    def test_initials_pictures_are_recognised(self):
+        assert JiraImporter.avatar_source({"avatarUrls": {"48x48": "https://x/initials/AB-1.png"}}) == ""
+        assert JiraImporter.avatar_source({}) == ""
+        assert (
+            JiraImporter.avatar_source({"avatarUrls": {"48x48": "https://cdn/acc/uuid/48"}})
+            == "https://cdn/acc/uuid/48"
+        )

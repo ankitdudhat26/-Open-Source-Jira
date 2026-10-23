@@ -187,6 +187,10 @@ def send_email_notification(issue_id, notification_data, receiver_id, email_noti
             ) = get_email_configuration()
 
             receiver = User.objects.get(pk=receiver_id)
+            # former Jira people are kept as disabled accounts without an email: never mailed
+            if not receiver.email or not receiver.is_active:
+                release_lock(lock_id=lock_id)
+                return
             issue = Issue.objects.select_related(
                 "project", "project__workspace", "state", "type", "parent", "milestone"
             ).get(pk=issue_id)

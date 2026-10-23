@@ -24,6 +24,7 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytz
+import requests
 
 from crum import impersonate
 from django.conf import settings
@@ -420,6 +421,8 @@ class JiraImporter:
                     ),
                     None,
                 )
+            if user is None and project is not None and self.is_former_person(jira_user):
+                user = self.former_account(jira_user)
             self.user_cache[account_id] = user
             if user is None and account_id not in self.unmatched and jira_user.get("accountType") != "app":
                 self.unmatched[account_id] = {
@@ -459,6 +462,67 @@ class JiraImporter:
             role = MEMBER
         designation = name[:-1] if len(name) > 3 and name.endswith("s") and not name.endswith("ss") else name
         return role, designation or "Team member"
+
+    def sync_project_people(self, project, project_key):
+        """Like in Jira: everyone who can be assigned work in the Jira project is a member, with their role."""
+        try:
+            assignable = self.client.assignable_users(project_key)
+        except JiraError as error:
+            self.warn(f"{project_key}: assignable people not read ({error})")
+            assignable = []
+        unmatched = dict(self.unmatched)
+        for person in assignable:
+            if person.get("accountType", "atlassian") == "atlassian" and person.get("active", True):
+                self.user_for(person, project)
+        # being assignable is not work: only people on work items are listed as missing
+        self.unmatched = unmatched
+        self.sync_project_roles(project, project_key)
+
+    def relink_people(self, project, project_key):
+        """After a user sync: work items, comments and history imported before people had accounts get them."""
+        self.save_progress(f"{project_key}: assigning work items to people")
+        for jira_issue in self.client.issues(project_key, fields="assignee,reporter,creator"):
+            mapping = self.get_map("issue", jira_issue["id"])
+            issue = Issue.objects.filter(pk=mapping.plane_id, project=project).first() if mapping else None
+            if issue is None:
+                continue
+            fields = jira_issue.get("fields") or {}
+            assignee = self.user_for(fields.get("assignee"), project)
+            if assignee and not IssueAssignee.objects.filter(issue=issue, assignee=assignee).exists():
+                IssueAssignee.objects.filter(issue=issue).delete()
+                IssueAssignee.objects.create(issue=issue, assignee=assignee, project=project, workspace=self.workspace)
+                IssueSubscriber.objects.get_or_create(
+                    issue=issue, subscriber=assignee, defaults={"project": project, "workspace": self.workspace}
+                )
+                self.count("assignees_linked")
+            reporter = self.user_for(fields.get("reporter") or fields.get("creator"), project)
+            if reporter and issue.created_by_id != reporter.id:
+                Issue.all_objects.filter(pk=issue.pk).update(created_by_id=reporter.id)
+                IssueActivity.objects.filter(issue=issue, verb="created", field__isnull=True).update(actor=reporter)
+                self.count("reporters_linked")
+        # history entries and comments recorded with only the Jira name
+        names = {}
+        for member in self.members:
+            name = (member.member.display_name or "").strip()
+            if name:
+                names.setdefault(name, set()).add(member.member)
+        for name, users in names.items():
+            if len(users) != 1:
+                continue  # two people with one name: leave the name
+            (user,) = users
+            linked = IssueActivity.objects.filter(
+                project=project, external_source=SOURCE, external_actor_name=name, actor__isnull=True
+            ).update(actor=user)
+            prefix = f"<p><em>{name} (Jira)</em></p>"
+            for comment in IssueComment.objects.filter(
+                project=project, external_source=SOURCE, comment_html__startswith=prefix
+            ):
+                comment.comment_html = comment.comment_html[len(prefix) :]
+                comment.actor = user
+                comment.save(update_fields=["comment_html", "actor", "updated_at"])
+                linked += 1
+            if linked:
+                self.count("history_linked", linked)
 
     def sync_project_roles(self, project, project_key):
         """Members of the Jira project's roles join the project with the same role (highest one wins)."""
@@ -514,9 +578,111 @@ class JiraImporter:
                     self.count("project_roles_updated")
             self.set_map("project_member", key, str(user_id), jira_key=synced)
 
-    def deactivate_user(self, mapped):
-        """A person deactivated in Jira (or the organization) loses access here too; history keeps their name."""
-        if mapped is None or str(mapped.plane_id) == str(self.actor.id):
+    @staticmethod
+    def avatar_source(jira_user):
+        """The person's own photo in Jira, or "" when Jira only has the generated initials picture."""
+        url = (jira_user.get("avatarUrls") or {}).get("48x48") or ""
+        # no photo: a gravatar link falling back to Atlassian's initials image (initials are drawn here instead)
+        if not url or ("gravatar.com" in url and "initials" in url) or "/initials/" in url:
+            return ""
+        return url
+
+    def fetch_avatar(self, url):
+        """Download a public avatar image (GET only; it is not Jira data)."""
+        response = requests.get(url, timeout=15)
+        mime = (response.headers.get("Content-Type") or "").split(";")[0]
+        if response.status_code != 200 or not mime.startswith("image/") or len(response.content) > 2 * 1024 * 1024:
+            return None, None
+        return response.content, mime
+
+    def set_avatar(self, user, jira_user):
+        """Keep the person's Jira photo in this app's own storage (fast, no calls to outside sites when shown)."""
+        from plane.settings.storage import S3Storage
+
+        source = self.avatar_source(jira_user)
+        current = user.avatar_asset
+        if current is not None and (current.attributes or {}).get("source") == source and source:
+            return
+        if not source:
+            if user.avatar or (current is not None and (current.attributes or {}).get("source")):
+                user.avatar, user.avatar_asset = "", None
+                user.save(update_fields=["avatar", "avatar_asset", "updated_at"])
+            return
+        try:
+            content, mime = self.fetch_avatar(source)
+        except Exception as error:  # a missing photo never stops the sync: initials are shown instead
+            logger.warning("Jira avatar not downloaded: %s", error)
+            content = None
+        if not content:
+            return
+        name = f"avatar.{mime.split('/')[-1].split('+')[0]}"
+        key = asset_storage_key(name, entity_type=FileAsset.EntityTypeContext.USER_AVATAR, user_id=user.id)
+        if not S3Storage(request=None).upload_file(io.BytesIO(content), key, mime):
+            return
+        asset = FileAsset.objects.create(
+            attributes={"name": name, "type": mime, "size": len(content), "source": source},
+            asset=key,
+            size=len(content),
+            user=user,
+            entity_type=FileAsset.EntityTypeContext.USER_AVATAR,
+            is_uploaded=True,
+        )
+        user.avatar, user.avatar_asset = "", asset
+        user.save(update_fields=["avatar", "avatar_asset", "updated_at"])
+        self.count("avatars_stored")
+
+    @staticmethod
+    def is_former_person(jira_user):
+        """A person on imported work without an account here (deactivated, removed from the site, or not synced)."""
+        return jira_user.get("accountType", "atlassian") == "atlassian" and bool(jira_user.get("accountId"))
+
+    def former_account(self, jira_user, user=None):
+        """A disabled account (no email, no login) for a person on imported work who has no account here.
+
+        It keeps their Jira name and avatar so they show as assignee / reporter like in Jira, and it is a member so
+        the work items can show them; it can never sign in and is never emailed. A later user sync that finds the
+        person active with an email turns it into a normal account.
+        """
+        account_id = jira_user["accountId"]
+        name = (jira_user.get("displayName") or "Former Jira user").strip()
+        if user is None:
+            user = User(
+                email=None,
+                username=uuid.uuid4().hex,
+                display_name=name,
+                first_name=name.partition(" ")[0][:255],
+                last_name=name.partition(" ")[2][:255],
+                is_password_autoset=True,
+            )
+            user.set_unusable_password()
+            self.count("former_accounts_created")
+        user.is_active = False
+        user.save()
+        self.set_avatar(user, jira_user)
+        membership = WorkspaceMember.objects.filter(workspace=self.workspace, member=user).first()
+        if membership is None:
+            membership = WorkspaceMember.objects.create(workspace=self.workspace, member=user, role=MEMBER)
+        elif not membership.is_active:
+            membership.is_active = True
+            membership.save(update_fields=["is_active", "updated_at"])
+        self.members.append(membership)
+        self.set_map("user", account_id, str(user.id), jira_key=user.email or "", jira_updated="former")
+        self.unmatched.pop(account_id, None)
+        return user
+
+    def deactivate_user(self, mapped, person):
+        """A person deactivated in Jira (or the organization) can no longer work here; history keeps their name.
+
+        Accounts this sync made become former accounts (no login, still shown on their work items); accounts
+        people made themselves just leave the workspace.
+        """
+        if mapped is None or str(mapped.plane_id) == str(self.actor.id) or mapped.jira_updated == "former":
+            return
+        if mapped.jira_updated == "created":
+            user = User.objects.filter(pk=mapped.plane_id).first()
+            if user is not None:
+                self.former_account(person, user)
+                self.count("users_deactivated")
             return
         changed = WorkspaceMember.objects.filter(
             workspace=self.workspace, member_id=mapped.plane_id, is_active=True
@@ -573,9 +739,14 @@ class JiraImporter:
             )
             mapped = self.get_map("user", account_id)
             if not person.get("active") or (listed and not listed["active"]):
-                self.deactivate_user(mapped)
+                self.deactivate_user(mapped, person)
                 continue
-            email = (person.get("emailAddress") or listed.get("email") or "").strip().lower()
+            # the email Jira shows, else the directory's, else the one an earlier user sync was given
+            email = (
+                (person.get("emailAddress") or listed.get("email") or (mapped.jira_key if mapped else "") or "")
+                .strip()
+                .lower()
+            )
             name = (person.get("displayName") or listed.get("name") or "").strip()
             if not email:
                 without_email.append(name or account_id)
@@ -587,10 +758,17 @@ class JiraImporter:
                 "display_name": name or email.split("@")[0],
                 "first_name": name.partition(" ")[0][:255],
                 "last_name": name.partition(" ")[2][:255],
-                "avatar": (person.get("avatarUrls") or {}).get("48x48") or listed.get("avatar") or "",
                 "user_timezone": time_zone if time_zone in TIMEZONES else "UTC",
             }
             user = User.objects.filter(email__iexact=email).first()
+            if user is None and mapped is not None and mapped.jira_updated == "former":
+                # back in Jira: the former account becomes a normal one
+                user = User.objects.filter(pk=mapped.plane_id).first()
+                if user is not None:
+                    user.email, user.is_active, user.is_email_verified = email, True, True
+                    user.set_password(uuid.uuid4().hex)
+                    user.save()
+                    mapped.jira_updated = "created"
             # accounts this sync made follow Jira (name, avatar, role); accounts people made themselves are kept
             made_here = user is None or (mapped is not None and mapped.jira_updated == "created")
             if user is None:
@@ -605,6 +783,9 @@ class JiraImporter:
                     setattr(user, key, value)
                 user.save(update_fields=[*details, "updated_at"])
                 self.count("users_updated")
+            # also accounts holding a link to Jira's picture (made by an earlier version of this sync)
+            if made_here or self.avatar_source({"avatarUrls": {"48x48": user.avatar}}) != user.avatar:
+                self.set_avatar(user, person)
             Profile.objects.get_or_create(
                 user=user,
                 defaults={
@@ -633,6 +814,11 @@ class JiraImporter:
                     self.count("users_existing")
             self.set_map("user", account_id, str(user.id), jira_key=email, jira_updated="created" if made_here else "")
             self.unmatched.pop(account_id, None)
+        # former people (no longer on the Jira site) imported with a link to an outside picture: initials instead
+        former_ids = JiraEntityMap.objects.filter(
+            workspace=self.workspace, entity_type="user", jira_updated="former"
+        ).values_list("plane_id", flat=True)
+        User.objects.filter(pk__in=list(former_ids), avatar__startswith="http").update(avatar="")
         if without_email:
             self.count("users_without_email", len(without_email))
             self.warn(
@@ -650,8 +836,13 @@ class JiraImporter:
         for mapped in JiraEntityMap.objects.filter(workspace=self.workspace, entity_type="project"):
             project = Project.objects.filter(pk=mapped.plane_id, workspace=self.workspace).first()
             if project is not None:
-                self.save_progress(f"{mapped.jira_key or project.name}: project roles")
-                self.sync_project_roles(project, mapped.jira_key or mapped.jira_id)
+                key = mapped.jira_key or mapped.jira_id
+                self.save_progress(f"{key}: project members")
+                try:
+                    self.sync_project_people(project, key)
+                    self.relink_people(project, key)
+                except JiraError as error:
+                    self.warn(f"{key}: {error}")
         self.save_progress("Finished")
 
     # ---- project ----------------------------------------------------------------------------------------------
@@ -949,8 +1140,11 @@ class JiraImporter:
                     external_id=str(comment["id"]),
                 )
                 self.count("comments_created")
-            elif record.deleted_at is None and record.comment_html != html:
+            elif record.deleted_at is None and (
+                record.comment_html != html or (author is not None and record.actor_id != author.id)
+            ):
                 record.comment_html = html
+                record.actor = author or record.actor
                 record.save()
                 self.count("comments_updated")
             dates = {
@@ -1300,7 +1494,7 @@ class JiraImporter:
         self.save_progress(f"{project_key}: sprints and components")
         issue_cycle = self.sprints_for(project, project_key)
         modules = self.modules_for(project, jira_project)
-        self.sync_project_roles(project, project_key)
+        self.sync_project_people(project, project_key)
 
         jira_issues = []
         for index, jira_issue in enumerate(self.client.issues(project_key), start=1):

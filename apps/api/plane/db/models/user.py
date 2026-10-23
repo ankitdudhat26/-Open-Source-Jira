@@ -167,7 +167,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name}".strip()
 
     def save(self, *args, **kwargs):
-        self.email = self.email.lower().strip()
+        # accounts without an email exist only for former Jira people (disabled, never signed in)
+        self.email = self.email.lower().strip() if self.email else None
         self.mobile_number = self.mobile_number
 
         if self.token_updated_at is not None:
@@ -177,7 +178,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         if not self.display_name:
             self.display_name = (
                 self.email.split("@")[0]
-                if len(self.email.split("@"))
+                if self.email and len(self.email.split("@"))
                 else "".join(random.choice(string.ascii_letters) for _ in range(6))
             )
 

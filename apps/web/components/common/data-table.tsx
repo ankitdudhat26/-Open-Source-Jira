@@ -61,48 +61,53 @@ export function DataTable<T>(props: DataTableProps<T>) {
   const { columns, data, keyExtractor, renderRow, getRowProps, isLoading = false, variant = "table" } = props;
 
   return (
-    <Table variant={variant}>
-      <TableHeader>
-        <TableRow>
-          {columns.map((column) =>
-            column.thRender ? (
-              <TableHeadElement key={column.key} variant={variant} pinned="none">
-                {column.thRender()}
-              </TableHeadElement>
-            ) : (
-              <TableHead key={column.key} label={column.content} pinned="none" />
-            )
-          )}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isLoading ? (
+    // propel's viewport is `overscroll-contain`: when the table is not height bounded (it grows with the page)
+    // the mouse wheel over it would never reach the page, so let it chain to the page once the table cannot scroll.
+    // `contents` keeps the wrapper out of the layout.
+    <div className="contents [&_[class*='table-viewport']]:overscroll-auto">
+      <Table variant={variant}>
+        <TableHeader>
           <TableRow>
-            <TableCell pinned="none" padding="cell" colSpan={columns.length}>
-              <Loader className="flex flex-col gap-2 py-2">
-                <Loader.Item height="28px" width="100%" />
-                <Loader.Item height="28px" width="100%" />
-                <Loader.Item height="28px" width="100%" />
-              </Loader>
-            </TableCell>
+            {columns.map((column) =>
+              column.thRender ? (
+                <TableHeadElement key={column.key} variant={variant} pinned="none">
+                  {column.thRender()}
+                </TableHeadElement>
+              ) : (
+                <TableHead key={column.key} label={column.content} pinned="none" />
+              )
+            )}
           </TableRow>
-        ) : (
-          data.map((rowData) => {
-            const key = keyExtractor(rowData);
-            const cells = columns.map((column) => (
-              <TableCell key={`${column.key}-${key}`} pinned="none" padding={column.padding ?? "cell"}>
-                {column.tdRender(rowData)}
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableRow>
+              <TableCell pinned="none" padding="cell" colSpan={columns.length}>
+                <Loader className="flex flex-col gap-2 py-2">
+                  <Loader.Item height="28px" width="100%" />
+                  <Loader.Item height="28px" width="100%" />
+                  <Loader.Item height="28px" width="100%" />
+                </Loader>
               </TableCell>
-            ));
-            if (renderRow) return <Fragment key={key}>{renderRow({ rowData, children: cells })}</Fragment>;
-            return (
-              <TableRow key={key} {...getRowProps?.(rowData)}>
-                {cells}
-              </TableRow>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
+            </TableRow>
+          ) : (
+            data.map((rowData) => {
+              const key = keyExtractor(rowData);
+              const cells = columns.map((column) => (
+                <TableCell key={`${column.key}-${key}`} pinned="none" padding={column.padding ?? "cell"}>
+                  {column.tdRender(rowData)}
+                </TableCell>
+              ));
+              if (renderRow) return <Fragment key={key}>{renderRow({ rowData, children: cells })}</Fragment>;
+              return (
+                <TableRow key={key} {...getRowProps?.(rowData)}>
+                  {cells}
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
