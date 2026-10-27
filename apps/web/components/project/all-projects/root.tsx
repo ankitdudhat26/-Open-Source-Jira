@@ -45,12 +45,16 @@ type TTypeFilter = "all" | TProjectType | "none";
 const typeLabel = (type: TProjectType | undefined) =>
   PROJECT_TYPE_OPTIONS.find((option) => option.key === type)?.label ?? "—";
 
-/**
- * Every project of the workspace in one table, like Jira's "Spaces" list: workspace admins see all projects,
- * members the projects they joined and the public ones.
- */
-export const AllProjectsRoot = observer(function AllProjectsRoot(props: { workspaceSlug: string }) {
-  const { workspaceSlug } = props;
+type TAllProjectsRootProps = {
+  workspaceSlug: string;
+  /** "all": every project of the workspace (the admin-only All projects page); "mine": only the projects the
+   * signed-in user is a member of (the Projects page) */
+  scope?: "all" | "mine";
+};
+
+/** Projects of the workspace in one table, like Jira's "Spaces" list. */
+export const AllProjectsRoot = observer(function AllProjectsRoot(props: TAllProjectsRootProps) {
+  const { workspaceSlug, scope = "all" } = props;
   // store hooks
   const { workspaceProjectIds, getProjectById, addProjectToFavorites, removeProjectFromFavorites } = useProject();
   const { getUserDetails } = useMember();
@@ -67,6 +71,7 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: { worksp
   const matching = (workspaceProjectIds ?? [])
     .map((projectId) => getProjectById(projectId))
     .filter((project): project is TProject => !!project)
+    .filter((project) => scope === "all" || !!project.member_role)
     .filter(
       (project) =>
         !query || project.name.toLowerCase().includes(query) || project.identifier.toLowerCase().includes(query)
@@ -127,11 +132,9 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: { worksp
   return (
     <div className="flex h-full w-full flex-col gap-4 overflow-y-auto px-page-x py-5">
       <div>
-        <h2 className="text-h4-semibold text-primary">All projects</h2>
+        <h2 className="text-h4-semibold text-primary">{scope === "all" ? "All projects" : "Projects"}</h2>
         <p className="mt-1 text-body-xs-regular text-tertiary">
-          {isWorkspaceAdmin
-            ? "Every project in this workspace."
-            : "The projects you are a member of and the public projects of this workspace."}
+          {scope === "all" ? "Every project in this workspace." : "The projects you are a member of."}
         </p>
       </div>
 
@@ -194,7 +197,11 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: { worksp
             {pageItems.length === 0 && (
               <tr>
                 <td colSpan={8} className="py-10 text-center text-tertiary">
-                  {workspaceProjectIds === undefined ? "Loading projects…" : "No projects match."}
+                  {workspaceProjectIds === undefined
+                    ? "Loading projects…"
+                    : scope === "mine" && !query && typeFilter === "all"
+                      ? "You are not a member of any project yet."
+                      : "No projects match."}
                 </td>
               </tr>
             )}

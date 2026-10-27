@@ -55,10 +55,15 @@ export const ProjectsBaseHeader = observer(function ProjectsBaseHeader() {
         </Breadcrumbs>
       </Header.LeftItem>
       <Header.RightItem>
-        <ProjectSearch />
-        <div className="hidden md:flex">
-          <HeaderFilters />
-        </div>
+        {/* the projects table has its own search and type filter; these drive the archived projects cards */}
+        {isArchived && (
+          <>
+            <ProjectSearch />
+            <div className="hidden md:flex">
+              <HeaderFilters />
+            </div>
+          </>
+        )}
         {isAuthorizedUser && !isArchived ? (
           <>
             <span className="hidden sm:inline-block">
