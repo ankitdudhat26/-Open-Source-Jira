@@ -34,7 +34,7 @@ import { PROJECT_TYPE_OPTIONS } from "@/components/project/create/commercial-att
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 
 const PAGE_SIZES = [25, 50, 100];
 const CONTROL = "rounded-md border border-subtle bg-layer-1 px-2 py-1.5 text-body-xs-regular text-primary";
@@ -59,6 +59,7 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: TAllProj
   const { workspaceProjectIds, getProjectById, addProjectToFavorites, removeProjectFromFavorites } = useProject();
   const { getUserDetails } = useMember();
   const { workspaceInfoBySlug } = useUserPermissions();
+  const { data: currentUser } = useUser();
   // states
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TTypeFilter>("all");
@@ -71,7 +72,11 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: TAllProj
   const matching = (workspaceProjectIds ?? [])
     .map((projectId) => getProjectById(projectId))
     .filter((project): project is TProject => !!project)
-    .filter((project) => scope === "all" || !!project.member_role)
+    // "mine": the projects the user is a member of or leads
+    .filter(
+      (project) =>
+        scope === "all" || !!project.member_role || (!!currentUser && project.project_lead === currentUser.id)
+    )
     .filter(
       (project) =>
         !query || project.name.toLowerCase().includes(query) || project.identifier.toLowerCase().includes(query)
@@ -134,7 +139,7 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: TAllProj
       <div>
         <h2 className="text-h4-semibold text-primary">{scope === "all" ? "All projects" : "Projects"}</h2>
         <p className="mt-1 text-body-xs-regular text-tertiary">
-          {scope === "all" ? "Every project in this workspace." : "The projects you are a member of."}
+          {scope === "all" ? "Every project in this workspace." : "The projects you lead or are a member of."}
         </p>
       </div>
 
