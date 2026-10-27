@@ -10,7 +10,7 @@
 - `pnpm fix` - Auto-fix format and lint issues
 - `pnpm turbo run <command> --filter=<package>` - Target specific package/app
 
-## Code Style
+# Code Style
 
 - **Imports**: Use `workspace:*` for internal packages, `catalog:` for external deps
 - **TypeScript**: Strict mode enabled, all files must be typed
