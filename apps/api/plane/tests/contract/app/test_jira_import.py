@@ -8,9 +8,11 @@ import contextlib
 import copy
 import io
 import uuid
+from datetime import timedelta
 from unittest import mock
 
 import pytest
+from django.utils import timezone
 from rest_framework import status
 
 from plane.db.models import (
@@ -40,7 +42,7 @@ from plane.db.models import (
 from plane.license.utils.encryption import decrypt_data, encrypt_data
 from plane.utils.jira.adf import adf_to_html
 from plane.utils.jira.client import AtlassianAdminClient, JiraClient, JiraError, normalize_site_url, parse_user_export
-from plane.utils.jira.importer import JiraImporter
+from plane.utils.jira.importer import JiraImporter, jira_datetime, last_synced_at
 
 
 def adf(text):
@@ -167,6 +169,8 @@ class FakeJira:
         )
         self.watcher_data = {"2": [bob, person("x9", "Outside Person")]}
         self.calls = []
+        # updated_within_minutes of every issue search (None: the whole project)
+        self.searches = []
 
     def project(self, key):
         return copy.deepcopy(self.project_data)
@@ -174,8 +178,13 @@ class FakeJira:
     def project_statuses(self, key):
         return copy.deepcopy(STATUSES)
 
-    def issues(self, key, fields="*all"):
-        return copy.deepcopy(self.issue_data)
+    def issues(self, key, fields="*all", updated_within_minutes=None):
+        self.searches.append(updated_within_minutes)
+        found = copy.deepcopy(self.issue_data)
+        if updated_within_minutes:
+            since = timezone.now() - timedelta(minutes=updated_within_minutes)
+            found = [item for item in found if jira_datetime(item["fields"]["updated"]) >= since]
+        return found
 
     def comments(self, issue_id):
         return copy.deepcopy(self.comment_data.get(issue_id, []))
@@ -356,16 +365,21 @@ class TestJiraImport:
         fake = FakeJira(ada, bob)
         run_import(workspace, create_user, fake)
 
-        # nothing changed in Jira: everything is skipped
+        # nothing changed in Jira: nothing is read again
         second = run_import(workspace, create_user, fake)
-        assert second.stats.get("issues_unchanged") == 3
+        assert fake.searches[-1] and "issues_updated" not in second.stats
         assert Issue.objects.filter(external_source="jira").count() == 3
         assert IssueComment.objects.count() == 1 and IssueActivity.objects.filter(field="state").count() == 1
         assert len(fake.calls) == 1  # the attachment was downloaded once
 
+        # a full re-sync reads every work item again, still without duplicating
+        full = run_import(workspace, create_user, fake, full=True)
+        assert fake.searches[-1] is None and full.stats["issues_updated"] == 3
+        assert IssueComment.objects.count() == 1 and IssueActivity.objects.filter(field="state").count() == 1
+
         # SHOP-2 moved to Done in Jira
         fake.issue_data[1]["fields"]["status"] = STATUSES[3]
-        fake.issue_data[1]["fields"]["updated"] = "2024-03-01T10:00:00.000+0000"
+        fake.issue_data[1]["fields"]["updated"] = timezone.now().strftime("%Y-%m-%dT%H:%M:%S.000+0000")
         third = run_import(workspace, create_user, fake)
         assert third.stats["issues_updated"] == 1
         card = Issue.objects.get(external_id="2")
@@ -582,7 +596,7 @@ class TestJiraHistoryAndFields:
 
         # the value is cleared in Jira: it is cleared here on the next sync, no field is duplicated
         fake.issue_data[1]["fields"]["customfield_10101"] = None
-        fake.issue_data[1]["fields"]["updated"] = "2024-04-01T10:00:00.000+0000"
+        fake.issue_data[1]["fields"]["updated"] = jira_now()
         run_import(workspace, create_user, fake)
         assert not CustomFieldValue.objects.filter(issue=card, field=fields["Story points"]).exists()
         assert CustomField.objects.filter(project=card.project).count() == 6
@@ -1169,3 +1183,105 @@ class TestFastSync:
         with mock.patch.object(fake, "changelog", wraps=fake.changelog) as changelog:
             run_import(workspace, create_user, fake)
         changelog.assert_not_called()
+
+
+def jira_now(**delta):
+    return (timezone.now() + timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+
+
+@pytest.mark.contract
+class TestIncrementalSync:
+    @pytest.mark.django_db
+    def test_only_work_items_changed_since_the_last_sync_are_read(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        assert fake.searches == [None]  # the first import reads everything
+        cursor = JiraEntityMap.objects.get(workspace=workspace, entity_type="project", jira_id="10000")
+        assert last_synced_at(workspace, "SHOP", cursor) is not None
+
+        # in Jira: SHOP-3 renamed, a new comment on it, a new work item SHOP-4; SHOP-1 / SHOP-2 untouched
+        fake.issue_data[2]["fields"].update(summary="Refund button fixed", updated=jira_now())
+        fake.comment_data["3"] = [{"id": "501", "author": ada, "body": adf("Fixed"), "created": jira_now()}]
+        fake.issue_data.append(jira_issue("4", "SHOP-4", "Gift cards", "1", updated=jira_now()))
+        with mock.patch.object(fake, "changelog", wraps=fake.changelog) as changelog:
+            run = run_import(workspace, create_user, fake)
+
+        assert fake.searches[-1] and fake.searches[-1] < 60  # minutes since the last sync, with the margin
+        assert sorted(call.args[0] for call in changelog.call_args_list) == ["3", "4"]
+        assert run.stats["issues_created"] == 1 and run.stats["issues_updated"] == 1
+        assert run.stats["issues_seen"] == 2
+        assert Issue.objects.get(external_id="3").name == "Refund button fixed"
+        assert Issue.objects.get(external_id="4").sequence_id == 4
+        assert Issue.objects.filter(external_source="jira").count() == 4
+        assert IssueComment.objects.filter(external_id="501").count() == 1
+        # the work items read before keep their comments, history, links and parents
+        assert IssueComment.objects.filter(external_id="500").exists()
+        assert Issue.objects.get(external_id="2").parent_id == Issue.objects.get(external_id="1").id
+        assert IssueRelation.objects.count() == 1
+
+        # synced again straight away: the changes are inside the margin, read again but nothing duplicated
+        again = run_import(workspace, create_user, fake)
+        assert again.stats.get("issues_unchanged") == 2 and "issues_created" not in again.stats
+        assert Issue.objects.filter(external_source="jira").count() == 4
+        assert IssueComment.objects.filter(external_id="501").count() == 1
+
+    @pytest.mark.django_db
+    def test_comments_and_components_removed_in_jira_are_removed_here(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        card = Issue.objects.get(external_id="2")
+        assert IssueComment.objects.filter(issue=card).count() == 1
+        assert ModuleIssue.objects.filter(issue=card).count() == 1
+        mine = IssueComment.objects.create(
+            issue=card, project=card.project, workspace=workspace, actor=ada_user, comment_html="<p>here</p>"
+        )
+
+        fake.comment_data["2"] = []
+        fake.issue_data[1]["fields"].update(components=[], updated=jira_now())
+        run = run_import(workspace, create_user, fake)
+
+        assert run.stats["comments_deleted"] == 1
+        # only the Jira comment is gone; comments written here stay
+        assert list(IssueComment.objects.filter(issue=card)) == [mine]
+        assert not ModuleIssue.objects.filter(issue=card).exists()
+
+    @pytest.mark.django_db
+    def test_work_item_whose_details_failed_is_read_again(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+
+        fake.issue_data[1]["fields"]["updated"] = jira_now()
+        fake.comment_data["2"].append({"id": "502", "author": ada, "body": adf("Second"), "created": jira_now()})
+        with mock.patch.object(fake, "comments", side_effect=JiraError("Jira is busy", 429)):
+            run_import(workspace, create_user, fake)
+        assert not IssueComment.objects.filter(external_id="502").exists()
+
+        # the failed sync did not mark the work item as synced, and did not move the project's cursor
+        run_import(workspace, create_user, fake)
+        assert IssueComment.objects.filter(external_id="502").exists()
+
+    @pytest.mark.django_db
+    def test_projects_synced_before_the_cursor_existed_use_their_last_run(self, workspace, create_user, people):
+        ada_user, bob_user, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_lanes(workspace, create_user, fake)
+        # as left by the earlier version: no cursor on the project
+        JiraEntityMap.objects.filter(workspace=workspace, entity_type="project").update(jira_updated="")
+        earlier = JiraSyncRun.objects.get()
+        three_days_ago = timezone.now() - timedelta(days=3)
+        earlier.progress["SHOP"]["started_at"] = three_days_ago.isoformat()
+        earlier.started_at = three_days_ago
+        earlier.save()
+
+        fake.issue_data[0]["fields"].update(summary="Payments v2", updated=jira_now(days=-1))
+        fake.issue_data[2]["fields"]["updated"] = jira_now(days=-5)  # changed before the last sync
+        run = run_lanes(workspace, create_user, fake)
+
+        assert 3 * 24 * 60 < fake.searches[-1] < 3 * 24 * 60 + 60
+        assert run.stats["issues_updated"] == 1 and run.stats["issues_seen"] == 1
+        assert Issue.objects.get(external_id="1").name == "Payments v2"
+        assert run.progress["SHOP"]["total"] == 1 and run.progress["SHOP"]["since"]
+        assert not any("could be read" in warning for warning in run.warnings)

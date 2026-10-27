@@ -12,6 +12,10 @@ from plane.app.views.workspace.jira import (
     WorkspaceHistoryEndpoint,
 )
 
+from plane.app.views.workspace.member_invite import (
+    WorkspaceMemberDetailsEndpoint,
+    WorkspaceMemberSendInviteEndpoint,
+)
 from plane.app.views.workspace.group import (
     QueueItemAssignEndpoint,
     QueueItemCommentEndpoint,
@@ -116,6 +120,16 @@ urlpatterns = [
         "workspaces/<str:slug>/members/<uuid:pk>/",
         WorkSpaceMemberViewSet.as_view({"patch": "partial_update", "delete": "destroy", "get": "retrieve"}),
         name="workspace-member",
+    ),
+    path(
+        "workspaces/<str:slug>/members/<uuid:pk>/send-invite/",
+        WorkspaceMemberSendInviteEndpoint.as_view(),
+        name="workspace-member-send-invite",
+    ),
+    path(
+        "workspaces/<str:slug>/members/<uuid:pk>/details/",
+        WorkspaceMemberDetailsEndpoint.as_view(),
+        name="workspace-member-details-edit",
     ),
     path(
         "workspaces/<str:slug>/members/leave/",

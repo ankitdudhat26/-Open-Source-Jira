@@ -173,12 +173,16 @@ class JiraClient:
         return roles
 
     # ---- issues -----------------------------------------------------------------------------------------------
-    def issues(self, project_key, fields="*all"):
-        """Every issue of the project (oldest first), page by page."""
+    def issues(self, project_key, fields="*all", updated_within_minutes=None):
+        """Every issue of the project (oldest first), page by page; or only those updated in the last minutes."""
+        jql = f'project = "{project_key}"'
+        if updated_within_minutes:
+            # relative to Jira's "now", so the account's time zone does not matter
+            jql += f' AND updated >= "-{int(updated_within_minutes)}m"'
         token = None
         while True:
             params = {
-                "jql": f'project = "{project_key}" ORDER BY created ASC',
+                "jql": f"{jql} ORDER BY created ASC",
                 "fields": fields,
                 "maxResults": 100,
             }

@@ -211,6 +211,8 @@ class WorkspaceMember(BaseModel):
     getting_started_checklist = models.JSONField(default=dict)
     tips = models.JSONField(default=dict)
     explored_features = models.JSONField(default=dict)
+    # when an admin last emailed this member the link to set a password and sign in
+    invite_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ["workspace", "member", "deleted_at"]

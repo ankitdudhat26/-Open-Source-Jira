@@ -11,6 +11,7 @@ import { observer } from "mobx-react";
 import type { EditorRefApi } from "@plane/editor";
 import { EFileAssetType } from "@plane/types";
 import type { TNameDescriptionLoader } from "@plane/types";
+import { cn } from "@plane/utils";
 // components
 import { DescriptionVersionsRoot } from "@/components/core/description-versions";
 import { DescriptionInput } from "@/components/editor/rich-text/description-input";
@@ -30,6 +31,7 @@ import { IssueParentDetail } from "../issue-detail/parent";
 import { IssueReaction } from "../issue-detail/reactions";
 import { IssueTitleInput } from "../title-input";
 import { WorkItemContext } from "../issue-detail/work-item-context";
+import { IssueDescriptionHeading, ISSUE_DESCRIPTION_EDITOR_CLASS } from "../issue-detail/description-heading";
 // services init
 const workItemVersionService = new WorkItemVersionService();
 
@@ -108,26 +110,29 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
 
       <WorkItemContext workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issue.id} />
 
-      <DescriptionInput
-        issueSequenceId={issue.sequence_id}
-        containerClassName="-ml-3 border-none"
-        disabled={disabled || isArchived}
-        editorRef={editorRef}
-        entityId={issue.id}
-        fileAssetType={EFileAssetType.ISSUE_DESCRIPTION}
-        initialValue={issueDescription}
-        key={issue.id}
-        onSubmit={async (value, isMigrationUpdate) => {
-          if (!issue.id || !issue.project_id) return;
-          await issueOperations.update(workspaceSlug, issue.project_id, issue.id, {
-            description_html: value.description_html,
-            ...(isMigrationUpdate ? { skip_activity: "true" } : {}),
-          });
-        }}
-        setIsSubmitting={(value) => setIsSubmitting(value)}
-        projectId={issue.project_id}
-        workspaceSlug={workspaceSlug}
-      />
+      <div className="space-y-1.5">
+        <IssueDescriptionHeading />
+        <DescriptionInput
+          issueSequenceId={issue.sequence_id}
+          containerClassName={cn("-ml-3 border-none", ISSUE_DESCRIPTION_EDITOR_CLASS)}
+          disabled={disabled || isArchived}
+          editorRef={editorRef}
+          entityId={issue.id}
+          fileAssetType={EFileAssetType.ISSUE_DESCRIPTION}
+          initialValue={issueDescription}
+          key={issue.id}
+          onSubmit={async (value, isMigrationUpdate) => {
+            if (!issue.id || !issue.project_id) return;
+            await issueOperations.update(workspaceSlug, issue.project_id, issue.id, {
+              description_html: value.description_html,
+              ...(isMigrationUpdate ? { skip_activity: "true" } : {}),
+            });
+          }}
+          setIsSubmitting={(value) => setIsSubmitting(value)}
+          projectId={issue.project_id}
+          workspaceSlug={workspaceSlug}
+        />
+      </div>
 
       <div className="flex items-center justify-between gap-2">
         {currentUser && (

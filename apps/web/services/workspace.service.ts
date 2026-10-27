@@ -10,6 +10,7 @@ import type {
   IWorkspaceMemberMe,
   IWorkspaceMember,
   IWorkspaceMemberInvitation,
+  TWorkspaceMemberDetailsForm,
   ILastActiveWorkspaceDetails,
   IWorkspaceSearchResults,
   IProductUpdateResponse,
@@ -147,6 +148,28 @@ export class WorkspaceService extends APIService {
     data: Partial<IWorkspaceMember>
   ): Promise<IWorkspaceMember> {
     return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /** Edit a member's name / email (accounts never signed in to) and job role. */
+  async updateWorkspaceMemberDetails(
+    workspaceSlug: string,
+    memberId: string,
+    data: TWorkspaceMemberDetailsForm
+  ): Promise<IWorkspaceMember> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/details/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /** Email the member the link to set a password and sign in (an email is given for members without one). */
+  async sendWorkspaceMemberInvite(workspaceSlug: string, memberId: string, email?: string): Promise<IWorkspaceMember> {
+    return this.post(`/api/workspaces/${workspaceSlug}/members/${memberId}/send-invite/`, email ? { email } : {})
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

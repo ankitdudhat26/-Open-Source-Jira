@@ -11,7 +11,12 @@ import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
 import type { RowData } from "@/components/workspace/settings/member-columns";
-import { AccountTypeColumn, NameColumn, WorkspaceRoleColumn } from "@/components/workspace/settings/member-columns";
+import {
+  AccessColumn,
+  AccountTypeColumn,
+  NameColumn,
+  WorkspaceRoleColumn,
+} from "@/components/workspace/settings/member-columns";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import type { IMemberFilters } from "@/store/member/utils";
@@ -125,6 +130,14 @@ export const useMemberColumns = () => {
       tdRender: (rowData: RowData) => <AccountTypeColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
     },
 
+    {
+      key: "Access",
+      content: "Access",
+      thRender: () => <span className="text-left">Access</span>,
+      tdRender: (rowData: RowData) => (
+        <AccessColumn rowData={rowData} workspaceSlug={workspaceSlug?.toString() ?? ""} isAdmin={isAdmin} />
+      ),
+    },
     {
       key: "Authentication",
       content: t("workspace_settings.settings.members.details.authentication"),

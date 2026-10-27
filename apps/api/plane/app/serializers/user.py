@@ -166,8 +166,19 @@ class UserAdminLiteSerializer(BaseSerializer):
             "display_name",
             "email",
             "last_login_medium",
+            "access_status",
         ]
         read_only_fields = ["id", "is_bot"]
+
+    access_status = serializers.SerializerMethodField()
+
+    def get_access_status(self, obj):
+        """active: can sign in and has; pending: has never signed in; no_access: no email or sign in disabled."""
+        if not obj.email or not obj.is_active:
+            return "no_access"
+        if obj.last_login is None and obj.is_password_autoset:
+            return "pending"
+        return "active"
 
 
 class ChangePasswordSerializer(serializers.Serializer):

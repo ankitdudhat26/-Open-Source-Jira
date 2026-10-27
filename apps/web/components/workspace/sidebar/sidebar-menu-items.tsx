@@ -26,6 +26,7 @@ import {
   useWorkspaceNavigationPreferences,
 } from "@/hooks/use-navigation-preferences";
 import { SidebarItemBase } from "./sidebar-item";
+import { AllProjectsSidebarItem } from "@/components/workspace/sidebar/all-projects-sidebar-item";
 import { HistorySidebarItem } from "@/components/workspace/sidebar/history-sidebar-item";
 import { QueueSidebarItem } from "@/components/workspace/sidebar/queue-sidebar-item";
 
@@ -117,6 +118,7 @@ export const SidebarMenuItems = observer(function SidebarMenuItems() {
             // oxlint-disable-next-line react/no-array-index-key
             <SidebarItemBase key={`static_${_index}`} item={item} />
           ))}
+          <AllProjectsSidebarItem />
           {sortedNavigationItems.map((item, _index) => (
             // oxlint-disable-next-line react/no-array-index-key
             <SidebarItemBase key={`dynamic_${_index}`} item={item} />

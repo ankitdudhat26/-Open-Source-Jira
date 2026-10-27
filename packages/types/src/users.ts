@@ -31,6 +31,8 @@ export interface IUserLite {
   is_bot: boolean;
   last_name: string;
   joining_date?: string;
+  /** for workspace admins: active (signs in), pending (never signed in) or no_access (no email / sign in off) */
+  access_status?: "active" | "pending" | "no_access";
 }
 export interface IUser extends IUserLite {
   // only for uploading the cover image

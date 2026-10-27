@@ -33,6 +33,7 @@ const STAT_LABELS: Record<string, string> = {
   modules_created: "modules",
   comments_created: "comments",
   comments_updated: "comments updated",
+  comments_deleted: "comments deleted in Jira",
   history_entries: "history entries",
   attachments_copied: "attachments",
   links_created: "links",
@@ -112,7 +113,11 @@ function RunProgress({ run }: { run: TJiraSyncRun }) {
         <p className="text-tertiary">
           Now syncing:{" "}
           {progress.projects_running
-            .map((item) => `${item.key} (${item.done.toLocaleString()} of ${item.total.toLocaleString()})`)
+            .map((item) =>
+              item.since
+                ? `${item.key} (${item.done.toLocaleString()} changed since ${formatDateTime(item.since)})`
+                : `${item.key} (${item.done.toLocaleString()} of ${item.total.toLocaleString()})`
+            )
             .join(", ")}
         </p>
       )}
@@ -705,7 +710,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                     ["comments", "Comments"],
                     ["history", "Change history"],
                     ["attachments", "Attachments"],
-                    ["full", "Full re-sync (also re-read unchanged tickets)"],
+                    ["full", "Full re-sync (re-read every ticket, not only those changed since the last sync)"],
                   ] as const
                 ).map(([key, label]) => (
                   <label key={key} className="flex items-center gap-1.5">

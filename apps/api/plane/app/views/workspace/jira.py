@@ -38,6 +38,7 @@ from plane.utils.jira.client import (
     normalize_site_url,
     parse_user_export,
 )
+from plane.utils.jira.importer import last_synced_at
 from plane.utils.uuid import is_valid_uuid
 
 SYNC_OPTIONS = ("attachments", "history", "comments", "full")
@@ -80,7 +81,13 @@ def run_progress(run):
         "projects_done": counts.get("done", 0),
         "projects_failed": counts.get("failed", 0),
         "projects_running": [
-            {"key": key, "done": state.get("done") or 0, "total": state.get("total") or 0}
+            {
+                "key": key,
+                "done": state.get("done") or 0,
+                "total": state.get("total") or 0,
+                # a re-sync: only work items changed in Jira since then are read
+                "since": state.get("since"),
+            }
             for key, state in states.items()
             if state.get("status") == "running"
         ],
@@ -193,10 +200,12 @@ class JiraProjectsEndpoint(BaseAPIView):
             str(project.id): project
             for project in Project.objects.filter(pk__in=[link.plane_id for link in links.values()])
         }
-        last_runs = {}
-        for run in JiraSyncRun.objects.filter(workspace=workspace, status="completed").order_by("-finished_at")[:50]:
-            for key in run.project_keys:
-                last_runs.setdefault(key, run.finished_at)
+        # when each project last finished syncing: the next sync reads only what changed in Jira after it
+        runs = list(
+            JiraSyncRun.objects.filter(workspace=workspace, status__in=("completed", "failed"))
+            .exclude(started_at__isnull=True)
+            .order_by("-started_at")[:100]
+        )
         result = []
         for item in jira_projects:
             link = links.get(str(item.get("id")))
@@ -214,7 +223,7 @@ class JiraProjectsEndpoint(BaseAPIView):
                         if project
                         else None
                     ),
-                    "last_synced_at": last_runs.get(item.get("key")),
+                    "last_synced_at": last_synced_at(workspace, item.get("key"), link, runs) if project else None,
                 }
             )
         return Response(result, status=status.HTTP_200_OK)

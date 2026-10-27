@@ -96,7 +96,19 @@ export interface IWorkspaceMember {
   is_active?: boolean;
   /** job in the organisation ("Developer", "Graphic Designer", ...), the default project role */
   company_role?: string | null;
+  /** when an admin last emailed the member the link to set a password and sign in */
+  invite_sent_at?: string | null;
+  access_status?: IUserLite["access_status"];
 }
+
+/** What a workspace admin can edit about a member (name and email only while the account was never signed in to). */
+export type TWorkspaceMemberDetailsForm = {
+  first_name?: string;
+  last_name?: string;
+  display_name?: string;
+  email?: string;
+  company_role?: string;
+};
 
 export interface IWorkspaceMemberMe {
   company_role: string | null;

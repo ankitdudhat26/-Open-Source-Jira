@@ -9,7 +9,12 @@ import { action, computed, makeObservable, observable, runInAction } from "mobx"
 import { computedFn } from "mobx-utils";
 // types
 import type { EUserPermissions } from "@plane/constants";
-import type { IWorkspaceBulkInviteFormData, IWorkspaceMember, IWorkspaceMemberInvitation } from "@plane/types";
+import type {
+  IWorkspaceBulkInviteFormData,
+  IWorkspaceMember,
+  IWorkspaceMemberInvitation,
+  TWorkspaceMemberDetailsForm,
+} from "@plane/types";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 // types
@@ -28,6 +33,7 @@ export interface IWorkspaceMembership {
   is_active?: boolean;
   /** job ("Developer", "Graphic Designer", ...), the default project role */
   company_role?: string | null;
+  invite_sent_at?: string | null;
 }
 
 export interface IWorkspaceMemberStore {
@@ -57,6 +63,8 @@ export interface IWorkspaceMemberStore {
     data: { role?: EUserPermissions; company_role?: string }
   ) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
+  sendMemberInvite: (workspaceSlug: string, userId: string, email?: string) => Promise<void>;
+  updateMemberDetails: (workspaceSlug: string, userId: string, data: TWorkspaceMemberDetailsForm) => Promise<void>;
   // invite actions
   inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
   updateMemberInvitation: (
@@ -96,6 +104,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       fetchWorkspaceMembers: action,
       updateMember: action,
       removeMemberFromWorkspace: action,
+      sendMemberInvite: action,
+      updateMemberDetails: action,
       fetchWorkspaceMemberInvitations: action,
       updateMemberInvitation: action,
       deleteMemberInvitation: action,
@@ -216,6 +226,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       member: this.memberRoot?.memberMap?.[workspaceMember.member],
       is_active: workspaceMember.is_active,
       company_role: workspaceMember.company_role,
+      invite_sent_at: workspaceMember.invite_sent_at,
     };
     return memberDetails;
   });
@@ -250,6 +261,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             role: member.role,
             is_active: member.is_active,
             company_role: member.company_role,
+            invite_sent_at: member.invite_sent_at,
           });
         });
       });
@@ -285,6 +297,42 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       });
       throw error;
     }
+  };
+
+  /**
+   * @description email a member the link to set a password and sign in (with the email given, for members without one)
+   * @param workspaceSlug
+   * @param userId
+   * @param email
+   */
+  sendMemberInvite = async (workspaceSlug: string, userId: string, email?: string) => {
+    const memberDetails = this.getWorkspaceMemberDetails(userId);
+    if (!memberDetails?.id) throw new Error("Member not found");
+    const response = await this.workspaceService.sendWorkspaceMemberInvite(workspaceSlug, memberDetails.id, email);
+    runInAction(() => {
+      set(this.memberRoot?.memberMap, [userId, "email"], response.member.email);
+      set(this.memberRoot?.memberMap, [userId, "access_status"], response.member.access_status);
+      set(this.workspaceMemberMap, [workspaceSlug, userId, "invite_sent_at"], response.invite_sent_at);
+    });
+  };
+
+  /**
+   * @description edit a member's name / email (accounts never signed in to) and job role
+   * @param workspaceSlug
+   * @param userId
+   * @param data
+   */
+  updateMemberDetails = async (workspaceSlug: string, userId: string, data: TWorkspaceMemberDetailsForm) => {
+    const memberDetails = this.getWorkspaceMemberDetails(userId);
+    if (!memberDetails?.id) throw new Error("Member not found");
+    const response = await this.workspaceService.updateWorkspaceMemberDetails(workspaceSlug, memberDetails.id, data);
+    runInAction(() => {
+      const { first_name, last_name, display_name, email } = response.member;
+      Object.entries({ first_name, last_name, display_name, email }).forEach(([key, value]) =>
+        set(this.memberRoot?.memberMap, [userId, key], value)
+      );
+      set(this.workspaceMemberMap, [workspaceSlug, userId, "company_role"], response.company_role);
+    });
   };
 
   /**

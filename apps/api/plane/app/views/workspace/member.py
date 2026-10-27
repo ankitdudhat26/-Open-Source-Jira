@@ -50,7 +50,7 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         workspace_members = self.get_queryset()
         if workspace_member.role > 5:
             serializer = WorkspaceMemberAdminSerializer(
-                workspace_members, fields=("id", "member", "role", "company_role"), many=True
+                workspace_members, fields=("id", "member", "role", "company_role", "invite_sent_at"), many=True
             )
         else:
             serializer = WorkSpaceMemberSerializer(

@@ -11,21 +11,23 @@ import { Controller, useForm } from "react-hook-form";
 // plane imports
 import { ROLE, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { DeactivatedUserOutline, DeleteOutline, MoreHorizontalOutline } from "@makeplane/propel/icons";
+import { DeactivatedUserOutline, DeleteOutline, EditOutline, MoreHorizontalOutline } from "@makeplane/propel/icons";
 import { Badge } from "@makeplane/propel/components/badge";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
+import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { IUser, IWorkspaceMember } from "@plane/types";
 // plane ui
 import { Select } from "@plane/blocks/select";
 // helpers
-import { getFileURL } from "@plane/utils";
+import { getFileURL, renderFormattedDate } from "@plane/utils";
 // hooks
 import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { EditMemberDetailsModal } from "./edit-member-details-modal";
 
 export interface RowData {
   member: IWorkspaceMember;
@@ -62,6 +64,8 @@ export function NameColumn(props: NameProps) {
   // derived values
   const { avatar_url, display_name, email, first_name, id, last_name } = rowData.member;
   const isSuspended = rowData.is_active === false;
+  const canEdit = isAdmin && id !== currentUser?.id;
+  const [isEditOpen, setIsEditOpen] = useState(false);
   // a picture that fails (or an outside link that is gone) falls back to the initial, never a broken image
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [avatar_url]);
@@ -117,6 +121,13 @@ export function NameColumn(props: NameProps) {
                 }
               />
               <MenuContent side="bottom" align="end">
+                {canEdit && (
+                  <MenuItem
+                    icon={<Icon icon={EditOutline} />}
+                    label="Edit details"
+                    onClick={() => setIsEditOpen(true)}
+                  />
+                )}
                 <MenuItem
                   icon={<Icon icon={DeleteOutline} />}
                   label={id === currentUser?.id ? t("leave") : t("remove")}
@@ -127,6 +138,14 @@ export function NameColumn(props: NameProps) {
           </div>
         )}
       </div>
+      {canEdit && (
+        <EditMemberDetailsModal
+          rowData={rowData}
+          workspaceSlug={workspaceSlug}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -234,6 +253,124 @@ export const WorkspaceRoleColumn = observer(function WorkspaceRoleColumn(props: 
         onBlur={save}
         placeholder="Add role"
         ariaLabel={`Role of ${rowData.member.display_name}`}
+      />
+    </div>
+  );
+});
+
+type AccessProps = { rowData: RowData; workspaceSlug: string; isAdmin: boolean };
+
+const ACCESS_BADGE = {
+  active: { variant: "success", label: "Active" },
+  pending: { variant: "warning", label: "Not signed in yet" },
+  no_access: { variant: "neutral", label: "No sign in" },
+} as const;
+
+/**
+ * Whether the member can sign in, and for admins the invite: an email with the link to set a password, after which
+ * the member signs in with that email. Members without an email (people from Jira) get one entered here.
+ */
+export const AccessColumn = observer(function AccessColumn(props: AccessProps) {
+  const { rowData, workspaceSlug, isAdmin } = props;
+  const {
+    workspace: { sendMemberInvite, getWorkspaceMemberDetails },
+  } = useMember();
+  const { data: currentUser } = useUser();
+  // states
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [email, setEmail] = useState("");
+  // derived values
+  const { member } = rowData;
+  const status = member.id === currentUser?.id ? "active" : (member.access_status ?? "active");
+  const inviteSentAt = getWorkspaceMemberDetails(member.id)?.invite_sent_at;
+  const canInvite = isAdmin && status !== "active" && rowData.is_active !== false;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  const open = () => {
+    setEmail(member.email ?? "");
+    setIsOpen(true);
+  };
+
+  const send = async () => {
+    if (!isEmailValid) {
+      setToast({ type: "error", title: "Email needed", message: "Enter a valid email address." });
+      return;
+    }
+    setIsSending(true);
+    try {
+      const changed = email.trim().toLowerCase() !== (member.email ?? "").toLowerCase();
+      await sendMemberInvite(workspaceSlug, member.id, changed ? email.trim() : undefined);
+      setToast({
+        type: "success",
+        title: "Invite sent",
+        message: `${member.display_name} will get an email at ${email.trim()} to set a password and sign in.`,
+      });
+      setIsOpen(false);
+    } catch (error) {
+      const message =
+        error && typeof error === "object" && "error" in error && typeof error.error === "string"
+          ? error.error
+          : "The invite could not be sent. Please try again.";
+      setToast({ type: "error", title: "Invite not sent", message });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (rowData.is_active === false) return null;
+
+  return (
+    <div className="flex w-max items-center gap-2 whitespace-nowrap">
+      <Badge variant={ACCESS_BADGE[status].variant} size="sm" label={ACCESS_BADGE[status].label} />
+      {canInvite && (
+        <button
+          type="button"
+          className="rounded-md border border-subtle px-2 py-0.5 text-caption-md-medium text-accent-primary hover:bg-layer-transparent-hover"
+          onClick={open}
+        >
+          {inviteSentAt ? "Resend invite" : "Invite"}
+        </button>
+      )}
+      {canInvite && inviteSentAt && (
+        <span className="text-caption-sm-regular text-tertiary">Sent {renderFormattedDate(inviteSentAt)}</span>
+      )}
+      <ConfirmDialog
+        isOpen={isOpen}
+        handleClose={() => !isSending && setIsOpen(false)}
+        handleSubmit={send}
+        isSubmitting={isSending}
+        variant="primary"
+        title={`Invite ${member.display_name}`}
+        content={
+          <div className="flex flex-col gap-3">
+            <p>
+              {member.display_name} gets an email with a link to set a password. Then they sign in with this email and
+              that password, and see their work items, comments and history. The link works once, for 7 days.
+            </p>
+            <label className="flex flex-col gap-1">
+              <span className="text-caption-md-medium text-secondary">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void send();
+                }}
+                placeholder="name@company.com"
+                aria-label={`Email of ${member.display_name}`}
+                className="rounded-md border border-subtle bg-layer-1 px-2 py-1.5 text-body-xs-regular text-primary outline-none focus:border-accent-strong"
+              />
+            </label>
+            {member.email && email.trim().toLowerCase() !== member.email.toLowerCase() && (
+              <p className="text-caption-md-regular text-warning-primary">
+                Their sign in email changes from {member.email} to {email.trim() || "—"}.
+              </p>
+            )}
+          </div>
+        }
+        primaryButtonText={{ loading: "Sending…", default: "Send invite" }}
+        secondaryButtonText="Cancel"
       />
     </div>
   );

@@ -108,7 +108,7 @@ export const IssueTitleInput = observer(function IssueTitleInput(props: IssueTit
         textarea.removeEventListener("blur", handleBlur);
       }
     };
-  }, [title, isSubmitting, setIsSubmitting]);
+  }, [title, value, isSubmitting, setIsSubmitting]);
 
   // Save on unmount if there are unsaved changes
   useEffect(
@@ -140,13 +140,14 @@ export const IssueTitleInput = observer(function IssueTitleInput(props: IssueTit
     [setIsSubmitting]
   );
 
-  if (disabled) return <div className="text-20 font-medium whitespace-pre-line">{title}</div>;
+  if (disabled) return <div className="text-h3-semibold whitespace-pre-line text-primary">{title}</div>;
 
   return (
     <div className="flex flex-col gap-1.5">
       <div className={cn("relative", containerClassName)}>
         <Field name="title" invalid={title?.length === 0}>
-          <div className="flex w-full">
+          {/* the work item's heading: clearly larger than the description below it */}
+          <div className="flex w-full [&_textarea]:text-h3-semibold!">
             <TextArea
               size="2xl"
               surface="inline"

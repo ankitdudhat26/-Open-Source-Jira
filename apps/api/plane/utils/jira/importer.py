@@ -76,6 +76,9 @@ ADMIN, MEMBER, CLIENT = 20, 15, 5
 # comments, history and watchers of the next work items are read from Jira in parallel (saving stays in order)
 READ_THREADS = 4
 READ_AHEAD = 16
+# a re-sync reads only work items changed in Jira since the last sync of the project, plus this margin
+# (clock differences between Jira and this server, edits made while the last sync was running)
+SYNC_OVERLAP = timedelta(minutes=15)
 CLIENT_ROLE_WORDS = re.compile(r"viewer|customer|client|observer|guest|read.?only", re.I)
 TIMEZONES = set(pytz.common_timezones)
 STATE_COLORS = {
@@ -352,6 +355,36 @@ def type_key(issue_type):
     return "task"
 
 
+def last_synced_at(workspace, project_key, mapping=None, runs=None):
+    """When the project's last sync started that finished (changes in Jira after it are read again); None: never.
+
+    Kept on the project's JiraEntityMap; projects synced before that was kept fall back to their sync runs.
+    """
+    moment = parse_datetime(mapping.jira_updated) if mapping is not None and mapping.jira_updated else None
+    if moment is not None:
+        return moment
+    if runs is None:
+        runs = (
+            JiraSyncRun.objects.filter(
+                workspace=workspace, project_keys__contains=[project_key], status__in=("completed", "failed")
+            )
+            .exclude(started_at__isnull=True)
+            .order_by("-started_at")
+        )
+    for run in runs:
+        if project_key not in (run.project_keys or []) or run.started_at is None:
+            continue
+        state = (run.progress or {}).get(project_key)
+        if state is None:
+            # runs from before projects had their own progress: only a completed run says the project finished
+            if run.status == "completed" and not run.progress:
+                return run.started_at
+            continue
+        if state.get("status") == "done":
+            return parse_datetime(state.get("started_at") or "") or run.started_at
+    return None
+
+
 class JiraImporter:
     def __init__(self, run, client, workspace, actor, directory=None):
         self.run = run
@@ -367,6 +400,8 @@ class JiraImporter:
         self.new_projects = {}
         self.resolved = set()
         self.project_key = None
+        # set while a project is re-synced: only work items changed in Jira after this moment are read
+        self.since = None
         self.items_done = 0
         self.user_cache = {}
         self.unmatched = {entry.get("account_id"): entry for entry in run.unmatched_users or []}
@@ -409,7 +444,11 @@ class JiraImporter:
             if self.project_key and self.project_key in run.progress:
                 state = run.progress[self.project_key]
                 state.update(done=self.items_done, step=(step or state.get("step", ""))[:255])
-                state["total"] = max(state.get("total") or 0, self.items_done)
+                if self.since is not None:
+                    # Jira's count is of every work item; a re-sync reads only the changed ones
+                    state.update(total=self.items_done, since=self.since.isoformat())
+                else:
+                    state["total"] = max(state.get("total") or 0, self.items_done)
                 state["heartbeat"] = timezone.now().isoformat()
             run.save(
                 update_fields=[
@@ -728,7 +767,8 @@ class JiraImporter:
         Accounts this sync made become former accounts (no login, still shown on their work items); accounts
         people made themselves just leave the workspace.
         """
-        if mapped is None or str(mapped.plane_id) == str(self.actor.id) or mapped.jira_updated == "former":
+        if mapped is None or str(mapped.plane_id) == str(self.actor.id) or mapped.jira_updated in ("former", "invited"):
+            # "invited": an admin gave the person an email and invited them here; that stays their call
             return
         if mapped.jira_updated == "created":
             user = User.objects.filter(pk=mapped.plane_id).first()
@@ -919,8 +959,10 @@ class JiraImporter:
         return candidate
 
     def project_for(self, jira_project):
+        """(project, when it last finished syncing or None for a new project)."""
         mapping = self.get_map("project", jira_project["id"])
         project = Project.objects.filter(pk=mapping.plane_id, workspace=self.workspace).first() if mapping else None
+        synced_at = None
         if project is None:
             identifier = self.unique_identifier(jira_project.get("key"))
             with transaction.atomic():
@@ -945,12 +987,19 @@ class JiraImporter:
             self.count("projects_created")
         else:
             self.count("projects_updated")
-        self.set_map("project", jira_project["id"], project.id, jira_project.get("key"))
+            synced_at = last_synced_at(self.workspace, jira_project.get("key"), mapping)
+        self.set_map(
+            "project",
+            jira_project["id"],
+            project.id,
+            jira_project.get("key"),
+            jira_updated=synced_at.isoformat() if synced_at else "",
+        )
         lead = self.user_for(jira_project.get("lead"), project)
         if lead and project.project_lead_id != lead.id:
             project.project_lead = lead
             project.save(update_fields=["project_lead", "updated_at"])
-        return project
+        return project, synced_at
 
     # ---- statuses -----------------------------------------------------------------------------------------------
     def states_for(self, project, project_key):
@@ -1140,7 +1189,11 @@ class JiraImporter:
             IssueSubscriber.objects.get_or_create(
                 issue=issue, subscriber=user, defaults={"project": project, "workspace": self.workspace}
             )
-        self.set_map("issue", jira_issue["id"], issue.id, jira_issue.get("key"), fields.get("updated") or "")
+        # Jira's "updated" is recorded once comments, history and attachments are saved too (see sync_issue): a
+        # sync stopped half way reads the work item again next time instead of taking it as unchanged
+        self.set_map(
+            "issue", jira_issue["id"], issue.id, jira_issue.get("key"), mapping.jira_updated if mapping else ""
+        )
         self.sync_custom_fields(project, issue, fields)
         if created:
             self.log_created(issue, jira_issue, reporter)
@@ -1174,7 +1227,16 @@ class JiraImporter:
             IssueActivity.objects.filter(pk=activity.pk).update(created_at=created_at)
 
     def sync_comments(self, project, issue, jira_issue, comments=None):
-        for comment in self.client.comments(jira_issue["id"]) if comments is None else comments:
+        comments = self.client.comments(jira_issue["id"]) if comments is None else comments
+        # deleted in Jira: removed here too (only comments that came from Jira; it can be restored)
+        removed = (
+            IssueComment.objects.filter(issue=issue, external_source=SOURCE)
+            .exclude(external_id__in=[str(comment["id"]) for comment in comments])
+            .delete()
+        )
+        if removed:
+            self.count("comments_deleted", removed)
+        for comment in comments:
             author = self.user_for(comment.get("author"), project)
             html = adf_to_html(comment.get("body"))
             if author is None:
@@ -1548,10 +1610,18 @@ class JiraImporter:
             elif record.cycle_id != cycle.id:
                 record.cycle = cycle
                 record.save(update_fields=["cycle", "updated_at"])
-        for component in fields.get("components") or []:
-            module = modules.get(str(component.get("id")))
-            if module and not ModuleIssue.objects.filter(issue_id=issue_id, module=module).exists():
-                ModuleIssue.objects.create(issue_id=issue_id, module=module, project=project, workspace=self.workspace)
+        wanted = {
+            module.id for module in (modules.get(str(c.get("id"))) for c in fields.get("components") or []) if module
+        }
+        # components taken off the work item in Jira (modules made here by people are left alone)
+        ModuleIssue.objects.filter(issue_id=issue_id, module_id__in=[module.id for module in modules.values()]).exclude(
+            module_id__in=wanted
+        ).delete()
+        for module_id in wanted:
+            if not ModuleIssue.objects.filter(issue_id=issue_id, module_id=module_id).exists():
+                ModuleIssue.objects.create(
+                    issue_id=issue_id, module_id=module_id, project=project, workspace=self.workspace
+                )
 
     # ---- keys: SHOP-57 in Jira is SHOP-57 here ---------------------------------------------------------------------
     def align_numbers(self, project, jira_issues):
@@ -1589,6 +1659,7 @@ class JiraImporter:
 
     # ---- one project ------------------------------------------------------------------------------------------
     def import_project(self, project_key):
+        self.since = None
         jira_project = self.client.project(project_key)
         if not self.client.can_browse(project_key):
             raise JiraError(
@@ -1596,7 +1667,10 @@ class JiraImporter:
                 "so Jira shows none of its work items. Give that account access in Jira and sync again"
             )
         self.save_progress(f"{project_key}: project and statuses")
-        project = self.project_for(jira_project)
+        started_at = timezone.now()
+        project, synced_at = self.project_for(jira_project)
+        # synced before: only work items changed in Jira since then (a full re-sync reads them all)
+        self.since = None if self.options["full"] or synced_at is None else synced_at - SYNC_OVERLAP
         self.new_projects[project_key] = {"project_id": str(project.id), "name": project.name}
         states = self.states_for(project, project_key)
         types = ensure_project_work_item_types(project)
@@ -1608,7 +1682,13 @@ class JiraImporter:
         self.sync_project_people(project, project_key)
 
         jira_issues = []
-        pages = iter(self.client.issues(project_key))
+        if self.since is None:
+            pages = iter(self.client.issues(project_key))
+        else:
+            # Jira's JQL dates are in the connected account's time zone; minutes ago are the same everywhere
+            minutes = int((timezone.now() - self.since).total_seconds() // 60) + 1
+            self.save_progress(f"{project_key}: work items changed since {self.since:%d %b %Y %H:%M} UTC")
+            pages = iter(self.client.issues(project_key, updated_within_minutes=minutes))
         with ThreadPoolExecutor(READ_THREADS) as pool:
             while batch := list(islice(pages, READ_AHEAD)):
                 details = self.read_details(pool, batch)
@@ -1624,7 +1704,12 @@ class JiraImporter:
         for jira_issue in jira_issues:
             self.link_issues(project, jira_issue, issue_cycle, modules)
         self.count("issues_seen", len(jira_issues))
+        # the next sync reads what changes in Jira from now on (only after the whole project is saved)
+        JiraEntityMap.objects.filter(
+            workspace=self.workspace, entity_type="project", jira_id=str(jira_project["id"])
+        ).update(jira_updated=started_at.isoformat())
         self.save_progress(f"{project_key}: done")
+        self.since = None
 
     def sync_issue(self, project, jira_issue, states, types, details):
         issue, changed = self.upsert_issue(project, jira_issue, states, types)
@@ -1651,6 +1736,9 @@ class JiraImporter:
             self.sync_history(project, issue, jira_issue, changelog=read("changelog"))
         if self.options["attachments"]:
             self.sync_attachments(project, issue, jira_issue)
+        JiraEntityMap.objects.filter(
+            workspace=self.workspace, entity_type="issue", jira_id=str(jira_issue["id"])
+        ).update(jira_updated=(jira_issue.get("fields") or {}).get("updated") or "")
 
     def needs_details(self, jira_issue):
         """Whether the work item changed in Jira since the last sync (only those are read again)."""

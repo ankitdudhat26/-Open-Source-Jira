@@ -100,6 +100,11 @@ export const coreRoutes: RouteConfigEntry[] = [
           ),
         ]),
 
+        // All projects: every project of the workspace in one table (like Jira's Spaces list)
+        layout("./(all)/[workspaceSlug]/(projects)/all-projects/layout.tsx", [
+          route(":workspaceSlug/all-projects", "./(all)/[workspaceSlug]/(projects)/all-projects/page.tsx"),
+        ]),
+
         // History: every change to work items (including history imported from Jira)
         layout("./(all)/[workspaceSlug]/(projects)/history/layout.tsx", [
           route(":workspaceSlug/history", "./(all)/[workspaceSlug]/(projects)/history/page.tsx"),

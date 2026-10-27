@@ -19,7 +19,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponseRedirect
 from django.utils.encoding import DjangoUnicodeDecodeError, smart_bytes, smart_str
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.crypto import constant_time_compare
+from django.utils.http import base36_to_int, urlsafe_base64_decode, urlsafe_base64_encode
 from django.views import View
 
 # Module imports
@@ -40,6 +41,36 @@ def generate_password_token(user):
     token = PasswordResetTokenGenerator().make_token(user)
 
     return uidb64, token
+
+
+class InviteTokenGenerator(PasswordResetTokenGenerator):
+    """The set password link of a member invite: like a reset link (works once), but valid for days, not an hour."""
+
+    key_salt = "plane.authentication.member_invite"
+    VALID_DAYS = 7
+
+    def check_token(self, user, token):
+        if not (user and token):
+            return False
+        try:
+            ts = base36_to_int(token.split("-")[0])
+        except ValueError:
+            return False
+        if not any(
+            constant_time_compare(self._make_token_with_timestamp(user, ts, secret), token)
+            for secret in [self.secret, *self.secret_fallbacks]
+        ):
+            return False
+        return self._num_seconds(self._now()) - ts <= self.VALID_DAYS * 24 * 3600
+
+
+def generate_invite_token(user):
+    return urlsafe_base64_encode(smart_bytes(user.id)), InviteTokenGenerator().make_token(user)
+
+
+def is_valid_password_token(user, token):
+    """A forgot password link or a member invite link."""
+    return PasswordResetTokenGenerator().check_token(user, token) or InviteTokenGenerator().check_token(user, token)
 
 
 class ForgotPasswordEndpoint(APIView):
@@ -116,7 +147,7 @@ class ResetPasswordEndpoint(View):
                 return HttpResponseRedirect(url)
 
             # check if the token is valid for the user
-            if not PasswordResetTokenGenerator().check_token(user, token):
+            if not is_valid_password_token(user, token):
                 exc = AuthenticationException(
                     error_code=AUTHENTICATION_ERROR_CODES["INVALID_PASSWORD_TOKEN"],
                     error_message="INVALID_PASSWORD_TOKEN",

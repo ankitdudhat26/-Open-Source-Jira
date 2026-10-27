@@ -48,7 +48,8 @@ export type TJiraSyncProgress = {
   projects_total: number;
   projects_done: number;
   projects_failed: number;
-  projects_running: { key: string; done: number; total: number }[];
+  /** since: set on a re-sync, only work items changed in Jira after it are read */
+  projects_running: { key: string; done: number; total: number; since?: string | null }[];
   failed: Record<string, string>;
   /** at the speed so far; null until there is enough to tell */
   estimated_finish_at: string | null;
