@@ -114,7 +114,7 @@ function WorkspaceInvitationPage() {
     return (
       <EmptySpace
         title={title}
-        description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
+        description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your HLIS Flow account."
       >
         <EmptySpaceItem Icon={TickOutline} title={isSubmitting ? "Joining…" : "Accept"} action={() => respond(true)} />
         <EmptySpaceItem Icon={CloseOutline} title="Ignore" action={() => respond(false)} />
@@ -137,14 +137,14 @@ function WorkspaceInvitationPage() {
           invitationDetail?.accepted ? (
             <EmptySpace
               title={`You are already a member of ${invitationDetail.workspace.name}`}
-              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
+              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your HLIS Flow account."
             >
               <EmptySpaceItem Icon={BoxesOutline} title="Continue to home" href="/" />
             </EmptySpace>
           ) : (
             <EmptySpace
               title="This invitation link is not active anymore."
-              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your Hlink Sprint account."
+              description="Your workspace is where you'll create projects, collaborate on your work items, and organize different streams of work in your HLIS Flow account."
               link={{ text: "Or start from an empty project", href: "/" }}
             >
               {!currentUser ? (

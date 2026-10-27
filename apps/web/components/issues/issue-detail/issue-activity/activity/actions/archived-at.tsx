@@ -36,7 +36,7 @@ export const IssueArchivedAtActivity = observer(function IssueArchivedAtActivity
       }
       activityId={activityId}
       ends={ends}
-      customUserName={activity.new_value === "archive" ? "Hlink Sprint" : undefined}
+      customUserName={activity.new_value === "archive" ? "HLIS Flow" : undefined}
     >
       {activity.new_value === "restore" ? "restored the work item" : "archived the work item"}.
     </IssueActivityBlockComponent>

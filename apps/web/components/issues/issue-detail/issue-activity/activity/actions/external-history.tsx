@@ -143,7 +143,7 @@ export const ExternalHistoryActivity = observer(function ExternalHistoryActivity
     (fromJira ? activity.external_actor_name : activity.actor_detail?.display_name) ||
     activity.actor_detail?.display_name ||
     activity.external_actor_name ||
-    "Hlink Sprint";
+    "HLIS Flow";
   const field = activity.field ?? "";
   const label = activity.external_field_name || HISTORY_FIELD_LABELS[field] || field.replace(/_/g, " ") || "Field";
   const isCreated = !activity.field && activity.verb === "created";

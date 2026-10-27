@@ -522,8 +522,8 @@ def workspace_seed(workspace_id: uuid.UUID) -> None:
         # Create a bot user for creating all the workspace data
         bot_user = User.objects.create(
             username=f"bot_user_{workspace.id}",
-            display_name="Hlink Sprint",
-            first_name="Hlink Sprint",
+            display_name="HLIS Flow",
+            first_name="HLIS Flow",
             last_name="",
             is_bot=True,
             bot_type=BotTypeEnum.WORKSPACE_SEED,

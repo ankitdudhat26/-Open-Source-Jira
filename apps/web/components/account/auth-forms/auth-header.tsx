@@ -29,29 +29,29 @@ const Titles = {
   [EAuthModes.SIGN_IN]: {
     [EAuthSteps.EMAIL]: {
       header: "Work in all dimensions.",
-      subHeader: "Welcome back to Hlink Sprint.",
+      subHeader: "Welcome back to HLIS Flow.",
     },
     [EAuthSteps.PASSWORD]: {
       header: "Work in all dimensions.",
-      subHeader: "Welcome back to Hlink Sprint.",
+      subHeader: "Welcome back to HLIS Flow.",
     },
     [EAuthSteps.UNIQUE_CODE]: {
       header: "Work in all dimensions.",
-      subHeader: "Welcome back to Hlink Sprint.",
+      subHeader: "Welcome back to HLIS Flow.",
     },
   },
   [EAuthModes.SIGN_UP]: {
     [EAuthSteps.EMAIL]: {
       header: "Work in all dimensions.",
-      subHeader: "Create your Hlink Sprint account.",
+      subHeader: "Create your HLIS Flow account.",
     },
     [EAuthSteps.PASSWORD]: {
       header: "Work in all dimensions.",
-      subHeader: "Create your Hlink Sprint account.",
+      subHeader: "Create your HLIS Flow account.",
     },
     [EAuthSteps.UNIQUE_CODE]: {
       header: "Work in all dimensions.",
-      subHeader: "Create your Hlink Sprint account.",
+      subHeader: "Create your HLIS Flow account.",
     },
   },
 };

@@ -1,6 +1,6 @@
 {
-  "name": "Hlink Sprint Admin",
-  "short_name": "Hlink Sprint Admin",
+  "name": "HLIS Flow Admin",
+  "short_name": "HLIS Flow Admin",
   "description": "Plan projects, milestones and sprints, and track every work item.",
   "start_url": ".",
   "display": "standalone",

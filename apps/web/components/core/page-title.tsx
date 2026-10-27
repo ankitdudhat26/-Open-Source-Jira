@@ -16,7 +16,7 @@ export function PageHead(props: PageHeadTitleProps) {
 
   useEffect(() => {
     if (title) {
-      document.title = title ?? "Hlink Sprint | Simple, extensible, open-source project management tool.";
+      document.title = title ?? "HLIS Flow | Simple, extensible, open-source project management tool.";
     }
   }, [title]);
 

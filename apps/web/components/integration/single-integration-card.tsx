@@ -38,12 +38,12 @@ const integrationDetails: { [key: string]: any } = {
   github: {
     logo: GithubLogo,
     installed: "Activate GitHub on individual projects to sync with specific repositories.",
-    notInstalled: "Connect with GitHub with your Hlink Sprint workspace to sync project work items.",
+    notInstalled: "Connect with GitHub with your HLIS Flow workspace to sync project work items.",
   },
   slack: {
     logo: SlackLogo,
     installed: "Activate Slack on individual projects to sync with specific channels.",
-    notInstalled: "Connect with Slack with your Hlink Sprint workspace to sync project work items.",
+    notInstalled: "Connect with Slack with your HLIS Flow workspace to sync project work items.",
   },
 };
 

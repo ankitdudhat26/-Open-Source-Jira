@@ -569,4 +569,4 @@ if ENABLE_DRF_SPECTACULAR:
     from .openapi import SPECTACULAR_SETTINGS  # noqa: F401
 
 # Product name used in emails and other server generated text
-BRAND_NAME = os.environ.get("BRAND_NAME", "Hlink Sprint")
+BRAND_NAME = os.environ.get("BRAND_NAME", "HLIS Flow")

@@ -1,7 +1,7 @@
 {
   "workspace_creation": {
     "heading": "Create your workspace",
-    "subheading": "To start using Hlink Sprint, you need to create or join a workspace.",
+    "subheading": "To start using HLIS Flow, you need to create or join a workspace.",
     "form": {
       "name": {
         "label": "Name your workspace",
@@ -54,11 +54,11 @@
     "empty_state": {
       "general": {
         "title": "Overview of your projects, activity, and metrics",
-        "description": "Welcome to Hlink Sprint, we are excited to have you here. Create your first project and track your work items, and this page will transform into a space that helps you progress. Admins will also see items which help their team progress.",
+        "description": "Welcome to HLIS Flow, we are excited to have you here. Create your first project and track your work items, and this page will transform into a space that helps you progress. Admins will also see items which help their team progress.",
         "primary_button": {
           "text": "Build your first project",
           "comic": {
-            "title": "Everything starts with a project in Hlink Sprint",
+            "title": "Everything starts with a project in HLIS Flow",
             "description": "A project could be a product's roadmap, a marketing campaign, or launching a new car."
           }
         }
@@ -200,7 +200,7 @@
         "primary_button": {
           "text": "Start your first project",
           "comic": {
-            "title": "Everything starts with a project in Hlink Sprint",
+            "title": "Everything starts with a project in HLIS Flow",
             "description": "A project could be a product's roadmap, a marketing campaign, or launching a new car."
           }
         }
@@ -211,7 +211,7 @@
         "primary_button": {
           "text": "Start your first project",
           "comic": {
-            "title": "Everything starts with a project in Hlink Sprint",
+            "title": "Everything starts with a project in HLIS Flow",
             "description": "A project could be a product's roadmap, a marketing campaign, or launching a new car."
           }
         }
@@ -290,7 +290,7 @@
     "empty_state": {
       "general": {
         "title": "Write a note, a doc, or a full knowledge base. Get the AI assistant, to help you get started",
-        "description": "Pages are thoughts potting space in Hlink Sprint. Take down meeting notes, format them easily, embed work items, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, Hlink Sprint's AI, with a shortcut or the click of a button.",
+        "description": "Pages are thoughts potting space in HLIS Flow. Take down meeting notes, format them easily, embed work items, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, HLIS Flow's AI, with a shortcut or the click of a button.",
         "primary_button": {
           "text": "Create your first page"
         }

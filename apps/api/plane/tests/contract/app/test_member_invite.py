@@ -19,7 +19,7 @@ from rest_framework import status
 from plane.authentication.views.app.password_management import InviteTokenGenerator
 from plane.db.models import JiraEntityMap, Profile, User, WorkspaceMember
 
-MAIL_SETTINGS = ("smtp.example.com", "", "", "587", "1", "0", "Hlink Sprint <no-reply@example.com>")
+MAIL_SETTINGS = ("smtp.example.com", "", "", "587", "1", "0", "HLIS Flow <no-reply@example.com>")
 STRONG_PASSWORD = "Correct-Horse-Battery-42!"
 
 

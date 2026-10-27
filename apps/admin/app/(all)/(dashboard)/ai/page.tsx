@@ -27,7 +27,7 @@ const InstanceAIPage = observer(function InstanceAIPage(_props: Route.ComponentP
       header={{
         title: "AI features for all your workspaces",
         description:
-          "Configure your AI API credentials so Hlink Sprint AI features are turned on for all your workspaces.",
+          "Configure your AI API credentials so HLIS Flow AI features are turned on for all your workspaces.",
       }}
     >
       {formattedConfig ? (

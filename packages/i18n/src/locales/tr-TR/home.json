@@ -5,7 +5,7 @@
       "not_right_now": "Şimdi değil",
       "create_project": {
         "title": "Proje oluştur",
-        "description": "Çoğu şey Hlink Sprint'de bir projeyle başlar.",
+        "description": "Çoğu şey HLIS Flow'de bir projeyle başlar.",
         "cta": "Başla"
       },
       "invite_team": {
@@ -19,7 +19,7 @@
         "cta": "Yapılandır"
       },
       "personalize_account": {
-        "title": "Hlink Sprint'yi kendinize özelleştirin.",
+        "title": "HLIS Flow'yi kendinize özelleştirin.",
         "description": "Resminizi, renklerinizi ve daha fazlasını seçin.",
         "cta": "Kişiselleştir"
       },
@@ -53,7 +53,7 @@
       }
     },
     "new_at_plane": {
-      "title": "Hlink Sprint'de Yenilikler"
+      "title": "HLIS Flow'de Yenilikler"
     },
     "quick_tutorial": {
       "title": "Hızlı eğitim"

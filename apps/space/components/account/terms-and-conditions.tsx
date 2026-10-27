@@ -8,7 +8,7 @@ type Props = {
   isSignUp?: boolean;
 };
 
-/** No third party legal links: Hlink Sprint has no separate terms page, so nothing is shown. */
+/** No third party legal links: HLIS Flow has no separate terms page, so nothing is shown. */
 export function TermsAndConditions(_props: Props) {
   return null;
 }

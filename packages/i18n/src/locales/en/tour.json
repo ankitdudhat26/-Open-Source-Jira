@@ -69,7 +69,7 @@
     "page": {
       "step_zero": {
         "title": "Document with AI-powered Pages",
-        "description": "Pages in Hlink Sprint let you capture, organize, and collaborate on project info—no external tools needed."
+        "description": "Pages in HLIS Flow let you capture, organize, and collaborate on project info—no external tools needed."
       },
       "step_one": {
         "title": "Make page Public or Private",
@@ -154,7 +154,7 @@
   },
   "get_started": {
     "title": "Hey {name}, welcome aboard!",
-    "description": "Here’s everything you need to kickstart your journey with Hlink Sprint.",
+    "description": "Here’s everything you need to kickstart your journey with HLIS Flow.",
     "checklist_section": {
       "title": "Get started",
       "description": "Begin your setup and see your ideas come to life faster.",
@@ -188,8 +188,8 @@
       "more_integrations": "Browse more integrations"
     },
     "switch_to_plane_section": {
-      "title": "Discover why teams switch to Hlink Sprint",
-      "description": "Compare Hlink Sprint with the tools you use today and see the difference."
+      "title": "Discover why teams switch to HLIS Flow",
+      "description": "Compare HLIS Flow with the tools you use today and see the difference."
     }
   }
 }

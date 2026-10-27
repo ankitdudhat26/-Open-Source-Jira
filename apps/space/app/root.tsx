@@ -25,8 +25,8 @@ import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wgh
 import "@fontsource/material-symbols-rounded";
 import "@fontsource/ibm-plex-mono";
 
-const APP_TITLE = "Hlink Sprint | Published board";
-const APP_DESCRIPTION = "A board published from Hlink Sprint.";
+const APP_TITLE = "HLIS Flow | Published board";
+const APP_DESCRIPTION = "A board published from HLIS Flow.";
 
 export const links: Route.LinksFunction = () => [
   { rel: "apple-touch-icon", sizes: "180x180", href: appleTouchIcon },

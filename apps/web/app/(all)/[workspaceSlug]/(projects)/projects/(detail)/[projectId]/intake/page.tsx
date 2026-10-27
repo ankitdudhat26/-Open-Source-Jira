@@ -67,7 +67,7 @@ function ProjectInboxPage({ params }: Route.ComponentProps) {
         workspace: currentProjectDetails?.name,
       })
     : t("inbox_issue.page_label", {
-        workspace: "Hlink Sprint",
+        workspace: "HLIS Flow",
       });
 
   const currentNavigationTab = navigationTab

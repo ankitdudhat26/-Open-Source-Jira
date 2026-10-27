@@ -114,8 +114,8 @@ class EmailCredentialCheckEndpoint(BaseAPIView):
             use_ssl=EMAIL_USE_SSL == "1",
         )
         # Prepare email details
-        subject = "Email Notification from Hlink Sprint"
-        message = "This is a sample email notification sent from Hlink Sprint application."
+        subject = "Email Notification from HLIS Flow"
+        message = "This is a sample email notification sent from HLIS Flow application."
         # Send the email
         try:
             msg = EmailMultiAlternatives(

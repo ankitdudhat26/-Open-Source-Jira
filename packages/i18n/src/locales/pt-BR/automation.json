@@ -14,7 +14,7 @@
       "sidebar_header": "Configuração do gatilho",
       "input_label": "Qual é o gatilho para esta automação?",
       "input_placeholder": "Selecione uma opção",
-      "section_plane_events": "Eventos do Hlink Sprint",
+      "section_plane_events": "Eventos do HLIS Flow",
       "section_time_based": "Baseado em tempo",
       "fixed_schedule": "Agendamento fixo",
       "schedule": {

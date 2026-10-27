@@ -2,7 +2,7 @@
   "name": "admin",
   "version": "1.4.2",
   "private": true,
-  "description": "Admin UI for Hlink Sprint",
+  "description": "Admin UI for HLIS Flow",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {

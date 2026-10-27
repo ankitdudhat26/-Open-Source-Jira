@@ -46,17 +46,17 @@ export const AdminSidebarHelpSection = observer(function AdminSidebarHelpSection
               className={`relative flex items-center gap-1 rounded-sm bg-layer-1 px-2 py-1 text-body-xs-medium whitespace-nowrap text-secondary`}
             >
               <NewTabOutline width={14} height={14} />
-              {!isSidebarCollapsed && "Open Hlink Sprint"}
+              {!isSidebarCollapsed && "Open HLIS Flow"}
             </a>
           </>
         ) : (
-          <Tooltip label="Open Hlink Sprint" side="right">
+          <Tooltip label="Open HLIS Flow" side="right">
             <a
               href={redirectionLink}
               className={`relative flex items-center gap-1 rounded-sm bg-layer-1 px-2 py-1 text-body-xs-medium whitespace-nowrap text-secondary`}
             >
               <NewTabOutline width={14} height={14} />
-              {!isSidebarCollapsed && "Open Hlink Sprint"}
+              {!isSidebarCollapsed && "Open HLIS Flow"}
             </a>
           </Tooltip>
         )}

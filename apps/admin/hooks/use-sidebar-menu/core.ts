@@ -45,7 +45,7 @@ export const coreSidebarMenuLinks: Record<TCoreSidebarMenuKey, TSidebarMenuItem>
   },
   image: {
     Icon: ImageOutline,
-    name: "Images in Hlink Sprint",
+    name: "Images in HLIS Flow",
     description: "Allow third-party image libraries.",
     href: `/image/`,
   },

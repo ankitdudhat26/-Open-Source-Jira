@@ -4,8 +4,8 @@
   "display": "standalone",
   "scope": "/",
   "start_url": "/",
-  "name": "Hlink Sprint",
-  "short_name": "Hlink Sprint",
+  "name": "HLIS Flow",
+  "short_name": "HLIS Flow",
   "description": "Plan projects, milestones and sprints, and track every work item.",
   "icons": [
     {

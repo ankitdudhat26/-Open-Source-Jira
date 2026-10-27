@@ -12,13 +12,13 @@ SPECTACULAR_SETTINGS = {
     # ========================================================================
     # Basic API Information
     # ========================================================================
-    "TITLE": "Hlink Sprint REST API",
+    "TITLE": "HLIS Flow REST API",
     "DESCRIPTION": (
-        "Hlink Sprint REST API\n\n"
+        "HLIS Flow REST API\n\n"
         "Authenticate with an API token (X-API-Key header) created in your profile settings."
     ),
     "CONTACT": {
-        "name": "Hlink Sprint",
+        "name": "HLIS Flow",
     },
     "VERSION": "0.0.1",
     "LICENSE": {

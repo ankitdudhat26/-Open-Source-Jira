@@ -22,8 +22,8 @@ import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wgh
 import "@fontsource/material-symbols-rounded";
 import "@fontsource/ibm-plex-mono";
 
-const APP_TITLE = "Hlink Sprint Admin";
-const APP_DESCRIPTION = "Administer your Hlink Sprint instance.";
+const APP_TITLE = "HLIS Flow Admin";
+const APP_DESCRIPTION = "Administer your HLIS Flow instance.";
 
 export const links: LinksFunction = () => [
   { rel: "apple-touch-icon", sizes: "180x180", href: appleTouchIcon },

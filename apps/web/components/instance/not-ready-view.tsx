@@ -24,7 +24,7 @@ export function InstanceNotReady() {
             <div className="flex flex-col items-center gap-11">
               <HlinkLogo className="h-24 w-24 object-contain" />
               <div className="flex max-w-124 flex-col items-center gap-3">
-                <h1 className="text-h2-semibold text-primary">Welcome to Hlink Sprint</h1>
+                <h1 className="text-h2-semibold text-primary">Welcome to HLIS Flow</h1>
                 <p className="text-center text-body-md-regular text-secondary">
                   Set up your instance and create your first workspace to begin managing projects and work.
                 </p>

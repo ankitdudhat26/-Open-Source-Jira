@@ -33,7 +33,7 @@ import interVariableWoff2 from "@fontsource-variable/inter/files/inter-latin-wgh
 import "@fontsource/material-symbols-rounded";
 import "@fontsource/ibm-plex-mono";
 
-const APP_TITLE = "Hlink Sprint | Plan, track and deliver projects.";
+const APP_TITLE = "HLIS Flow | Plan, track and deliver projects.";
 
 export const links: LinksFunction = () => [
   { rel: "icon", type: "image/png", sizes: "32x32", href: favicon32 },
@@ -62,7 +62,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#fff" />
         {/* Meta info for PWA */}
-        <meta name="application-name" content="Hlink Sprint" />
+        <meta name="application-name" content="HLIS Flow" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
@@ -89,12 +89,12 @@ export const meta: Route.MetaFunction = () => [
   { property: "og:title", content: APP_TITLE },
   {
     property: "og:description",
-    content: "Hlink Sprint: plan projects, milestones and sprints, and track every work item.",
+    content: "HLIS Flow: plan projects, milestones and sprints, and track every work item.",
   },
   { property: "og:image", content: ogImage },
   { property: "og:image:width", content: "1200" },
   { property: "og:image:height", content: "630" },
-  { property: "og:image:alt", content: "Hlink Sprint" },
+  { property: "og:image:alt", content: "HLIS Flow" },
   {
     name: "keywords",
     content:
@@ -104,7 +104,7 @@ export const meta: Route.MetaFunction = () => [
   { name: "twitter:image", content: ogImage },
   { name: "twitter:image:width", content: "1200" },
   { name: "twitter:image:height", content: "630" },
-  { name: "twitter:image:alt", content: "Hlink Sprint" },
+  { name: "twitter:image:alt", content: "HLIS Flow" },
 ];
 
 // Root stays shell-thin: in SPA mode React Router server-builds only the root route, so

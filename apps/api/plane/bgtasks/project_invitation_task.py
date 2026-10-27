@@ -30,7 +30,7 @@ def project_invitation(email, project_id, token, current_site, invitor):
         relativelink = f"/project-invitations/?invitation_id={project_member_invite.id}&email={email}&slug={project.workspace.slug}&project_id={str(project_id)}"  # noqa: E501
         abs_url = current_site + relativelink
 
-        subject = f"{user.first_name or user.display_name or user.email} invited you to join {project.name} on Hlink Sprint"  # noqa: E501
+        subject = f"{user.first_name or user.display_name or user.email} invited you to join {project.name} on HLIS Flow"  # noqa: E501
 
         context = {
             "email": email,

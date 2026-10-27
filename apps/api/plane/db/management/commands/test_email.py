@@ -44,7 +44,7 @@ class Command(BaseCommand):
             timeout=30,
         )
         # Prepare email details
-        subject = "Test email from Hlink Sprint"
+        subject = "Test email from HLIS Flow"
 
         html_content = render_to_string("emails/test_email.html")
         text_content = generate_plain_text_from_html(html_content)

@@ -68,7 +68,7 @@ export function AuthHeaderBase(props: TAuthHeaderBase) {
   const { pageTitle, additionalAction } = props;
   return (
     <>
-      <PageHead title={pageTitle + " - Hlink Sprint"} />
+      <PageHead title={pageTitle + " - HLIS Flow"} />
       <div className="sticky top-0 flex w-full flex-shrink-0 items-center justify-between gap-6">
         <Link href="/">
           <HlinkLockup height={20} width={95} className="text-primary" />

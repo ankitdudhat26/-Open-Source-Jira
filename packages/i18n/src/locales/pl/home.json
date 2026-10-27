@@ -5,7 +5,7 @@
       "not_right_now": "Nie teraz",
       "create_project": {
         "title": "Utwórz projekt",
-        "description": "Większość rzeczy zaczyna się od projektu w Hlink Sprint.",
+        "description": "Większość rzeczy zaczyna się od projektu w HLIS Flow.",
         "cta": "Zacznij"
       },
       "invite_team": {
@@ -19,7 +19,7 @@
         "cta": "Skonfiguruj tę przestrzeń"
       },
       "personalize_account": {
-        "title": "Spersonalizuj Hlink Sprint.",
+        "title": "Spersonalizuj HLIS Flow.",
         "description": "Wybierz zdjęcie, kolory i inne.",
         "cta": "Dostosuj teraz"
       },
@@ -53,7 +53,7 @@
       }
     },
     "new_at_plane": {
-      "title": "Co nowego w Hlink Sprint"
+      "title": "Co nowego w HLIS Flow"
     },
     "quick_tutorial": {
       "title": "Szybki samouczek"

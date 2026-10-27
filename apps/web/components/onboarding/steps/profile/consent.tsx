@@ -23,7 +23,7 @@ export function MarketingConsent({ isChecked, handleChange }: Props) {
       >
         {isChecked && <TickOutline className="h-3 w-3 text-on-color" />}
       </button>
-      <span className="text-13 text-tertiary">I agree to Hlink Sprint marketing communications</span>
+      <span className="text-13 text-tertiary">I agree to HLIS Flow marketing communications</span>
     </div>
   );
 }

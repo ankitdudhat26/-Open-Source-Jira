@@ -170,7 +170,7 @@
           },
           "company_name": {
             "label": "Bedrijfsnaam",
-            "placeholder": "Hlink Sprint",
+            "placeholder": "HLIS Flow",
             "validation": {
               "required": "Bedrijfsnaam is verplicht",
               "maxLength": "Bedrijfsnaam moet minder dan 255 tekens zijn"
@@ -227,7 +227,7 @@
     "empty_state": {
       "upgrade": {
         "title": "Sjablonen",
-        "description": "Met project-, werkitem- en paginasjablonen in Hlink Sprint hoef je geen project vanaf nul aan te maken of werkitemeigenschappen handmatig in te stellen.",
+        "description": "Met project-, werkitem- en paginasjablonen in HLIS Flow hoef je geen project vanaf nul aan te maken of werkitemeigenschappen handmatig in te stellen.",
         "sub_description": "Krijg 80% van je beheertijd terug wanneer je sjablonen gebruikt."
       },
       "no_templates": {

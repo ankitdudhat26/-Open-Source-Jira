@@ -3,7 +3,7 @@
     "label": "Werkruimte-instellingen",
     "page_label": "{workspace} - Algemene instellingen",
     "key_created": "Sleutel aangemaakt",
-    "copy_key": "Kopieer en bewaar deze geheime sleutel in Hlink Sprint Pages. Je kunt deze sleutel niet meer zien nadat je op Sluiten klikt. Er is een CSV-bestand met de sleutel gedownload.",
+    "copy_key": "Kopieer en bewaar deze geheime sleutel in HLIS Flow Pages. Je kunt deze sleutel niet meer zien nadat je op Sluiten klikt. Er is een CSV-bestand met de sleutel gedownload.",
     "token_copied": "Token gekopieerd naar klembord.",
     "settings": {
       "general": {
@@ -161,7 +161,7 @@
         "generating": "Genereren",
         "delete": {
           "title": "Toegangstoken verwijderen",
-          "description": "Elke applicatie die dit token gebruikt, heeft geen toegang meer tot Hlink Sprint-gegevens. Deze actie kan niet ongedaan worden gemaakt.",
+          "description": "Elke applicatie die dit token gebruikt, heeft geen toegang meer tot HLIS Flow-gegevens. Deze actie kan niet ongedaan worden gemaakt.",
           "success": {
             "title": "Gelukt!",
             "message": "Het token is succesvol verwijderd"
@@ -176,7 +176,7 @@
         "title": "Integraties",
         "heading": "Integraties",
         "description": "Maak verbinding met populaire tools en services om je werk te synchroniseren binnen je hele workflow-ecosysteem.",
-        "page_title": "Werk met je Hlink Sprint-gegevens in beschikbare apps of je eigen apps.",
+        "page_title": "Werk met je HLIS Flow-gegevens in beschikbare apps of je eigen apps.",
         "page_description": "Bekijk alle integraties die door deze werkruimte of door jou worden gebruikt."
       },
       "imports": {
@@ -258,7 +258,7 @@
       "project_states": {
         "title": "Projectstatussen",
         "heading": "Bekijk het voortgangsoverzicht voor alle projecten.",
-        "description": "Projectstatussen is een functie die alleen in Hlink Sprint beschikbaar is om de voortgang van al je projecten te volgen op basis van elke projecteigenschap.",
+        "description": "Projectstatussen is een functie die alleen in HLIS Flow beschikbaar is om de voortgang van al je projecten te volgen op basis van elke projecteigenschap.",
         "go_to_settings": "Naar instellingen"
       },
       "projects": {
@@ -303,14 +303,14 @@
         "install": "Installeren",
         "installed": "Geïnstalleerd",
         "configure": "Configureren",
-        "app_available": "Je hebt deze app beschikbaar gemaakt voor gebruik met een Hlink Sprint-werkruimte",
+        "app_available": "Je hebt deze app beschikbaar gemaakt voor gebruik met een HLIS Flow-werkruimte",
         "app_credentials_regenrated": {
           "title": "App-inloggegevens succesvol opnieuw gegenereerd",
           "description": "Vervang de client secret overal waar die wordt gebruikt. De vorige secret is niet langer geldig."
         },
         "app_created": {
           "title": "App succesvol aangemaakt",
-          "description": "Gebruik de inloggegevens om de app in een Hlink Sprint-werkruimte te installeren"
+          "description": "Gebruik de inloggegevens om de app in een HLIS Flow-werkruimte te installeren"
         },
         "installed_apps": "Geïnstalleerde apps",
         "all_apps": "Alle apps",
@@ -351,10 +351,10 @@
         },
         "redirect_uris": {
           "label": "Redirect-URI's (gescheiden door spaties)",
-          "description": "Gebruikers worden naar dit pad doorgestuurd nadat ze zich bij Hlink Sprint hebben geauthenticeerd.",
+          "description": "Gebruikers worden naar dit pad doorgestuurd nadat ze zich bij HLIS Flow hebben geauthenticeerd.",
           "placeholder": "https://example.com https://example.com/"
         },
-        "app_available_description": "Verbind een Hlink Sprint-werkruimte om ermee aan de slag te gaan",
+        "app_available_description": "Verbind een HLIS Flow-werkruimte om ermee aan de slag te gaan",
         "client_id_and_secret": "Client ID en Secret",
         "client_id_and_secret_description": "Kopieer en bewaar deze geheime sleutel in Pages. Je kunt deze sleutel niet meer zien nadat je op Sluiten klikt.",
         "client_id_and_secret_download": "Je kunt hier een CSV met de sleutel downloaden.",
@@ -403,12 +403,12 @@
         "workspace_permissions": "Werkruimterechten",
         "workspace_permissions_description": "Werkruimterechten worden gebruikt om toegang te verlenen tot de werkruimte.",
         "with_the_permissions": "met de rechten",
-        "app_consent_title": "{app} vraagt toegang tot je Hlink Sprint-werkruimte en -profiel.",
+        "app_consent_title": "{app} vraagt toegang tot je HLIS Flow-werkruimte en -profiel.",
         "choose_workspace_to_connect_app_with": "Kies een werkruimte om de app mee te verbinden",
         "app_consent_workspace_permissions_title": "{app} wil graag",
         "app_consent_user_permissions_title": "{app} kan ook toestemming van een gebruiker vragen voor de volgende bronnen. Deze rechten worden alleen door en van een gebruiker aangevraagd en geautoriseerd.",
         "app_consent_accept_title": "Door te accepteren",
-        "app_consent_accept_1": "Verleen je de app toegang tot je Hlink Sprint-gegevens waar je de app ook kunt gebruiken, binnen of buiten Hlink Sprint",
+        "app_consent_accept_1": "Verleen je de app toegang tot je HLIS Flow-gegevens waar je de app ook kunt gebruiken, binnen of buiten HLIS Flow",
         "app_consent_accept_2": "Ga je akkoord met het Privacybeleid en de Gebruiksvoorwaarden van {app}",
         "accepting": "Accepteren...",
         "accept": "Accepteren",
@@ -450,7 +450,7 @@
         "upload_and_save": "Uploaden & opslaan",
         "app_consent_no_access_title": "Verzoek om te installeren",
         "app_consent_no_access_description": "Deze app kan pas worden geïnstalleerd nadat een werkruimtebeheerder die installeert. Neem contact op met je werkruimtebeheerder om verder te gaan.",
-        "app_consent_unapproved_title": "Deze app is nog niet beoordeeld of goedgekeurd door Hlink Sprint.",
+        "app_consent_unapproved_title": "Deze app is nog niet beoordeeld of goedgekeurd door HLIS Flow.",
         "app_consent_unapproved_description": "Zorg dat je deze app vertrouwt voordat je die met je werkruimte verbindt.",
         "go_to_app": "Naar app",
         "enable_app_mentions": "App-vermeldingen inschakelen",
@@ -489,7 +489,7 @@
     "empty_state": {
       "api_tokens": {
         "title": "Geen toegangstokens aangemaakt",
-        "description": "Hlink Sprint-API's kunnen worden gebruikt om je gegevens in Hlink Sprint te integreren met elk extern systeem. Maak een token aan om te beginnen."
+        "description": "HLIS Flow-API's kunnen worden gebruikt om je gegevens in HLIS Flow te integreren met elk extern systeem. Maak een token aan om te beginnen."
       },
       "webhooks": {
         "title": "Geen webhooks toegevoegd",

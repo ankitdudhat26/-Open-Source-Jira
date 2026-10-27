@@ -65,7 +65,7 @@ class Command(BaseCommand):
                 raise CommandError("Machine signature is required")
 
             instance = Instance.objects.create(
-                instance_name="Hlink Sprint",
+                instance_name="HLIS Flow",
                 instance_id=secrets.token_hex(12),
                 current_version=current_version,
                 latest_version=latest_version,

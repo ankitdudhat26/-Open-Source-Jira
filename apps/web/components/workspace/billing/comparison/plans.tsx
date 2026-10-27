@@ -98,7 +98,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "Comments",
-        description: "Respond to work items, @mention members, and brainstorm\ntogether without leaving Hlink Sprint.",
+        description: "Respond to work items, @mention members, and brainstorm\ntogether without leaving HLIS Flow.",
         cloud: {
           free: true,
           one: true,
@@ -537,7 +537,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       {
         title: "Progress Charts",
         description:
-          "Track progress in cycles, modules, and overviews\nthroughout Hlink Sprint without switching to dashboards\nor Analytics.",
+          "Track progress in cycles, modules, and overviews\nthroughout HLIS Flow without switching to dashboards\nor Analytics.",
         cloud: {
           free: false,
           one: false,
@@ -613,7 +613,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
     features: [
       {
         title: "Power K",
-        description: "Access a keyboard-first gateway to almost anything\nin Hlink Sprint.",
+        description: "Access a keyboard-first gateway to almost anything\nin HLIS Flow.",
         cloud: {
           free: true,
           one: true,
@@ -657,7 +657,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       {
         title: "PQL",
         description:
-          "Write Hlink Sprint Query Language in search with support\nfor Boolean operators. Soon, you can write natural\nlanguage queries.",
+          "Write HLIS Flow Query Language in search with support\nfor Boolean operators. Soon, you can write natural\nlanguage queries.",
         cloud: {
           free: false,
           one: false,
@@ -968,7 +968,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       {
         title: "GitHub",
         description:
-          "Sync Hlink Sprint work items and states to GitHub work items and\nstates. Update GitHub automatically with activity\nfrom Hlink Sprint and vice-versa.",
+          "Sync HLIS Flow work items and states to GitHub work items and\nstates. Update GitHub automatically with activity\nfrom HLIS Flow and vice-versa.",
         cloud: {
           free: false,
           one: false,
@@ -979,7 +979,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "Slack",
-        description: "Get Hlink Sprint activity in Slack and use / commands in\nSlack to make changes in Hlink Sprint.",
+        description: "Get HLIS Flow activity in Slack and use / commands in\nSlack to make changes in HLIS Flow.",
         cloud: {
           free: false,
           one: false,
@@ -1001,7 +1001,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "Zendesk",
-        description: "Create Hlink Sprint work items from Zendesk tickets.",
+        description: "Create HLIS Flow work items from Zendesk tickets.",
         cloud: {
           free: false,
           one: false,
@@ -1012,7 +1012,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "Freshdesk",
-        description: "Create Hlink Sprint work items from Freshdesk tickets.",
+        description: "Create HLIS Flow work items from Freshdesk tickets.",
         cloud: {
           free: false,
           one: false,
@@ -1058,7 +1058,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
     features: [
       {
         title: "SAML",
-        description: "Get the officially supported SAML implementation\nand make Hlink Sprint secure with any IdP.",
+        description: "Get the officially supported SAML implementation\nand make HLIS Flow secure with any IdP.",
         cloud: {
           free: false,
           one: true,
@@ -1069,7 +1069,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "OIDC",
-        description: "Get the officially supported OIDC implementation\nand make Hlink Sprint secure with any IdP.",
+        description: "Get the officially supported OIDC implementation\nand make HLIS Flow secure with any IdP.",
         selfHostedOnly: true,
         cloud: {
           free: false,
@@ -1082,7 +1082,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       {
         title: "Domain Security",
         description:
-          "Choose other domains that can authenticate into\nyour Hlink Sprint workspace or restrict all but one domain.",
+          "Choose other domains that can authenticate into\nyour HLIS Flow workspace or restrict all but one domain.",
         cloud: {
           free: false,
           one: false,
@@ -1093,8 +1093,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "Two-factor authentication and passkeys",
-        description:
-          "Secure your Hlink Sprint workspace with device-\ndependent two-factor authentication and passkeys. ",
+        description: "Secure your HLIS Flow workspace with device-\ndependent two-factor authentication and passkeys. ",
         cloud: {
           free: false,
           one: false,
@@ -1116,8 +1115,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "LDAP",
-        description:
-          "Get our official LDAP implementation and secure\nyour Hlink Sprint workspace with your LDAP server.",
+        description: "Get our official LDAP implementation and secure\nyour HLIS Flow workspace with your LDAP server.",
         comingSoon: true,
         cloud: {
           free: false,
@@ -1136,7 +1134,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
     features: [
       {
         title: "God Mode",
-        description: "Manage your self-hosted Hlink Sprint instance better with\nan instance admin interface.",
+        description: "Manage your self-hosted HLIS Flow instance better with\nan instance admin interface.",
         cloud: {
           free: true,
           one: true,
@@ -1147,8 +1145,7 @@ export const PLANS_COMPARISON_LIST: TPlansComparisonDetails[] = [
       },
       {
         title: "One-click Deployment",
-        description:
-          "Install and deploy your self-hosted Hlink Sprint to any\nprivate cloud with a single-line command.",
+        description: "Install and deploy your self-hosted HLIS Flow to any\nprivate cloud with a single-line command.",
         cloud: {
           free: false,
           one: true,

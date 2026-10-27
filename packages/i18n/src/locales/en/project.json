@@ -195,8 +195,8 @@
         "primary_button": {
           "text": "Create your first work item",
           "comic": {
-            "title": "Work items are building blocks in Hlink Sprint.",
-            "description": "Redesign the Hlink Sprint UI, Rebrand the company, or Launch the new fuel injection system are examples of work items that likely have sub-work items."
+            "title": "Work items are building blocks in HLIS Flow.",
+            "description": "Redesign the HLIS Flow UI, Rebrand the company, or Launch the new fuel injection system are examples of work items that likely have sub-work items."
           }
         }
       },
@@ -272,7 +272,7 @@
     "empty_state": {
       "general": {
         "title": "Write a note, a doc, or a full knowledge base. Get the AI assistant, to help you get started",
-        "description": "Pages are thoughts potting space in Hlink Sprint. Take down meeting notes, format them easily, embed work items, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, Hlink Sprint's AI, with a shortcut or the click of a button.",
+        "description": "Pages are thoughts potting space in HLIS Flow. Take down meeting notes, format them easily, embed work items, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, HLIS Flow's AI, with a shortcut or the click of a button.",
         "primary_button": {
           "text": "Create your first page"
         }

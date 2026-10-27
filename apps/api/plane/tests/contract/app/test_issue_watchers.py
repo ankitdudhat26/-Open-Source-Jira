@@ -238,7 +238,7 @@ class TestWatcherCommentNotifications:
 
         assert sorted(message.to[0] for message in mail.outbox) == sorted([asha.email, ravi.email])
         message = mail.outbox[0]
-        assert message.subject == f"[Hlink Sprint] (WAT-{issue.sequence_id}) Login page"
+        assert message.subject == f"[HLIS Flow] (WAT-{issue.sequence_id}) Login page"
         html = message.alternatives[0][0]
         assert "Please check the login flow" in html
         assert f"commented on WAT-{issue.sequence_id}" in html

@@ -27,7 +27,7 @@ const Titles: TAuthHeaderDetails = {
   },
   [EAuthModes.SIGN_UP]: {
     header: "View, comment, and do more",
-    subHeader: "Sign up or log in to work with Hlink Sprint work items and Pages.",
+    subHeader: "Sign up or log in to work with HLIS Flow work items and Pages.",
   },
 };
 

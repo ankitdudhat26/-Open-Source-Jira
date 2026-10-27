@@ -8,8 +8,8 @@ from django.db import migrations
 def rename_bot_users(apps, schema_editor):
     """Workspace bot users created before the rebrand were called "Plane"."""
     User = apps.get_model("db", "User")
-    User.objects.filter(is_bot=True, display_name="Plane").update(display_name="Hlink Sprint")
-    User.objects.filter(is_bot=True, first_name="Plane").update(first_name="Hlink Sprint")
+    User.objects.filter(is_bot=True, display_name="Plane").update(display_name="HLIS Flow")
+    User.objects.filter(is_bot=True, first_name="Plane").update(first_name="HLIS Flow")
 
 
 class Migration(migrations.Migration):

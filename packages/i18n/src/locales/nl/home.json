@@ -5,7 +5,7 @@
       "not_right_now": "Nu even niet",
       "create_project": {
         "title": "Maak een project aan",
-        "description": "De meeste dingen beginnen met een project in Hlink Sprint.",
+        "description": "De meeste dingen beginnen met een project in HLIS Flow.",
         "cta": "Aan de slag"
       },
       "invite_team": {
@@ -19,7 +19,7 @@
         "cta": "Deze werkruimte configureren"
       },
       "personalize_account": {
-        "title": "Maak Hlink Sprint van jou.",
+        "title": "Maak HLIS Flow van jou.",
         "description": "Kies je afbeelding, kleuren en meer.",
         "cta": "Nu personaliseren"
       },
@@ -53,7 +53,7 @@
       }
     },
     "new_at_plane": {
-      "title": "Nieuw bij Hlink Sprint"
+      "title": "Nieuw bij HLIS Flow"
     },
     "quick_tutorial": {
       "title": "Snelle tutorial"

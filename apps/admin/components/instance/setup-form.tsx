@@ -143,8 +143,8 @@ export function InstanceSetupForm() {
       <div className="mt-10 flex w-full flex-grow flex-col items-center justify-center py-6">
         <div className="relative flex w-full max-w-[22.5rem] flex-col gap-6">
           <FormHeader
-            heading="Setup your Hlink Sprint Instance"
-            subHeading="Post setup you will be able to manage this Hlink Sprint instance."
+            heading="Setup your HLIS Flow Instance"
+            subHeading="Post setup you will be able to manage this HLIS Flow instance."
           />
           {errorData?.message &&
             !(errorData.type && [EErrorCodes.INVALID_EMAIL, EErrorCodes.INVALID_PASSWORD].includes(errorData.type)) && (

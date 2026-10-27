@@ -195,8 +195,8 @@
         "primary_button": {
           "text": "Crea tu primer elemento de trabajo",
           "comic": {
-            "title": "Los elementos de trabajo son bloques de construcción en Hlink Sprint.",
-            "description": "Rediseñar la interfaz de Hlink Sprint, Cambiar la marca de la empresa o Lanzar el nuevo sistema de inyección de combustible son ejemplos de elementos de trabajo que probablemente tienen sub-elementos de trabajo."
+            "title": "Los elementos de trabajo son bloques de construcción en HLIS Flow.",
+            "description": "Rediseñar la interfaz de HLIS Flow, Cambiar la marca de la empresa o Lanzar el nuevo sistema de inyección de combustible son ejemplos de elementos de trabajo que probablemente tienen sub-elementos de trabajo."
           }
         }
       },
@@ -271,8 +271,8 @@
   "project_page": {
     "empty_state": {
       "general": {
-        "title": "Escribe una nota, un documento o una base de conocimiento completa. Obtén ayuda de Galileo, el asistente de IA de Hlink Sprint, para comenzar",
-        "description": "Las páginas son espacios para pensamientos en Hlink Sprint. Toma notas de reuniones, fórmalas fácilmente, integra elementos de trabajo, organízalas usando una biblioteca de componentes y mantenlas todas en el contexto de tu proyecto. Para hacer cualquier documento rápidamente, invoca a Galileo, la IA de Hlink Sprint, con un atajo o haciendo clic en un botón.",
+        "title": "Escribe una nota, un documento o una base de conocimiento completa. Obtén ayuda de Galileo, el asistente de IA de HLIS Flow, para comenzar",
+        "description": "Las páginas son espacios para pensamientos en HLIS Flow. Toma notas de reuniones, fórmalas fácilmente, integra elementos de trabajo, organízalas usando una biblioteca de componentes y mantenlas todas en el contexto de tu proyecto. Para hacer cualquier documento rápidamente, invoca a Galileo, la IA de HLIS Flow, con un atajo o haciendo clic en un botón.",
         "primary_button": {
           "text": "Crea tu primera página"
         }

@@ -11,4 +11,4 @@ export default function ForgotPasswordLayout() {
   return <Outlet />;
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "Forgot Password - Hlink Sprint" }];
+export const meta: Route.MetaFunction = () => [{ title: "Forgot Password - HLIS Flow" }];

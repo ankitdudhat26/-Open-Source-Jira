@@ -289,7 +289,7 @@ def unwatch_url(issue, receiver, base_url):
 
 
 def get_brand_name():
-    """Product name in the subject ("[Hlink Sprint] (SALES-12) ...")."""
+    """Product name in the subject ("[HLIS Flow] (SALES-12) ...")."""
     return settings.BRAND_NAME
 
 

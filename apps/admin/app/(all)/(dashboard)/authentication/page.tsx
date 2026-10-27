@@ -173,6 +173,6 @@ const InstanceAuthenticationPage = observer(function InstanceAuthenticationPage(
   );
 });
 
-export const meta: Route.MetaFunction = () => [{ title: "Authentication Settings - Hlink Sprint" }];
+export const meta: Route.MetaFunction = () => [{ title: "Authentication Settings - HLIS Flow" }];
 
 export default InstanceAuthenticationPage;
