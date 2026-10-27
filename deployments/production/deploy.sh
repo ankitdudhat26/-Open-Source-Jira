@@ -71,6 +71,11 @@ if [ -n "${REGISTRY_USER:-}" ] && [ -n "${REGISTRY_TOKEN:-}" ]; then
   echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin >/dev/null
   trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
 fi
+# Images of earlier releases are tagged (commit SHA), so a plain prune never removed them and they filled the disk
+# (2026-10-27: "no space left on device" while pulling). Remove every image no container uses before pulling; the
+# running release is in use and stays, older ones can be pulled again from the registry to roll back.
+docker image prune -af >/dev/null
+log "Free disk space before pulling: $(df -h --output=avail / | tail -1 | tr -d ' ')"
 "${COMPOSE[@]}" pull --quiet
 
 # --- Start -------------------------------------------------------------------
@@ -91,6 +96,7 @@ until "${COMPOSE[@]}" exec -T api python -c \
 done
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $APP_RELEASE" >>releases.log
-docker image prune -f >/dev/null
+# the release just replaced is no longer used: free its space too
+docker image prune -af >/dev/null
 "${COMPOSE[@]}" ps
 log "Deployed $APP_RELEASE successfully."
