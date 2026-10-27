@@ -9,6 +9,7 @@ from plane.app.views.workspace.jira import (
     JiraProjectsEndpoint,
     JiraSyncEndpoint,
     JiraSyncRunEndpoint,
+    JiraSyncStopEndpoint,
     WorkspaceHistoryEndpoint,
 )
 
@@ -322,5 +323,6 @@ urlpatterns = [
     path("workspaces/<str:slug>/jira/projects/", JiraProjectsEndpoint.as_view(), name="jira-projects"),
     path("workspaces/<str:slug>/jira/syncs/", JiraSyncEndpoint.as_view(), name="jira-syncs"),
     path("workspaces/<str:slug>/jira/syncs/<uuid:run_id>/", JiraSyncRunEndpoint.as_view(), name="jira-sync"),
+    path("workspaces/<str:slug>/jira/syncs/<uuid:run_id>/stop/", JiraSyncStopEndpoint.as_view(), name="jira-sync-stop"),
     path("workspaces/<str:slug>/history/", WorkspaceHistoryEndpoint.as_view(), name="workspace-history"),
 ]

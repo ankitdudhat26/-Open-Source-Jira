@@ -8,6 +8,7 @@
 from datetime import timedelta
 
 # Django imports
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -19,7 +20,7 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.base import BaseAPIView
-from plane.bgtasks.jira_sync_task import jira_sync_task, recover_stale_runs
+from plane.bgtasks.jira_sync_task import finish_locked, jira_sync_task, recover_stale_runs
 from plane.db.models import (
     IssueActivity,
     JiraConnection,
@@ -280,6 +281,27 @@ class JiraSyncRunEndpoint(BaseAPIView):
         run = JiraSyncRun.objects.filter(workspace__slug=slug, pk=run_id).first()
         if run is None:
             return Response({"error": "Sync not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serialize_run(run), status=status.HTTP_200_OK)
+
+
+class JiraSyncStopEndpoint(BaseAPIView):
+    @allow_permission([ROLE.ADMIN], level="WORKSPACE")
+    def post(self, request, slug, run_id):
+        """Stop a sync: no further project starts and the ones being synced end at their next progress save.
+
+        What was imported stays; stopped projects keep their last synced time, so the next sync reads them again
+        from there and nothing is missed or duplicated.
+        """
+        with transaction.atomic():
+            run = JiraSyncRun.objects.select_for_update().filter(workspace__slug=slug, pk=run_id).first()
+            if run is None:
+                return Response({"error": "Sync not found."}, status=status.HTTP_404_NOT_FOUND)
+            if run.status not in ("queued", "running"):
+                return Response({"error": "This sync has already finished."}, status=status.HTTP_400_BAD_REQUEST)
+            for key, state in run.progress.items():
+                if state.get("status") in ("pending", "running"):
+                    state.update(status="failed", error="Stopped")
+            finish_locked(run, f"Stopped by {request.user.display_name or request.user.email}.")
         return Response(serialize_run(run), status=status.HTTP_200_OK)
 
 

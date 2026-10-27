@@ -1285,3 +1285,53 @@ class TestIncrementalSync:
         assert Issue.objects.get(external_id="1").name == "Payments v2"
         assert run.progress["SHOP"]["total"] == 1 and run.progress["SHOP"]["since"]
         assert not any("could be read" in warning for warning in run.warnings)
+
+
+@pytest.mark.contract
+class TestStopSync:
+    @pytest.mark.django_db
+    def test_stop_ends_the_run_and_no_project_starts_after_it(self, session_client, workspace, create_user):
+        run = JiraSyncRun.objects.create(
+            workspace=workspace,
+            initiated_by=create_user,
+            project_keys=["A", "B", "C"],
+            status="running",
+            progress={
+                "A": {"status": "done", "total": 1, "done": 1},
+                "B": {"status": "running", "total": 5, "done": 2},
+                "C": {"status": "pending", "total": 5, "done": 0},
+            },
+        )
+        url = f"/api/workspaces/{workspace.slug}/jira/syncs/{run.id}/stop/"
+
+        response = session_client.post(url)
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        run.refresh_from_db()
+        assert run.status == "failed" and run.error.startswith("Stopped by")
+        assert [run.progress[key]["status"] for key in "ABC"] == ["done", "failed", "failed"]
+        assert session_client.post(url).status_code == status.HTTP_400_BAD_REQUEST
+
+        from plane.bgtasks.jira_sync_task import claim_next_project
+
+        assert claim_next_project(str(run.id)) is None
+
+    @pytest.mark.django_db
+    def test_a_stopped_project_keeps_its_last_synced_time(self, workspace, create_user, people):
+        from plane.utils.jira.importer import JiraSyncStopped
+
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        cursor = JiraEntityMap.objects.get(workspace=workspace, entity_type="project").jira_updated
+        fake.issue_data[1]["fields"]["updated"] = jira_now()
+
+        def stop_then_list(*args, **kwargs):
+            JiraSyncRun.objects.filter(workspace=workspace).update(status="failed")
+            return FakeJira.issues(fake, *args, **kwargs)
+
+        with mock.patch.object(fake, "issues", side_effect=stop_then_list), pytest.raises(JiraSyncStopped):
+            run_import(workspace, create_user, fake)
+
+        # the next sync reads the same changes again: nothing is missed
+        assert JiraEntityMap.objects.get(workspace=workspace, entity_type="project").jira_updated == cursor

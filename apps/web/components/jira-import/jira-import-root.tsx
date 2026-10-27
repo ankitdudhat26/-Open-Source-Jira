@@ -129,10 +129,12 @@ function RunCard({
   run,
   workspaceSlug,
   onRetry,
+  onStop,
 }: {
   run: TJiraSyncRun;
   workspaceSlug: string;
   onRetry?: (keys: string[]) => void;
+  onStop?: () => void;
 }) {
   const [open, setOpen] = useState(run.status === "running");
   const stats = Object.entries(STAT_LABELS)
@@ -165,6 +167,14 @@ function RunCard({
       {run.progress && (run.status === "running" || open) && (
         <div className="mt-2 text-caption-md-regular">
           <RunProgress run={run} />
+        </div>
+      )}
+      {onStop && (run.status === "running" || run.status === "queued") && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-caption-md-regular text-tertiary">
+          {run.options?.full && (
+            <span className="text-warning-primary">Full re-sync: every work item is read again.</span>
+          )}
+          <Button variant="secondary" size="sm" stretch="auto" label="Stop sync" onClick={onStop} />
         </div>
       )}
       {open && (
@@ -278,6 +288,9 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [confirmFull, setConfirmFull] = useState(false);
+  const [stopRunId, setStopRunId] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [options, setOptions] = useState<Required<Omit<TJiraSyncOptions, "kind">>>({
     comments: true,
@@ -298,6 +311,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
 
   const allKeys = useMemo(() => (projects ?? []).map((project) => project.key), [projects]);
   const [skipEmpty, setSkipEmpty] = useState(true);
+  const totalWorkItems = (projects ?? []).reduce((sum, project) => sum + (project.issue_count ?? 0), 0);
   // Jira projects without a single work item (Jira's count): nothing to import
   const emptyKeys = useMemo(
     () => new Set((projects ?? []).filter((project) => project.issue_count === 0).map((project) => project.key)),
@@ -350,6 +364,8 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
     setStarting(true);
     try {
       await jiraImportService.startSync(workspaceSlug, keys, options);
+      // the next sync is a normal one again (only what changed since the last sync)
+      if (options.full) setOptions({ ...options, full: false });
       await refreshRuns();
       setToast({
         type: "success",
@@ -710,14 +726,18 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                     ["comments", "Comments"],
                     ["history", "Change history"],
                     ["attachments", "Attachments"],
-                    ["full", "Full re-sync (re-read every ticket, not only those changed since the last sync)"],
+                    ["full", "Full re-sync (slow: re-reads every ticket; not needed to get new changes)"],
                   ] as const
                 ).map(([key, label]) => (
                   <label key={key} className="flex items-center gap-1.5">
                     <input
                       type="checkbox"
                       checked={options[key]}
-                      onChange={(event) => setOptions({ ...options, [key]: event.target.checked })}
+                      onChange={(event) => {
+                        // a full re-sync takes hours: only after reading what it does
+                        if (key === "full" && event.target.checked) setConfirmFull(true);
+                        else setOptions({ ...options, [key]: event.target.checked });
+                      }}
                     />
                     {label}
                   </label>
@@ -767,6 +787,7 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
                 run={run}
                 workspaceSlug={workspaceSlug}
                 onRetry={isRunning ? undefined : (keys) => void startSync(keys)}
+                onStop={() => setStopRunId(run.id)}
               />
             ))}
           </div>
@@ -786,6 +807,55 @@ export const JiraImportRoot = observer(function JiraImportRoot(props: Props) {
         content="The saved credentials are removed. Projects and work items already imported stay. Nothing in Jira changes."
         isSubmitting={false}
         primaryButtonText={{ default: "Disconnect" }}
+      />
+      <ConfirmDialog
+        isOpen={confirmFull}
+        handleClose={() => setConfirmFull(false)}
+        handleSubmit={() => {
+          setOptions({ ...options, full: true });
+          setConfirmFull(false);
+        }}
+        variant="warning"
+        title="Turn on full re-sync?"
+        content={
+          <>
+            A normal sync already brings every change made in Jira since each project&apos;s last sync, and it is fast.
+            A full re-sync reads and saves every work item again
+            {totalWorkItems ? ` (${totalWorkItems.toLocaleString()} in Jira)` : ""}, which can take hours. Use it only
+            to repair data, not to get new changes.
+          </>
+        }
+        isSubmitting={false}
+        primaryButtonText={{ default: "Use full re-sync" }}
+        secondaryButtonText="Keep normal sync"
+      />
+      <ConfirmDialog
+        isOpen={!!stopRunId}
+        handleClose={() => !stopping && setStopRunId(null)}
+        handleSubmit={async () => {
+          if (!stopRunId) return;
+          setStopping(true);
+          try {
+            await jiraImportService.stopSync(workspaceSlug, stopRunId);
+            await refreshRuns();
+            setToast({
+              type: "success",
+              title: "Sync stopped",
+              message: "No new project starts; the ones in progress stop in a few seconds.",
+            });
+            setStopRunId(null);
+          } catch (error) {
+            setToast({ type: "error", title: "Not stopped", message: errorMessage(error, "Please try again.") });
+          } finally {
+            setStopping(false);
+          }
+        }}
+        variant="warning"
+        title="Stop this sync?"
+        content="Everything imported so far stays. Projects that did not finish keep their last synced time, so the next sync picks up their changes from there. Nothing is duplicated."
+        isSubmitting={stopping}
+        primaryButtonText={{ loading: "Stopping…", default: "Stop sync" }}
+        secondaryButtonText="Keep running"
       />
     </div>
   );

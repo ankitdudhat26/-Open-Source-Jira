@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { orderBy } from "lodash-es";
 import { observer } from "mobx-react";
 import Link from "next/link";
 // plane imports
@@ -63,7 +64,7 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: { worksp
   // derived values
   const isWorkspaceAdmin = workspaceInfoBySlug(workspaceSlug)?.role === EUserPermissions.ADMIN;
   const query = search.trim().toLowerCase();
-  const projects = (workspaceProjectIds ?? [])
+  const matching = (workspaceProjectIds ?? [])
     .map((projectId) => getProjectById(projectId))
     .filter((project): project is TProject => !!project)
     .filter(
@@ -73,14 +74,15 @@ export const AllProjectsRoot = observer(function AllProjectsRoot(props: { worksp
     .filter(
       (project) =>
         typeFilter === "all" || (typeFilter === "none" ? !project.project_type : project.project_type === typeFilter)
-    )
-    .toSorted((a, b) => {
-      const order =
-        sort.key === "created_at"
-          ? new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()
-          : a[sort.key].localeCompare(b[sort.key], undefined, { sensitivity: "base", numeric: true });
-      return sort.desc ? -order : order;
-    });
+    );
+  const projects = orderBy(
+    matching,
+    [
+      (project) =>
+        sort.key === "created_at" ? new Date(project.created_at ?? 0).getTime() : project[sort.key].toLowerCase(),
+    ],
+    [sort.desc ? "desc" : "asc"]
+  );
   const pageCount = Math.max(1, Math.ceil(projects.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageItems = projects.slice((currentPage - 1) * pageSize, currentPage * pageSize);

@@ -135,6 +135,11 @@ export class JiraImportService extends APIService {
     return unwrap(this.get(`/api/workspaces/${workspaceSlug}/jira/syncs/`));
   }
 
+  /** Stop a running sync: what was imported stays, stopped projects continue from their last sync next time. */
+  stopSync(workspaceSlug: string, runId: string): Promise<TJiraSyncRun> {
+    return unwrap(this.post(`/api/workspaces/${workspaceSlug}/jira/syncs/${runId}/stop/`));
+  }
+
   startSync(workspaceSlug: string, projectKeys: string[], options: TJiraSyncOptions): Promise<TJiraSyncRun> {
     return unwrap(this.post(`/api/workspaces/${workspaceSlug}/jira/syncs/`, { project_keys: projectKeys, options }));
   }

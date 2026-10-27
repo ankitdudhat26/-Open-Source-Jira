@@ -355,6 +355,10 @@ def type_key(issue_type):
     return "task"
 
 
+class JiraSyncStopped(Exception):
+    """The run was stopped (Stop sync): the project being synced ends at the next progress save."""
+
+
 def last_synced_at(workspace, project_key, mapping=None, runs=None):
     """When the project's last sync started that finished (changes in Jira after it are read again); None: never.
 
@@ -427,6 +431,7 @@ class JiraImporter:
         """Merge what this importer did into the run, under a row lock (workers run in parallel)."""
         with transaction.atomic():
             run = JiraSyncRun.objects.select_for_update().get(pk=self.run.pk)
+            stopped = run.status == "failed"
             for key, amount in self.stats.items():
                 run.stats[key] = run.stats.get(key, 0) + amount
             room = max(0, 200 - len(run.warnings))
@@ -464,6 +469,9 @@ class JiraImporter:
         self.run = run
         self.last_saved = time.monotonic()
         self.stats, self.new_warnings, self.new_projects = {}, [], {}
+        if stopped:
+            # what was saved so far stays; the project's "last synced" time does not move, so nothing is missed
+            raise JiraSyncStopped("Stopped")
 
     def get_map(self, entity_type, jira_id):
         return JiraEntityMap.objects.filter(

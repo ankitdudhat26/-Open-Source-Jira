@@ -14,7 +14,7 @@ from plane.db.models import JiraConnection, JiraSyncRun
 from plane.license.utils.encryption import decrypt_data
 from plane.utils.exception_logger import log_exception
 from plane.utils.jira.client import AtlassianAdminClient, JiraClient, JiraError
-from plane.utils.jira.importer import JiraImporter
+from plane.utils.jira.importer import JiraImporter, JiraSyncStopped
 
 logger = logging.getLogger("plane.worker")
 
@@ -44,7 +44,10 @@ def jira_sync_task(run_id):
         connection = JiraConnection.objects.get(workspace=run.workspace)
         client = client_for(connection)
         if run.options.get("kind") == "users":
-            JiraImporter(run, client, run.workspace, run.initiated_by, directory_for(run, connection)).run_all()
+            try:
+                JiraImporter(run, client, run.workspace, run.initiated_by, directory_for(run, connection)).run_all()
+            except JiraSyncStopped:
+                return  # Stop sync already finished the run
             finish(run_id, "completed")
             return
         # work items per project (Jira's own count) for the progress bar and the time left
@@ -79,6 +82,8 @@ def jira_sync_lane_task(run_id):
     try:
         connection = JiraConnection.objects.get(workspace=run.workspace)
         JiraImporter(run, client_for(connection), run.workspace, run.initiated_by).sync_project(key)
+    except JiraSyncStopped:
+        status, error_text = "failed", "Stopped"
     except Exception as error:  # one project failing never stops the others
         log_exception(error)
         status, error_text = "failed", str(error)[:500]
