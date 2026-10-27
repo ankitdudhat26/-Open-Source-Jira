@@ -1335,3 +1335,79 @@ class TestStopSync:
 
         # the next sync reads the same changes again: nothing is missed
         assert JiraEntityMap.objects.get(workspace=workspace, entity_type="project").jira_updated == cursor
+
+
+@pytest.mark.contract
+class TestFastIncrementalSync:
+    PROJECT_WIDE = ("project_statuses", "boards", "sprints", "sprint_issue_ids", "assignable_users", "project_roles")
+
+    @pytest.mark.django_db
+    def test_nothing_changed_reads_nothing_project_wide(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        before = JiraEntityMap.objects.get(workspace=workspace, entity_type="project").jira_updated
+
+        with contextlib.ExitStack() as stack:
+            calls = {
+                name: stack.enter_context(mock.patch.object(fake, name, wraps=getattr(fake, name)))
+                for name in self.PROJECT_WIDE
+            }
+            run = run_import(workspace, create_user, fake)
+
+        assert {name: call.call_count for name, call in calls.items()} == dict.fromkeys(self.PROJECT_WIDE, 0)
+        assert run.stats.get("issues_seen", 0) == 0
+        # the last synced time still moves on
+        assert JiraEntityMap.objects.get(workspace=workspace, entity_type="project").jira_updated > before
+
+    @pytest.mark.django_db
+    def test_changed_work_items_get_their_sprint_from_their_own_sprint_field(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        run_import(workspace, create_user, fake)
+        card = Issue.objects.get(external_id="2")
+        assert CycleIssue.objects.get(issue=card).cycle.name == "Sprint 1"
+
+        # in Jira: SHOP-2 moved to a new active sprint
+        fake.issue_data[1]["fields"].update(
+            customfield_10020=[
+                {"id": 31, "name": "Sprint 1", "state": "closed", "startDate": "2024-01-01T00:00:00.000Z"},
+                {"id": 32, "name": "Sprint 2", "state": "active", "startDate": jira_now(days=-1), "goal": "Refunds"},
+            ],
+            updated=jira_now(),
+        )
+        with (
+            mock.patch.object(fake, "sprint_issue_ids", wraps=fake.sprint_issue_ids) as sprint_issue_ids,
+            mock.patch.object(fake, "assignable_users", wraps=fake.assignable_users) as assignable_users,
+        ):
+            run = run_import(workspace, create_user, fake)
+
+        sprint_issue_ids.assert_not_called()
+        assignable_users.assert_not_called()
+        assert run.stats["issues_updated"] == 1 and run.stats["sprints_created"] == 1
+        cycle = CycleIssue.objects.get(issue=card).cycle
+        assert (cycle.name, cycle.description) == ("Sprint 2", "Refunds")
+        assert Cycle.objects.filter(project=card.project).count() == 2
+        assert CycleIssue.objects.filter(issue=card).count() == 1
+
+    @pytest.mark.django_db
+    def test_projects_without_changes_count_nothing(self, workspace, create_user, people):
+        _, _, ada, bob = people
+        fake = FakeJira(ada, bob)
+        first = run_lanes(workspace, create_user, fake)
+        assert first.progress["SHOP"]["total"] == 3
+
+        from plane.bgtasks import jira_sync_task as task
+
+        with mock.patch.object(task.jira_sync_lane_task, "delay"):  # look at the run before any project starts
+            queued = JiraSyncRun.objects.create(workspace=workspace, initiated_by=create_user, project_keys=["SHOP"])
+            with mock.patch.object(task, "client_for", return_value=fake):
+                task.jira_sync_task(str(queued.id))
+        queued.refresh_from_db()
+        assert queued.progress["SHOP"]["total"] == 0  # not Jira's 3: only changes are read
+        JiraSyncRun.objects.filter(pk=queued.pk).update(status="completed")
+
+        second = run_lanes(workspace, create_user, fake)
+        assert (second.progress["SHOP"]["total"], second.progress["SHOP"]["done"]) == (0, 0)
+        assert second.progress["SHOP"]["status"] == "done"
+        assert not any("could be read" in warning for warning in second.warnings)

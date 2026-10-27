@@ -10,11 +10,11 @@ from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
-from plane.db.models import JiraConnection, JiraSyncRun
+from plane.db.models import JiraConnection, JiraEntityMap, JiraSyncRun
 from plane.license.utils.encryption import decrypt_data
 from plane.utils.exception_logger import log_exception
 from plane.utils.jira.client import AtlassianAdminClient, JiraClient, JiraError
-from plane.utils.jira.importer import JiraImporter, JiraSyncStopped
+from plane.utils.jira.importer import JiraImporter, JiraSyncStopped, last_synced_at
 
 logger = logging.getLogger("plane.worker")
 
@@ -55,6 +55,10 @@ def jira_sync_task(run_id):
             project.get("key"): (project.get("insight") or {}).get("totalIssueCount") or 0
             for project in client.projects()
         }
+        # projects synced before read only what changed since: their count starts at 0, not at Jira's total
+        if not run.options.get("full"):
+            for key in synced_before(run):
+                totals[key] = 0
     except Exception as error:  # the run shows what went wrong; nothing in Jira is touched either way
         log_exception(error)
         finish(run_id, "failed", str(error))
@@ -89,6 +93,23 @@ def jira_sync_lane_task(run_id):
         status, error_text = "failed", str(error)[:500]
     if project_finished(run_id, key, status, error_text):
         jira_sync_lane_task.delay(str(run_id))
+
+
+def synced_before(run):
+    """Keys of the run's projects that finished a sync before (the next sync reads only their changes)."""
+    maps = {
+        record.jira_key: record
+        for record in JiraEntityMap.objects.filter(
+            workspace=run.workspace, entity_type="project", jira_key__in=run.project_keys
+        )
+    }
+    runs = list(
+        JiraSyncRun.objects.filter(workspace=run.workspace, status__in=("completed", "failed"))
+        .exclude(pk=run.pk)
+        .exclude(started_at__isnull=True)
+        .order_by("-started_at")[:200]
+    )
+    return {key for key, record in maps.items() if last_synced_at(run.workspace, key, record, runs)}
 
 
 def claim_next_project(run_id):

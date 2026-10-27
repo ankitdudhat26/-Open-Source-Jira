@@ -1052,7 +1052,6 @@ class JiraImporter:
         except JiraError as error:
             self.warn(f"{project_key}: sprints not imported ({error}).")
             return issue_cycle
-        rank = {"closed": 0, "future": 1, "active": 2}
         seen = set()
         for board in boards:
             try:
@@ -1063,38 +1062,74 @@ class JiraImporter:
                 if sprint["id"] in seen:
                     continue
                 seen.add(sprint["id"])
-                mapping = self.get_map("sprint", sprint["id"])
-                cycle = Cycle.objects.filter(pk=mapping.plane_id).first() if mapping else None
-                values = {
-                    "name": (sprint.get("name") or f"Sprint {sprint['id']}")[:255],
-                    "description": sprint.get("goal") or "",
-                    "start_date": jira_datetime(sprint.get("startDate")),
-                    "end_date": jira_datetime(sprint.get("completeDate") or sprint.get("endDate")),
-                }
-                if cycle is None:
-                    cycle = Cycle.objects.create(
-                        project=project,
-                        workspace=self.workspace,
-                        owned_by=self.actor,
-                        created_by=self.actor,
-                        external_source=SOURCE,
-                        external_id=str(sprint["id"]),
-                        **values,
-                    )
-                    self.count("sprints_created")
-                else:
-                    Cycle.objects.filter(pk=cycle.pk).update(**values)
-                self.set_map("sprint", sprint["id"], cycle.id, sprint.get("name") or "")
+                cycle = self.sprint_cycle(project, sprint)
                 try:
                     issue_ids = self.client.sprint_issue_ids(sprint["id"])
                 except JiraError:
                     issue_ids = []
                 for issue_id in issue_ids:
                     current = issue_cycle.get(str(issue_id))
-                    order = (rank.get(sprint.get("state"), 0), values["start_date"] or timezone.now())
+                    order = self.sprint_order(sprint)
                     if current is None or order > current[0]:
                         issue_cycle[str(issue_id)] = (order, cycle)
         return {issue_id: value[1] for issue_id, value in issue_cycle.items()}
+
+    @staticmethod
+    def sprint_order(sprint):
+        """A work item in several sprints belongs to the active one, else the future one, else the latest closed."""
+        rank = {"closed": 0, "future": 1, "active": 2}
+        return (rank.get(sprint.get("state"), 0), jira_datetime(sprint.get("startDate")) or timezone.now())
+
+    def sprint_cycle(self, project, sprint):
+        """The cycle of a Jira sprint, created or updated (name, goal, dates)."""
+        mapping = self.get_map("sprint", sprint["id"])
+        cycle = Cycle.objects.filter(pk=mapping.plane_id).first() if mapping else None
+        values = {
+            "name": (sprint.get("name") or f"Sprint {sprint['id']}")[:255],
+            "description": sprint.get("goal") or "",
+            "start_date": jira_datetime(sprint.get("startDate")),
+            "end_date": jira_datetime(sprint.get("completeDate") or sprint.get("endDate")),
+        }
+        if cycle is None:
+            cycle = Cycle.objects.create(
+                project=project,
+                workspace=self.workspace,
+                owned_by=self.actor,
+                created_by=self.actor,
+                external_source=SOURCE,
+                external_id=str(sprint["id"]),
+                **values,
+            )
+            self.count("sprints_created")
+        else:
+            Cycle.objects.filter(pk=cycle.pk).update(**values)
+        self.set_map("sprint", sprint["id"], cycle.id, sprint.get("name") or "")
+        return cycle
+
+    def sprints_of_issues(self, project, jira_issues):
+        """{jira issue id: cycle} from the work items' own Sprint field: a re-sync reads only the changed work items,
+        not every sprint of every board."""
+        sprint_fields = [
+            field_id
+            for field_id, meta in self.field_meta().items()
+            if ((meta.get("schema") or {}).get("custom") or "") == "com.pyxis.greenhopper.jira:gh-sprint"
+        ]
+        issue_cycle, cycles = {}, {}
+        for jira_issue in jira_issues:
+            fields = jira_issue.get("fields") or {}
+            sprints = [
+                sprint
+                for field_id in sprint_fields
+                for sprint in fields.get(field_id) or []
+                if isinstance(sprint, dict) and sprint.get("id") is not None
+            ]
+            if not sprints:
+                continue
+            sprint = max(sprints, key=self.sprint_order)
+            if sprint["id"] not in cycles:
+                cycles[sprint["id"]] = self.sprint_cycle(project, sprint)
+            issue_cycle[str(jira_issue["id"])] = cycles[sprint["id"]]
+        return issue_cycle
 
     def modules_for(self, project, jira_project):
         modules = {}
@@ -1680,23 +1715,32 @@ class JiraImporter:
         # synced before: only work items changed in Jira since then (a full re-sync reads them all)
         self.since = None if self.options["full"] or synced_at is None else synced_at - SYNC_OVERLAP
         self.new_projects[project_key] = {"project_id": str(project.id), "name": project.name}
-        states = self.states_for(project, project_key)
-        types = ensure_project_work_item_types(project)
-        self.save_progress(f"{project_key}: sprints and components")
         # only Jira Software projects have boards and sprints (business projects do not)
         is_software = jira_project.get("projectTypeKey", "software") == "software"
-        issue_cycle = self.sprints_for(project, project_key) if is_software else {}
-        modules = self.modules_for(project, jira_project)
-        self.sync_project_people(project, project_key)
 
-        jira_issues = []
         if self.since is None:
+            states = self.states_for(project, project_key)
+            types = ensure_project_work_item_types(project)
+            self.save_progress(f"{project_key}: sprints and components")
+            issue_cycle = self.sprints_for(project, project_key) if is_software else {}
+            modules = self.modules_for(project, jira_project)
+            self.sync_project_people(project, project_key)
             pages = iter(self.client.issues(project_key))
         else:
+            # only the work items changed in Jira since the last sync (any change, also one only in their history);
             # Jira's JQL dates are in the connected account's time zone; minutes ago are the same everywhere
             minutes = int((timezone.now() - self.since).total_seconds() // 60) + 1
             self.save_progress(f"{project_key}: work items changed since {self.since:%d %b %Y %H:%M} UTC")
-            pages = iter(self.client.issues(project_key, updated_within_minutes=minutes))
+            changed = list(self.client.issues(project_key, updated_within_minutes=minutes))
+            if changed:
+                states = self.states_for(project, project_key)
+                types = ensure_project_work_item_types(project)
+                # sprints of the changed work items only (not every sprint of every board); people on them join the
+                # project as they are read (project roles follow Jira on a user sync or a full re-sync)
+                issue_cycle = self.sprints_of_issues(project, changed) if is_software else {}
+                modules = self.modules_for(project, jira_project)
+            pages = iter(changed)
+        jira_issues = []
         with ThreadPoolExecutor(READ_THREADS) as pool:
             while batch := list(islice(pages, READ_AHEAD)):
                 details = self.read_details(pool, batch)
@@ -1707,10 +1751,11 @@ class JiraImporter:
                     if time.monotonic() - self.last_saved > 5:
                         self.save_progress(f"{project_key}: {self.items_done} work items")
         self.save_progress(f"{project_key}: {len(jira_issues)} work items")
-        self.save_progress(f"{project_key}: keys, parents, links and sprints")
-        self.align_numbers(project, jira_issues)
-        for jira_issue in jira_issues:
-            self.link_issues(project, jira_issue, issue_cycle, modules)
+        if jira_issues:
+            self.save_progress(f"{project_key}: keys, parents, links and sprints")
+            self.align_numbers(project, jira_issues)
+            for jira_issue in jira_issues:
+                self.link_issues(project, jira_issue, issue_cycle, modules)
         self.count("issues_seen", len(jira_issues))
         # the next sync reads what changes in Jira from now on (only after the whole project is saved)
         JiraEntityMap.objects.filter(
