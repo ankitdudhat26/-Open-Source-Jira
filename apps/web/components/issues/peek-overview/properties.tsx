@@ -25,6 +25,8 @@ import {
 import { DateSelect } from "@plane/blocks/property-select";
 import { cn, getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
+import { useUserPermissions } from "@/hooks/store/user";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
@@ -57,6 +59,15 @@ interface IPeekOverviewProperties {
 
 export const PeekOverviewProperties = observer(function PeekOverviewProperties(props: IPeekOverviewProperties) {
   const { workspaceSlug, projectId, issueId, issueOperations, disabled } = props;
+  // module, sprint, queue and custom fields are set by members and admins only (not by a client editing their own work item)
+  const { allowPermissions } = useUserPermissions();
+  const isMemberOrAdmin = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
+
   const { t } = useTranslation();
   // store hooks
   const { getProjectById } = useProject();
@@ -123,10 +134,20 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
         </SidebarPropertyListItem>
 
         <SidebarPropertyListItem icon={InboxOutline} label="Queue">
-          <IssueQueueSelect workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
+          <IssueQueueSelect
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueId={issueId}
+            disabled={disabled || !isMemberOrAdmin}
+          />
         </SidebarPropertyListItem>
 
-        <IssueCustomFields workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />
+        <IssueCustomFields
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          issueId={issueId}
+          disabled={disabled || !isMemberOrAdmin}
+        />
 
         <SidebarPropertyListItem icon={PriorityOutline} label={t("common.priority")}>
           <PrioritySelect
@@ -218,7 +239,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
               projectId={projectId}
               issueId={issueId}
               issueOperations={issueOperations}
-              disabled={disabled}
+              disabled={disabled || !isMemberOrAdmin}
             />
           </SidebarPropertyListItem>
         )}
@@ -231,7 +252,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
               projectId={projectId}
               issueId={issueId}
               issueOperations={issueOperations}
-              disabled={disabled}
+              disabled={disabled || !isMemberOrAdmin}
             />
           </SidebarPropertyListItem>
         )}

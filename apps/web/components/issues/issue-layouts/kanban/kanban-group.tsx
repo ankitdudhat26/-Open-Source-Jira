@@ -27,6 +27,7 @@ import type {
 } from "@plane/types";
 import { EIssueLayoutTypes } from "@plane/types";
 import { cn } from "@plane/utils";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import type { GroupDropLocation } from "@/components/issues/issue-layouts/utils";
 // components
 import {
@@ -64,7 +65,7 @@ interface IKanbanGroup {
   quickAddCallback?: (projectId: string | null | undefined, data: TIssue) => Promise<TIssue | undefined>;
   loadMoreIssues: (groupId?: string, subGroupId?: string) => void;
   disableIssueCreation?: boolean;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   groupByVisibilityToggle?: boolean;
   scrollableContainerRef?: MutableRefObject<HTMLDivElement | null>;
   handleOnDrop: (source: GroupDropLocation, destination: GroupDropLocation) => Promise<void>;

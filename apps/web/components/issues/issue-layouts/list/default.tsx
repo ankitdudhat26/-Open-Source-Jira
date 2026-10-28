@@ -23,6 +23,7 @@ import type {
   TIssueKanbanFilters,
 } from "@plane/types";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectGroup } from "@/components/core/multiple-select";
 // hooks
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
@@ -46,7 +47,7 @@ export interface IList {
   displayProperties: IIssueDisplayProperties | undefined;
   enableIssueQuickAdd: boolean;
   showEmptyGroup?: boolean;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   quickAddCallback?: (projectId: string | null | undefined, data: TIssue) => Promise<TIssue | undefined>;
   disableIssueCreation?: boolean;
   handleOnDrop: (source: GroupDropLocation, destination: GroupDropLocation) => Promise<void>;
@@ -111,7 +112,7 @@ export const List = observer(function List(props: IList) {
 
   const getGroupIndex = (groupId: string | undefined) => groups.findIndex(({ id }) => id === groupId);
 
-  const is_list = group_by === null ? true : false;
+  const is_list = group_by === null;
 
   // create groupIds array and entities object for bulk ops
   const groupIds = groups.map((g) => g.id);

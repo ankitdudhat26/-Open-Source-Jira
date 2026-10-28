@@ -28,6 +28,7 @@ import { MoreHorizontalOutline } from "@makeplane/propel/icons";
 import { toSideAndAlign } from "@plane/blocks/common";
 import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/blocks/context-menu";
 // hooks
+import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
@@ -74,17 +75,20 @@ export const ProjectIssueQuickActions = observer(function ProjectIssueQuickActio
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
   const stateDetails = getStateById(issue.state_id);
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);
+  const { canClientEditWorkItem } = useClientWorkItemAccess();
   // auth
-  const isEditingAllowed =
+  const isMemberEditingAllowed =
     allowPermissions(
       [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
       EUserPermissionsLevel.PROJECT,
       workspaceSlug?.toString(),
       issue.project_id ?? undefined
     ) && !readOnly;
-  const isArchivingAllowed = handleArchive && isEditingAllowed;
+  // a client edits (and copies) the work items they created; archiving and deleting stay with members and admins
+  const isEditingAllowed = isMemberEditingAllowed || (canClientEditWorkItem(issue) && !readOnly);
+  const isArchivingAllowed = handleArchive && isMemberEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);
-  const isDeletingAllowed = isEditingAllowed;
+  const isDeletingAllowed = isMemberEditingAllowed;
 
   const duplicateIssuePayload = omit(
     {

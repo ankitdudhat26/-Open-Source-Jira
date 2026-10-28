@@ -56,8 +56,13 @@ export const IssuesHeader = observer(function IssuesHeader() {
   const publishedURL = `${SPACE_APP_URL}/issues/${currentProjectDetails?.anchor}`;
 
   const issuesCount = getGroupIssueCount(undefined, undefined, false);
-  const canUserCreateIssue = allowPermissions(
+  const isProjectMemberOrAdmin = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
+  // clients (project guests) create work items too
+  const canUserCreateIssue = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
     EUserPermissionsLevel.PROJECT
   );
 
@@ -115,7 +120,8 @@ export const IssuesHeader = observer(function IssuesHeader() {
             projectId={projectId}
             currentProjectDetails={currentProjectDetails}
             workspaceSlug={workspaceSlug}
-            canUserCreateIssue={canUserCreateIssue}
+            // analytics stay with members and admins
+            canUserCreateIssue={isProjectMemberOrAdmin}
           />
         </div>
         {canUserCreateIssue && (

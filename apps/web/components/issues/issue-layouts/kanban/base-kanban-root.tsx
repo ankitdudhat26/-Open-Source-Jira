@@ -14,6 +14,8 @@ import { EIssueFilterType, EUserPermissions, EUserPermissionsLevel } from "@plan
 import type { EIssuesStoreType } from "@plane/types";
 import { EIssueServiceType, EIssueLayoutTypes } from "@plane/types";
 //hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
+import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -122,6 +124,12 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // clients create work items and edit the ones they created
+  const isCreatingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    EUserPermissionsLevel.PROJECT
+  );
+  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   const handleOnDrop = useGroupIssuesDragNDrop(storeType, orderBy, group_by, sub_group_by);
 
@@ -130,16 +138,16 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
     setDeleteIssueModal(true);
   }, []);
 
-  const canEditProperties = useCallback(
-    (issueProjectId: string | undefined) => {
+  const canEditProperties = useCallback<TCanEditProperties>(
+    (issueProjectId, issue) => {
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && issueProjectId
           ? canEditPropertiesBasedOnProject(issueProjectId)
           : isEditingAllowed;
 
-      return enableInlineEditing && isEditingAllowedBasedOnProject;
+      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
   );
 
   // Enable Auto Scroll for Main Kanban
@@ -166,7 +174,7 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
         handleRemoveFromView={async () => removeIssueFromView && removeIssueFromView(issue.project_id, issue.id)}
         handleArchive={async () => archiveIssue && archiveIssue(issue.project_id, issue.id)}
         handleRestore={async () => restoreIssue && restoreIssue(issue.project_id, issue.id)}
-        readOnly={!canEditProperties(issue.project_id ?? undefined) || isCompletedCycle}
+        readOnly={!canEditProperties(issue.project_id ?? undefined, issue) || isCompletedCycle}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,7 +247,7 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
                 enableQuickIssueCreate={enableQuickAdd}
                 showEmptyGroup={userDisplayFilters?.show_empty_groups ?? true}
                 quickAddCallback={quickAddIssue}
-                disableIssueCreation={!enableIssueCreation || !isEditingAllowed || isCompletedCycle}
+                disableIssueCreation={!enableIssueCreation || !isCreatingAllowed || isCompletedCycle}
                 canEditProperties={canEditProperties}
                 addIssuesToView={addIssuesToView}
                 scrollableContainerRef={scrollableContainerRef}

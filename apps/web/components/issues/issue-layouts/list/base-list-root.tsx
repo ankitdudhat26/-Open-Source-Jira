@@ -15,6 +15,8 @@ import type { EIssuesStoreType, GroupByColumnTypes, TGroupedIssues, TIssueKanban
 import { EIssueLayoutTypes } from "@plane/types";
 // constants
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
+import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
 // hooks
@@ -96,16 +98,24 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // clients create work items and edit the ones they created
+  const isCreatingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    EUserPermissionsLevel.PROJECT
+  );
+  const { canClientEditWorkItem } = useClientWorkItemAccess();
   const { enableInlineEditing, enableQuickAdd, enableIssueCreation } = issues?.viewFlags || {};
 
-  const canEditProperties = useCallback(
-    (projectId: string | undefined) => {
+  const canEditProperties = useCallback<TCanEditProperties>(
+    (issueProjectId, issue) => {
       const isEditingAllowedBasedOnProject =
-        canEditPropertiesBasedOnProject && projectId ? canEditPropertiesBasedOnProject(projectId) : isEditingAllowed;
+        canEditPropertiesBasedOnProject && issueProjectId
+          ? canEditPropertiesBasedOnProject(issueProjectId)
+          : isEditingAllowed;
 
-      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
+      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
   );
 
   const handleOnDrop = useGroupIssuesDragNDrop(storeType, orderBy, group_by);
@@ -120,7 +130,7 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
         handleRemoveFromView={async () => removeIssueFromView && removeIssueFromView(issue.project_id, issue.id)}
         handleArchive={async () => archiveIssue && archiveIssue(issue.project_id, issue.id)}
         handleRestore={async () => restoreIssue && restoreIssue(issue.project_id, issue.id)}
-        readOnly={!canEditProperties(issue.project_id ?? undefined) || isCompletedCycle}
+        readOnly={!canEditProperties(issue.project_id ?? undefined, issue) || isCompletedCycle}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,6 +148,7 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
   const handleCollapsedGroups = useCallback(
     (value: string) => {
       if (workspaceSlug) {
+        // oxlint-disable-next-line no-shadow -- upstream naming
         let collapsedGroups = issuesFilter?.issueFilters?.kanbanFilters?.group_by || [];
         if (collapsedGroups.includes(value)) {
           collapsedGroups = collapsedGroups.filter((_value) => _value != value);
@@ -168,7 +179,7 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
           quickAddCallback={quickAddIssue}
           enableIssueQuickAdd={!!enableQuickAdd}
           canEditProperties={canEditProperties}
-          disableIssueCreation={!enableIssueCreation || !isEditingAllowed}
+          disableIssueCreation={!enableIssueCreation || !isCreatingAllowed}
           addIssuesToView={addIssuesToView}
           isCompletedCycle={isCompletedCycle}
           handleOnDrop={handleOnDrop}

@@ -115,9 +115,7 @@ class ProjectResourceSerializer(BaseSerializer):
             )
             # the member joins the project when mapped (see ProjectResourceEndpoint)
             if not is_workspace_assignable(workspace_id, member.id):
-                raise serializers.ValidationError(
-                    {"member_id": "Only members and admins of the workspace can be mapped"}
-                )
+                raise serializers.ValidationError({"member_id": "Only active members of the workspace can be mapped"})
         if "role" in attrs and not attrs["role"].strip():
             raise serializers.ValidationError({"role": "Role is required"})
         return attrs

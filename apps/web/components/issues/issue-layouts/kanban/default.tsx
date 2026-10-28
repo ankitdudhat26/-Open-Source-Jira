@@ -21,6 +21,7 @@ import type {
 // constants
 import { ContentWrapper } from "@plane/blocks/layout";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { KanbanColumnLoader } from "@/components/ui/loader/layouts/kanban-layout-loader";
 // hooks
@@ -61,7 +62,7 @@ export interface IKanBan {
   quickAddCallback?: (projectId: string | null | undefined, data: TIssue) => Promise<TIssue | undefined>;
   disableIssueCreation?: boolean;
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   scrollableContainerRef?: MutableRefObject<HTMLDivElement | null>;
   handleOnDrop: (source: GroupDropLocation, destination: GroupDropLocation) => Promise<void>;
   showEmptyGroup?: boolean;

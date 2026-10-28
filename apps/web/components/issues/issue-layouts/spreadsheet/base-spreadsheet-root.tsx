@@ -13,6 +13,8 @@ import { ALL_ISSUES, EIssueFilterType, EUserPermissions, EUserPermissionsLevel }
 import type { EIssuesStoreType, IIssueDisplayFilterOptions } from "@plane/types";
 import { EIssueLayoutTypes } from "@plane/types";
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
+import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
@@ -65,19 +67,27 @@ export const BaseSpreadsheetRoot = observer(function BaseSpreadsheetRoot(props: 
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // clients create work items and edit the ones they created
+  const isCreatingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    EUserPermissionsLevel.PROJECT
+  );
+  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   useEffect(() => {
     fetchIssues("init-loader", { canGroup: false, perPageCount: 100 }, viewId);
   }, [fetchIssues, storeType, viewId]);
 
-  const canEditProperties = useCallback(
-    (projectId: string | undefined) => {
+  const canEditProperties = useCallback<TCanEditProperties>(
+    (issueProjectId, issue) => {
       const isEditingAllowedBasedOnProject =
-        canEditPropertiesBasedOnProject && projectId ? canEditPropertiesBasedOnProject(projectId) : isEditingAllowed;
+        canEditPropertiesBasedOnProject && issueProjectId
+          ? canEditPropertiesBasedOnProject(issueProjectId)
+          : isEditingAllowed;
 
-      return enableInlineEditing && isEditingAllowedBasedOnProject;
+      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
   );
 
   const issueIds = issues.groupedIssueIds?.[ALL_ISSUES] ?? [];
@@ -104,10 +114,11 @@ export const BaseSpreadsheetRoot = observer(function BaseSpreadsheetRoot(props: 
         handleArchive={async () => archiveIssue && archiveIssue(issue.project_id, issue.id)}
         handleRestore={async () => restoreIssue && restoreIssue(issue.project_id, issue.id)}
         portalElement={portalElement}
-        readOnly={!canEditProperties(issue.project_id ?? undefined) || isCompletedCycle}
+        readOnly={!canEditProperties(issue.project_id ?? undefined, issue) || isCompletedCycle}
         placements={placement}
       />
     ),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- QuickActions is a component prop, stable per layout
     [isCompletedCycle, canEditProperties, removeIssue, updateIssue, removeIssueFromView, archiveIssue, restoreIssue]
   );
 
@@ -125,7 +136,7 @@ export const BaseSpreadsheetRoot = observer(function BaseSpreadsheetRoot(props: 
         canEditProperties={canEditProperties}
         quickAddCallback={quickAddIssue}
         enableQuickCreateIssue={enableQuickAdd}
-        disableIssueCreation={!enableIssueCreation || !isEditingAllowed || isCompletedCycle}
+        disableIssueCreation={!enableIssueCreation || !isCreatingAllowed || isCompletedCycle}
         canLoadMoreIssues={!!nextPageResults}
         loadMoreIssues={fetchNextIssues}
         isEpic={isEpic}

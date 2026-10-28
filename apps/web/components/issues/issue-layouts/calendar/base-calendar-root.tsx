@@ -14,6 +14,8 @@ import { setToast } from "@plane/blocks/toast";
 import type { TGroupedIssues } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
+import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useCalendarView } from "@/hooks/store/use-calendar-view";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -78,6 +80,8 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // clients edit the work items they created
+  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   const { enableInlineEditing } = issues?.viewFlags || {};
 
@@ -137,22 +141,24 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
 
   const getPaginationData = useCallback(
     (groupId: string | undefined) => issues?.getPaginationData(groupId, undefined),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- depends on the store method only
     [issues?.getPaginationData]
   );
 
   const getGroupIssueCount = useCallback(
     (groupId: string | undefined) => issues?.getGroupIssueCount(groupId, undefined, false),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- depends on the store method only
     [issues?.getGroupIssueCount]
   );
 
-  const canEditProperties = useCallback(
-    (projectId: string | undefined) => {
+  const canEditProperties = useCallback<TCanEditProperties>(
+    (projectId, issue) => {
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && projectId ? canEditPropertiesBasedOnProject(projectId) : isEditingAllowed;
 
-      return enableInlineEditing && isEditingAllowedBasedOnProject;
+      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
   );
 
   return (
@@ -175,7 +181,7 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
               handleRemoveFromView={async () => removeIssueFromView && removeIssueFromView(issue.project_id, issue.id)}
               handleArchive={async () => archiveIssue && archiveIssue(issue.project_id, issue.id)}
               handleRestore={async () => restoreIssue && restoreIssue(issue.project_id, issue.id)}
-              readOnly={!canEditProperties(issue.project_id ?? undefined) || isCompletedCycle}
+              readOnly={!canEditProperties(issue.project_id ?? undefined, issue) || isCompletedCycle}
               placements={placement}
             />
           )}

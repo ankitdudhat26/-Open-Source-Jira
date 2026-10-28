@@ -12,6 +12,7 @@ import { SPREADSHEET_SELECT_GROUP } from "@plane/constants";
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
 // components
 import { cn } from "@plane/utils";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectGroupAction } from "@/components/core/multiple-select";
 // hooks
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
@@ -21,7 +22,7 @@ interface Props {
   displayProperties: IIssueDisplayProperties;
   displayFilters: IIssueDisplayFilterOptions;
   handleDisplayFilterUpdate: (data: Partial<IIssueDisplayFilterOptions>) => void;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   isEstimateEnabled: boolean;
   spreadsheetColumnsList: (keyof IIssueDisplayProperties)[];
   selectionHelpers: TSelectionHelper;

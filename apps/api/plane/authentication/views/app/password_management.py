@@ -27,7 +27,7 @@ from django.views import View
 from plane.bgtasks.forgot_password_task import forgot_password
 from plane.license.models import Instance
 from plane.db.models import User
-from plane.license.utils.instance_value import get_configuration_value
+from plane.license.utils.instance_value import get_configuration_value, is_sendgrid_configured
 from plane.authentication.utils.host import base_host
 from plane.authentication.adapter.error import (
     AuthenticationException,
@@ -92,7 +92,8 @@ class ForgotPasswordEndpoint(APIView):
 
         (EMAIL_HOST,) = get_configuration_value([{"key": "EMAIL_HOST", "default": os.environ.get("EMAIL_HOST")}])
 
-        if not (EMAIL_HOST):
+        # the emails go out through SendGrid when its API key is set, else through the SMTP server of God Mode
+        if not (EMAIL_HOST or is_sendgrid_configured()):
             exc = AuthenticationException(
                 error_message="SMTP_NOT_CONFIGURED",
                 error_code=AUTHENTICATION_ERROR_CODES["SMTP_NOT_CONFIGURED"],

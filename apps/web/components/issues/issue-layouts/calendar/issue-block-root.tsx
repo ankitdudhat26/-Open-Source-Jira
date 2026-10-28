@@ -11,6 +11,7 @@ import { observer } from "mobx-react";
 // plane helpers
 import { useOutsideClickDetector } from "@plane/hooks";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import type { TRenderQuickActions } from "../list/list-view-types";
 import { HIGHLIGHT_CLASS } from "../utils";
@@ -22,7 +23,7 @@ type Props = {
   quickActions: TRenderQuickActions;
   isDragDisabled: boolean;
   isEpic?: boolean;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
 };
 
 export const CalendarIssueBlockRoot = observer(function CalendarIssueBlockRoot(props: Props) {
@@ -37,7 +38,7 @@ export const CalendarIssueBlockRoot = observer(function CalendarIssueBlockRoot(p
 
   const issue = getIssueById(issueId);
 
-  const canDrag = !isDragDisabled && canEditProperties(issue?.project_id ?? undefined);
+  const canDrag = !isDragDisabled && canEditProperties(issue?.project_id ?? undefined, issue);
 
   useEffect(() => {
     const element = issueRef.current;

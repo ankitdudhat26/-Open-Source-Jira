@@ -21,6 +21,7 @@ import type {
 } from "@plane/types";
 import { Row } from "@plane/blocks/layout";
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 // plane web imports
 import { useWorkFlowFDragNDrop } from "@/components/workflow";
@@ -106,7 +107,7 @@ const SubGroupSwimlaneHeader = observer(function SubGroupSwimlaneHeader({
 
 interface ISubGroupSwimlane extends ISubGroupSwimlaneHeader {
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   collapsedGroups: TIssueKanbanFilters;
   disableIssueCreation?: boolean;
   displayProperties: IIssueDisplayProperties | undefined;
@@ -237,7 +238,7 @@ const SubGroupSwimlane = observer(function SubGroupSwimlane(props: ISubGroupSwim
 
 export interface IKanBanSwimLanes {
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   collapsedGroups: TIssueKanbanFilters;
   disableIssueCreation?: boolean;
   displayProperties: IIssueDisplayProperties | undefined;

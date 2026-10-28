@@ -21,6 +21,7 @@ import { ControlLink, Row } from "@plane/blocks/layout";
 import { Spinner } from "@plane/blocks/spinner";
 import { cn, generateWorkItemLink } from "@plane/utils";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectEntityAction } from "@/components/core/multiple-select";
 import { IssueProperties } from "@/components/issues/issue-layouts/properties";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
@@ -40,7 +41,7 @@ interface IssueBlockProps {
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   quickActions: TRenderQuickActions;
   displayProperties: IIssueDisplayProperties | undefined;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   nestingLevel: number;
   spacingLeft?: number;
   isExpanded: boolean;
@@ -104,7 +105,7 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
   // derived values
   const issue = issuesMap[issueId];
   const subIssuesCount = issue?.sub_issues_count ?? 0;
-  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined);
+  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined, issue);
   const isDraggingAllowed = canDrag && canEditIssueProperties;
 
   const { isMobile } = usePlatformOS();
@@ -135,7 +136,8 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
   const isIssueSelected = selectionHelpers.getIsEntitySelected(issue.id);
   const isIssueActive = selectionHelpers.getIsEntityActive(issue.id);
   const isSubIssue = nestingLevel !== 0;
-  const canSelectIssues = canEditIssueProperties && !selectionHelpers.isSelectionDisabled;
+  // bulk operations stay with members and admins, so a client's own work items are not selectable
+  const canSelectIssues = canEditProperties(issue?.project_id ?? undefined) && !selectionHelpers.isSelectionDisabled;
 
   const marginLeft = `${spacingLeft}px`;
 

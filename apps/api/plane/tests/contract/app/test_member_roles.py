@@ -117,7 +117,7 @@ class TestClientAccess:
         assert project.guest_view_all_features is True
 
     @pytest.mark.django_db
-    def test_client_sees_work_items_and_comments_but_cannot_edit(
+    def test_client_sees_work_items_and_comments_but_cannot_edit_others(
         self, api_client, session_client, workspace, project, client_user
     ):
         issue = Issue.objects.create(name="Home page", project=project, workspace=workspace)
@@ -135,11 +135,11 @@ class TestClientAccess:
         assert response.status_code == status.HTTP_201_CREATED, response.data
         assert IssueComment.objects.filter(issue=issue, actor=client_user).exists()
 
-        # cannot edit or create work items
+        # cannot edit the work items of the team, but can create their own (see test_client_work_item_access_app)
         response = api_client.patch(f"{base}/issues/{issue.id}/", {"name": "Changed"}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
         response = api_client.post(f"{base}/issues/", {"name": "New"}, format="json")
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_201_CREATED, response.data
         issue.refresh_from_db()
         assert issue.name == "Home page"
 

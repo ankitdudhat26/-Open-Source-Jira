@@ -11,6 +11,7 @@ import type { TIssue, IIssueDisplayProperties, IIssueMap } from "@plane/types";
 // local imports
 import type { TRenderQuickActions } from "../list/list-view-types";
 import { KanbanIssueBlock } from "./block";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 
 interface IssueBlocksListProps {
   sub_group_id: string;
@@ -20,7 +21,7 @@ interface IssueBlocksListProps {
   displayProperties: IIssueDisplayProperties | undefined;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   quickActions: TRenderQuickActions;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   canDropOverIssue: boolean;
   canDragIssuesInCurrentGrouping: boolean;
   scrollableContainerRef?: MutableRefObject<HTMLDivElement | null>;

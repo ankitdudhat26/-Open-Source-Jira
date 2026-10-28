@@ -4,6 +4,7 @@
 
 # Module imports
 from plane.db.models import IssueAssignee, IssueLabel
+from plane.utils.project_membership import is_project_assignee_role
 
 
 def sync_resource_assignees(resource, previous_member_id=None):
@@ -27,7 +28,8 @@ def sync_resource_assignees(resource, previous_member_id=None):
     if previous_member_id and str(previous_member_id) != str(resource.member_id):
         IssueAssignee.objects.filter(issue_id__in=issue_ids, assignee_id=previous_member_id).delete(soft=False)
 
-    if not resource.member_id:
+    # a client filling the resource gets access to the project, but work items go to members and admins only
+    if not resource.member_id or not is_project_assignee_role(resource.project_id, resource.member_id):
         return 0
     already_assigned = set(
         IssueAssignee.objects.filter(issue_id__in=issue_ids, assignee_id=resource.member_id).values_list(

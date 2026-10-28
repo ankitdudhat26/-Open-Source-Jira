@@ -12,6 +12,7 @@ import { SPREADSHEET_SELECT_GROUP, SPREADSHEET_PROPERTY_LIST } from "@plane/cons
 import type { TIssue, IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
 import { EIssueLayoutTypes } from "@plane/types";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectGroup } from "@/components/core/multiple-select";
 import { IssueBulkOperationsRoot } from "@/components/issues/bulk-operations";
 // hooks
@@ -31,7 +32,7 @@ type Props = {
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   openIssuesListModal?: (() => void) | null;
   quickAddCallback?: (projectId: string | null | undefined, data: TIssue) => Promise<TIssue | undefined>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   canLoadMoreIssues: boolean;
   loadMoreIssues: () => void;
   enableQuickCreateIssue?: boolean;

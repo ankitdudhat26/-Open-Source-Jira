@@ -15,6 +15,7 @@ import type { TGroupedIssues, TIssue, TIssueMap, TPaginationData, ICalendarDate 
 // ui
 // components
 import { cn, renderFormattedPayloadDate } from "@plane/utils";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { highlightIssueOnDrop } from "@/components/issues/issue-layouts/utils";
 // helpers
 import { MONTHS_LIST } from "@plane/constants";
@@ -49,7 +50,7 @@ type Props = {
   readOnly?: boolean;
   selectedDate: Date;
   setSelectedDate: (date: Date) => void;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   isEpic?: boolean;
 };
 

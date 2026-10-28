@@ -17,6 +17,7 @@ import { useTranslation } from "@plane/i18n";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 // components
 import { cn } from "@plane/utils";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { ExistingIssuesListModal } from "@/components/core/modals/existing-issues-list-modal";
 import { MultipleSelectGroupAction } from "@/components/core/multiple-select";
 import { CreateUpdateIssueModal } from "@/components/issues/issue-modal/modal";
@@ -32,7 +33,7 @@ interface IHeaderGroupByCard {
   title: string;
   count: number;
   issuePayload: Partial<TIssue>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   disableIssueCreation?: boolean;
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
   selectionHelpers: TSelectionHelper;

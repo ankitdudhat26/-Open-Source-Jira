@@ -23,6 +23,7 @@ import { ControlLink } from "@plane/blocks/layout";
 import { DropIndicator } from "@plane/blocks/common";
 import { cn, generateWorkItemLink } from "@plane/utils";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { HIGHLIGHT_CLASS, getIssueBlockId } from "@/components/issues/issue-layouts/utils";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
@@ -47,7 +48,7 @@ interface IssueBlockProps {
   canDragIssuesInCurrentGrouping: boolean;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   quickActions: TRenderQuickActions;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   scrollableContainerRef?: MutableRefObject<HTMLDivElement | null>;
   shouldRenderByDefault?: boolean;
   isEpic?: boolean;
@@ -179,7 +180,7 @@ export const KanbanIssueBlock = observer(function KanbanIssueBlock(props: IssueB
   const [isDraggingOverBlock, setIsDraggingOverBlock] = useState(false);
   const [isCurrentBlockDragging, setIsCurrentBlockDragging] = useState(false);
 
-  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined);
+  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined, issue);
 
   const isDragAllowed = canDragIssuesInCurrentGrouping && !issue?.tempId && canEditIssueProperties;
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);

@@ -5,8 +5,12 @@
  */
 
 import React from "react";
+import { observer } from "mobx-react";
 // plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TIssueServiceType, TWorkItemWidgets } from "@plane/types";
+// hooks
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { IssueDetailWidgetActionButtons } from "./action-buttons";
 import { IssueDetailWidgetCollapsibles } from "./issue-detail-widget-collapsibles";
@@ -22,16 +26,28 @@ type Props = {
   hideWidgets?: TWorkItemWidgets[];
 };
 
-export function IssueDetailWidgets(props: Props) {
+export const IssueDetailWidgets = observer(function IssueDetailWidgets(props: Props) {
   const {
     workspaceSlug,
     projectId,
     issueId,
-    disabled,
+    disabled: isEditingDisabled,
     renderWidgetModals = true,
     issueServiceType,
     hideWidgets,
   } = props;
+  // store hooks
+  const { allowPermissions } = useUserPermissions();
+  // sub-work items, relations, links and attachments are added by members and admins only — a client editing their own
+  // work item sees them read-only
+  const disabled =
+    isEditingDisabled ||
+    !allowPermissions(
+      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+      EUserPermissionsLevel.PROJECT,
+      workspaceSlug,
+      projectId
+    );
 
   return (
     <>
@@ -64,4 +80,4 @@ export function IssueDetailWidgets(props: Props) {
       )}
     </>
   );
-}
+});

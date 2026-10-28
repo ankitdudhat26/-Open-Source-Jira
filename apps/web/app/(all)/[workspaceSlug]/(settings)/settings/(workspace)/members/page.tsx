@@ -94,7 +94,8 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
   const appliedRoleFilters = filtersStore.filters?.roles || [];
 
   // if user is not authorized to view this page
-  if (workspaceUserInfo && !canPerformWorkspaceMemberActions) {
+  // the members of the workspace are listed to its admins only
+  if (workspaceUserInfo && !canPerformWorkspaceAdminActions) {
     return <NotAuthorizedView section="settings" className="h-auto" />;
   }
 

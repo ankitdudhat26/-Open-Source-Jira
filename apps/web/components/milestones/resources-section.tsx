@@ -58,6 +58,7 @@ const RESOURCE_ROLES = [
   "Blockchain",
   "Business Consultant",
   "CI Backend",
+  "Client",
   "Content Writer",
   "Data Labelling",
   "Design",

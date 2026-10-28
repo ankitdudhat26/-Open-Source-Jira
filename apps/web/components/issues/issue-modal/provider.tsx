@@ -30,10 +30,8 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [pendingBlockedByIssues, setPendingBlockedByIssues] = useState<ISearchIssueResponse[]>([]);
   // store hooks
-  const { projectsWithCreatePermissions } = useUser();
+  const { projectIdsWithWorkItemCreatePermissions } = useUser();
   const { createAttachment, createRelation } = useIssueDetail();
-  // derived values
-  const projectIdsWithCreatePermissions = Object.keys(projectsWithCreatePermissions ?? {});
 
   // Runs after a work item is created or updated: uploads the attachments and adds the "blocked by" relations
   // that were picked in the create form.
@@ -65,7 +63,7 @@ export const IssueModalProvider = observer(function IssueModalProvider(props: TI
     <IssueModalContext.Provider
       // oxlint-disable-next-line react/jsx-no-constructed-context-values
       value={{
-        allowedProjectIds: allowedProjectIds ?? projectIdsWithCreatePermissions,
+        allowedProjectIds: allowedProjectIds ?? projectIdsWithWorkItemCreatePermissions,
         workItemTemplateId: null,
         setWorkItemTemplateId: () => {},
         isApplyingTemplate: false,

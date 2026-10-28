@@ -8,6 +8,7 @@ import type { MutableRefObject } from "react";
 // components
 import type { TIssue, IIssueDisplayProperties, TIssueMap, TGroupedIssues } from "@plane/types";
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
 // types
 import { IssueBlockRoot } from "./block-root";
@@ -17,7 +18,7 @@ interface Props {
   issueIds: TGroupedIssues | any;
   issuesMap: TIssueMap;
   groupId: string;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   quickActions: TRenderQuickActions;
   displayProperties: IIssueDisplayProperties | undefined;

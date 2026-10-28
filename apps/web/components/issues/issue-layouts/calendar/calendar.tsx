@@ -27,6 +27,7 @@ import { renderFormattedPayloadDate, cn } from "@plane/utils";
 import { MONTHS_LIST } from "@plane/constants";
 // helpers
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import useSize from "@/hooks/use-window-size";
 // store
@@ -68,7 +69,7 @@ type Props = {
     filterType: TSupportedFilterTypeForUpdate,
     filters: TSupportedFilterForUpdate
   ) => Promise<void>;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   isEpic?: boolean;
 };
 
@@ -160,6 +161,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
                         setSelectedDate={setSelectedDate}
                         handleDragAndDrop={handleDragAndDrop}
                         issuesFilterStore={issuesFilterStore}
+                        // oxlint-disable-next-line react/no-array-index-key -- a week is identified by its position in the month
                         key={weekIndex}
                         week={week}
                         issues={issues}

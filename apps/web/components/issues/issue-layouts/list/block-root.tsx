@@ -17,6 +17,7 @@ import type { IIssueDisplayProperties, TIssue, TIssueMap } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
 // components
 import { DropIndicator } from "@plane/blocks/common";
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { ListLoaderItemRow } from "@/components/ui/loader/layouts/list-layout-loader";
 // hooks
@@ -33,7 +34,7 @@ type Props = {
   issuesMap: TIssueMap;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   quickActions: TRenderQuickActions;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   displayProperties: IIssueDisplayProperties | undefined;
   nestingLevel: number;
   spacingLeft?: number;

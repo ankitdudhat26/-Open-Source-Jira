@@ -20,6 +20,7 @@ import { EIssueServiceType } from "@plane/types";
 import { ControlLink, Row } from "@plane/blocks/layout";
 import { cn, generateWorkItemLink } from "@plane/utils";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectEntityAction } from "@/components/core/multiple-select";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
@@ -39,7 +40,7 @@ interface Props {
   displayProperties: IIssueDisplayProperties;
   isEstimateEnabled: boolean;
   quickActions: TRenderQuickActions;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   portalElement: React.MutableRefObject<HTMLDivElement | null>;
   nestingLevel: number;
@@ -154,7 +155,7 @@ interface IssueRowDetailsProps {
   displayProperties: IIssueDisplayProperties;
   isEstimateEnabled: boolean;
   quickActions: TRenderQuickActions;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
   portalElement: React.MutableRefObject<HTMLDivElement | null>;
   nestingLevel: number;
@@ -241,12 +242,14 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
     }
   };
 
-  const disableUserActions = !canEditProperties(issueDetail.project_id ?? undefined);
+  const disableUserActions = !canEditProperties(issueDetail.project_id ?? undefined, issueDetail);
   const subIssuesCount = issueDetail?.sub_issues_count ?? 0;
   const isIssueSelected = selectionHelpers.getIsEntitySelected(issueDetail.id);
   const projectIdentifier = getProjectIdentifierById(issueDetail.project_id);
 
-  const canSelectIssues = !disableUserActions && !selectionHelpers.isSelectionDisabled;
+  // bulk operations stay with members and admins, so a client's own work items are not selectable
+  const canSelectIssues =
+    canEditProperties(issueDetail.project_id ?? undefined) && !selectionHelpers.isSelectionDisabled;
 
   const workItemLink = generateWorkItemLink({
     workspaceSlug: workspaceSlug?.toString(),
@@ -364,6 +367,7 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
                     </Tooltip>
                   </div>
                 </div>
+                {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops the row click behind the menu */}
                 <div
                   className={`opacity-0 transition-opacity group-hover:opacity-100 ${isMenuActive ? "!opacity-100" : ""}`}
                   onClick={(e) => e.stopPropagation()}

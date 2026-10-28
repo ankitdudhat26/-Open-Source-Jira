@@ -16,18 +16,26 @@ DEFAULT_DESIGNATION = "Developer"
 
 
 def is_workspace_assignable(workspace_id, user_id):
-    """Active members and admins of the workspace (not guests) can be brought into its projects."""
+    """Any active member of the workspace — admin, member or client — can be brought into its projects."""
     return WorkspaceMember.objects.filter(
-        workspace_id=workspace_id, member_id=user_id, is_active=True, role__gte=MEMBER, member__is_bot=False
+        workspace_id=workspace_id, member_id=user_id, is_active=True, member__is_bot=False
+    ).exists()
+
+
+def is_project_assignee_role(project_id, user_id):
+    """Work items can be assigned to the members and admins of a project only (not to its clients)."""
+    return ProjectMember.objects.filter(
+        project_id=project_id, member_id=user_id, is_active=True, role__gte=MEMBER
     ).exists()
 
 
 def add_members_to_project(project, user_ids, actor_id, origin, designation=""):
     """Add the given workspace members who are not in the project yet as project members and email them.
 
-    Only active workspace members and admins join (guests are skipped). Their project access level follows their
-    workspace role. Their project role is `designation` when given, else their job in the organisation, else the one
-    they hold in their latest project, else "Developer". Returns the ids of the members added.
+    Any active workspace member joins — admins, members and clients alike. Their project access level follows their
+    workspace role, so a client joins as a client. Their project role is `designation` when given, else their job in
+    the organisation, else the one they hold in their latest project, else "Developer". Returns the ids of the members
+    added.
     """
     if not user_ids:
         return []
@@ -37,16 +45,18 @@ def add_members_to_project(project, user_ids, actor_id, origin, designation=""):
             workspace_id=project.workspace_id,
             member_id__in=user_ids,
             is_active=True,
-            role__gte=MEMBER,
             member__is_bot=False,
         ).values_list("member_id", "role", "company_role")
     )
     workspace_roles = {member_id: role for member_id, role, _ in workspace_members}
-    in_project = set(
-        ProjectMember.objects.filter(
-            project=project, member_id__in=workspace_roles.keys(), is_active=True, role__gte=MEMBER
-        ).values_list("member_id", flat=True)
-    )
+    # in the project already, unless a workspace member/admin is only a client of it (they are brought up)
+    in_project = {
+        member_id
+        for member_id, role in ProjectMember.objects.filter(
+            project=project, member_id__in=workspace_roles.keys(), is_active=True
+        ).values_list("member_id", "role")
+        if role >= MEMBER or workspace_roles[member_id] < MEMBER
+    }
     new_ids = [member_id for member_id in workspace_roles if member_id not in in_project]
     if not new_ids:
         return []

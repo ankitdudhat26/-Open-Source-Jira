@@ -12,7 +12,6 @@ import { MemberSelect as MemberSelectBlock } from "@plane/blocks/property-select
 import type { MemberOption, MemberSelectVariant } from "@plane/blocks/property-select";
 import type { SelectPaginationParams, SelectTooltip, SelectTooltipOverride } from "@plane/blocks/select";
 import { useTranslation } from "@plane/i18n";
-import { EUserPermissions } from "@plane/constants";
 import type { TPaginatedResponse } from "@plane/types";
 import { getFileURL } from "@plane/utils";
 // hooks
@@ -31,8 +30,8 @@ type MemberSelectWebCommonProps = {
    */
   memberIds?: string[];
   /**
-   * Offer the members and admins of the workspace (no guests, no suspended members) instead of the project roster —
-   * for mapping a resource, which brings the picked member into the project.
+   * Offer every active member of the workspace — admins, members and clients, not suspended ones — instead of the
+   * project roster, for mapping a resource, which brings the picked member into the project.
    */
   workspaceAssignable?: boolean;
   /**
@@ -102,7 +101,7 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
   const {
     getUserDetails,
     project: { getProjectMemberIds, fetchProjectMembers },
-    workspace: { workspaceMemberIds, isUserSuspended, getWorkspaceMemberDetails },
+    workspace: { workspaceMemberIds, isUserSuspended },
   } = useMember();
   const { data: currentUser } = useUser();
   const { resources } = useProjectResources(
@@ -149,11 +148,7 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
         rosterIds = getProjectMemberIds(projectId, false);
       }
       if (workspaceAssignable && !memberIds && slug) {
-        rosterIds = (workspaceMemberIds ?? []).filter(
-          (id) =>
-            !isUserSuspended(id, slug) &&
-            (getWorkspaceMemberDetails(id)?.role ?? EUserPermissions.GUEST) >= EUserPermissions.MEMBER
-        );
+        rosterIds = (workspaceMemberIds ?? []).filter((id) => !isUserSuspended(id, slug));
       } else if (resourceMembers && !memberIds && projectId) {
         // the people filling the resources who are (still) in the project, then anyone already selected
         const inProject = new Set(rosterIds ?? []);
@@ -190,7 +185,6 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
       resources,
       selectedKey,
       isUserSuspended,
-      getWorkspaceMemberDetails,
     ]
   );
 

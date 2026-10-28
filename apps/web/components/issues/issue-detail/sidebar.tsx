@@ -25,6 +25,8 @@ import {
 import { DateSelect } from "@plane/blocks/property-select";
 import { cn, getDate, renderFormattedPayloadDate, shouldHighlightIssueDueDate } from "@plane/utils";
 // components
+import { useUserPermissions } from "@/hooks/store/user";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
@@ -59,6 +61,15 @@ type Props = {
 export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: Props) {
   const { t } = useTranslation();
   const { workspaceSlug, projectId, issueId, issueOperations, isEditable } = props;
+  // module, sprint, queue and custom fields are set by members and admins only (not by a client editing their own work item)
+  const { allowPermissions } = useUserPermissions();
+  const isMemberOrAdmin = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
+
   // store hooks
   const { getProjectById } = useProject();
   const { areEstimateEnabledByProjectId } = useProjectEstimates();
@@ -132,7 +143,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 workspaceSlug={workspaceSlug}
                 projectId={projectId}
                 issueId={issueId}
-                disabled={!isEditable}
+                disabled={!isEditable || !isMemberOrAdmin}
               />
             </SidebarPropertyListItem>
 
@@ -140,7 +151,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               workspaceSlug={workspaceSlug}
               projectId={projectId}
               issueId={issueId}
-              disabled={!isEditable}
+              disabled={!isEditable || !isMemberOrAdmin}
             />
 
             <SidebarPropertyListItem icon={PriorityOutline} label={t("common.priority")}>
@@ -232,7 +243,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                   projectId={projectId}
                   issueId={issueId}
                   issueOperations={issueOperations}
-                  disabled={!isEditable}
+                  disabled={!isEditable || !isMemberOrAdmin}
                 />
               </SidebarPropertyListItem>
             )}
@@ -245,7 +256,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                   projectId={projectId}
                   issueId={issueId}
                   issueOperations={issueOperations}
-                  disabled={!isEditable}
+                  disabled={!isEditable || !isMemberOrAdmin}
                 />
               </SidebarPropertyListItem>
             )}

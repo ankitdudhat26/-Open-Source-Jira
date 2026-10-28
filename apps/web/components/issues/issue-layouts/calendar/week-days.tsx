@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import type { TGroupedIssues, TIssue, TIssueMap, TPaginationData, ICalendarDate, ICalendarWeek } from "@plane/types";
 import { cn, getOrderedDays, renderFormattedPayloadDate } from "@plane/utils";
 // hooks
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useUserProfile } from "@/hooks/store/user";
 // types
 import type { ICycleIssuesFilter } from "@/store/issue/cycle";
@@ -40,7 +41,7 @@ type Props = {
   readOnly?: boolean;
   selectedDate: Date;
   setSelectedDate: (date: Date) => void;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   isEpic?: boolean;
 };
 

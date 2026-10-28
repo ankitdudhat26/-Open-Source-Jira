@@ -261,9 +261,11 @@ class SOWImportEndpoint(BaseAPIView):
             resource_members={k: v for k, v in resource_members.items() if v},
             user=request.user,
         )
-        bring_resource_members_in(
-            project, ProjectResource.objects.filter(project=project, member_id__isnull=False), request
-        )
+        mapped_resources = list(ProjectResource.objects.filter(project=project, member_id__isnull=False))
+        bring_resource_members_in(project, mapped_resources, request)
+        # the tasks go to the mapped members now that they are in the project (clients excepted)
+        for resource in mapped_resources:
+            sync_resource_assignees(resource)
         return Response(
             {"summary": summary, "errors": [], "warnings": warnings, "imported": True},
             status=status.HTTP_200_OK,

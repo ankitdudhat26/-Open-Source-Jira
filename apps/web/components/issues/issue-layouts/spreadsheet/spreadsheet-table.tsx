@@ -10,6 +10,7 @@ import { observer } from "mobx-react";
 // plane imports
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties, TIssue } from "@plane/types";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { SpreadsheetIssueRowLoader } from "@/components/ui/loader/layouts/spreadsheet-layout-loader";
 // hooks
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
@@ -30,7 +31,7 @@ type Props = {
   isEstimateEnabled: boolean;
   quickActions: TRenderQuickActions;
   updateIssue: ((projectId: string | null, issueId: string, data: Partial<TIssue>) => Promise<void>) | undefined;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   portalElement: React.MutableRefObject<HTMLDivElement | null>;
   containerRef: MutableRefObject<HTMLTableElement | null>;
   canLoadMoreIssues: boolean;
@@ -145,6 +146,7 @@ export const SpreadsheetTable = observer(function SpreadsheetTable(props: Props)
       {canLoadMoreIssues && (
         <tfoot ref={setIntersectionElement}>
           {Array.from({ length: 3 }).map((_, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- placeholder rows have nothing else to key on
             <SpreadsheetIssueRowLoader key={index} columnCount={displayPropertiesCount} />
           ))}
         </tfoot>

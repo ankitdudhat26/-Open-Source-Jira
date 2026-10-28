@@ -26,6 +26,7 @@ import { EIssueLayoutTypes } from "@plane/types";
 import { Row } from "@plane/blocks/layout";
 import { cn } from "@plane/utils";
 // components
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { ListLoaderItemRow } from "@/components/ui/loader/layouts/list-layout-loader";
 import { useWorkFlowFDragNDrop } from "@/components/workflow";
 // hooks
@@ -58,7 +59,7 @@ interface Props {
   quickActions: TRenderQuickActions;
   displayProperties: IIssueDisplayProperties | undefined;
   enableIssueQuickAdd: boolean;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   containerRef: MutableRefObject<HTMLDivElement | null>;
   quickAddCallback?: ((projectId: string | null | undefined, data: TIssue) => Promise<TIssue | undefined>) | undefined;
   handleOnDrop: (source: GroupDropLocation, destination: GroupDropLocation) => Promise<void>;

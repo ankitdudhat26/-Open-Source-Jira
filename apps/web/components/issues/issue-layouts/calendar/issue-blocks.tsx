@@ -10,6 +10,7 @@ import type { TIssue, TPaginationData } from "@plane/types";
 // components
 import { renderFormattedPayloadDate } from "@plane/utils";
 // helpers
+import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssuesStore } from "@/hooks/use-issue-layout-store";
 import type { TRenderQuickActions } from "../list/list-view-types";
 import { CalendarIssueBlockRoot } from "./issue-block-root";
@@ -30,7 +31,7 @@ type Props = {
   addIssuesToView?: (issueIds: string[]) => Promise<any>;
   readOnly?: boolean;
   isMobileView?: boolean;
-  canEditProperties: (projectId: string | undefined) => boolean;
+  canEditProperties: TCanEditProperties;
   isEpic?: boolean;
 };
 

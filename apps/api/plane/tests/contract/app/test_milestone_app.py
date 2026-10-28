@@ -598,17 +598,35 @@ class TestResourceMemberJoinsProject:
         assert ProjectMember.objects.get(project=project, member=developer).designation == "Developer"
 
     @pytest.mark.django_db
-    def test_workspace_guest_cannot_be_mapped(self, session_client, workspace, invite_email):
+    def test_workspace_client_joins_as_client_without_tasks(self, session_client, workspace, invite_email):
         project = _create_project(session_client, workspace)
         client = _workspace_user(workspace, role=5)
 
         response = session_client.post(
-            _url(workspace, project, "resources/"), {"role": "QA", "member_id": str(client.id)}, format="json"
+            _url(workspace, project, "sow-import/"),
+            {"file": _sow_file(), "resource_members": json.dumps({"R02": str(client.id)})},
+            format="multipart",
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not ProjectMember.objects.filter(project=project, member=client).exists()
-        invite_email.assert_not_called()
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert ProjectResource.objects.get(project=project, code="R02").member_id == client.id
+        member = ProjectMember.objects.get(project=project, member=client)
+        assert (member.role, member.is_active) == (5, True)
+        invite_email.assert_called_once()
+        # work items go to members and admins only
+        assert not IssueAssignee.objects.filter(issue__project=project, assignee=client).exists()
+
+    @pytest.mark.django_db
+    def test_client_of_the_project_is_brought_up_to_member(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        developer = _workspace_user(workspace)
+        ProjectMember.objects.create(project=project, member=developer, role=5)
+
+        session_client.post(
+            _url(workspace, project, "resources/"), {"role": "Backend", "member_id": str(developer.id)}, format="json"
+        )
+
+        assert ProjectMember.objects.get(project=project, member=developer).role == 15
 
     @pytest.mark.django_db
     def test_sow_import_brings_mapped_members_in(self, session_client, workspace, invite_email):
