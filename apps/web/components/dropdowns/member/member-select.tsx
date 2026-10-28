@@ -12,11 +12,13 @@ import { MemberSelect as MemberSelectBlock } from "@plane/blocks/property-select
 import type { MemberOption, MemberSelectVariant } from "@plane/blocks/property-select";
 import type { SelectPaginationParams, SelectTooltip, SelectTooltipOverride } from "@plane/blocks/select";
 import { useTranslation } from "@plane/i18n";
+import { EUserPermissions } from "@plane/constants";
 import type { TPaginatedResponse } from "@plane/types";
 import { getFileURL } from "@plane/utils";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUser } from "@/hooks/store/user";
+import { useProjectResources } from "@/hooks/use-project-milestones";
 
 type MemberSelectWebCommonProps = {
   /** value-agnostic e2e selector — forwarded to the block's trigger as data-testid */
@@ -28,6 +30,16 @@ type MemberSelectWebCommonProps = {
    * client-filtered by the search box.
    */
   memberIds?: string[];
+  /**
+   * Offer the members and admins of the workspace (no guests, no suspended members) instead of the project roster —
+   * for mapping a resource, which brings the picked member into the project.
+   */
+  workspaceAssignable?: boolean;
+  /**
+   * With `projectId`: offer the members who fill the project's resources (Milestones → Resources), plus whoever is
+   * selected already. Falls back to the project roster while no resource has a member.
+   */
+  resourceMembers?: boolean;
   /** Ids to hide from the options even though they're in scope (e.g. members picked in sibling rows). */
   excludeIds?: string[];
   variant: MemberSelectVariant;
@@ -68,6 +80,8 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
   const {
     projectId,
     memberIds,
+    workspaceAssignable,
+    resourceMembers,
     excludeIds,
     variant,
     showLabel,
@@ -88,9 +102,15 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
   const {
     getUserDetails,
     project: { getProjectMemberIds, fetchProjectMembers },
-    workspace: { workspaceMemberIds, isUserSuspended },
+    workspace: { workspaceMemberIds, isUserSuspended, getWorkspaceMemberDetails },
   } = useMember();
   const { data: currentUser } = useUser();
+  const { resources } = useProjectResources(
+    resourceMembers ? slug : undefined,
+    resourceMembers ? projectId : undefined
+  );
+  // a string, so a fresh `value` array with the same ids does not rebuild `getValues`
+  const selectedKey = (props.multiple ? props.value : props.value ? [props.value] : []).join(",");
   // translation
   const { t } = useTranslation();
   const resolvedTooltip = useMemo<SelectTooltipOverride | undefined>(() => {
@@ -128,6 +148,20 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
         await fetchProjectMembers(slug, projectId);
         rosterIds = getProjectMemberIds(projectId, false);
       }
+      if (workspaceAssignable && !memberIds && slug) {
+        rosterIds = (workspaceMemberIds ?? []).filter(
+          (id) =>
+            !isUserSuspended(id, slug) &&
+            (getWorkspaceMemberDetails(id)?.role ?? EUserPermissions.GUEST) >= EUserPermissions.MEMBER
+        );
+      } else if (resourceMembers && !memberIds && projectId) {
+        // the people filling the resources who are (still) in the project, then anyone already selected
+        const inProject = new Set(rosterIds ?? []);
+        const filling = (resources ?? []).flatMap((resource) =>
+          resource.member_id && inProject.has(resource.member_id) ? [resource.member_id] : []
+        );
+        if (filling.length) rosterIds = [...new Set([...filling, ...selectedKey.split(",").filter(Boolean)])];
+      }
       const query = search?.trim().toLowerCase();
       const results: MemberOption[] = [];
       for (const id of rosterIds ?? []) {
@@ -151,6 +185,12 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
       getUserDetails,
       toOption,
       currentUser?.id,
+      workspaceAssignable,
+      resourceMembers,
+      resources,
+      selectedKey,
+      isUserSuspended,
+      getWorkspaceMemberDetails,
     ]
   );
 

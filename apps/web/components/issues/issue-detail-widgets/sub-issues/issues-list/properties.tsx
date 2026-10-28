@@ -212,6 +212,7 @@ export const SubIssuesListItemProperties = observer(function SubIssuesListItemPr
       <WithDisplayPropertiesHOC displayProperties={displayProperties} displayPropertyKey="assignee">
         <MemberSelect
           value={issue.assignee_ids ?? []}
+          resourceMembers
           projectId={issue.project_id ?? undefined}
           onChange={(val) =>
             issue.project_id &&

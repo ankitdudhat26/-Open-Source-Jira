@@ -36,6 +36,7 @@ export const SpreadsheetAssigneeColumn = observer(function SpreadsheetAssigneeCo
           );
         }}
         projectId={issue?.project_id ?? undefined}
+        resourceMembers
         disabled={disabled}
         multiple
         placeholder="Assignees"

@@ -14,6 +14,7 @@ import { Dialog, DialogContent } from "@makeplane/propel/components/dialog";
 import { Field } from "@makeplane/propel/components/field";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Input, InputGroup } from "@makeplane/propel/components/input";
+import { Select, SelectContent, SelectItem, SelectList, SelectTrigger } from "@makeplane/propel/components/select";
 import { TextArea, TextAreaGroup } from "@makeplane/propel/components/text-area";
 import { AddOutline, DeleteOutline } from "@makeplane/propel/icons";
 import { ConfirmDialog } from "@plane/blocks/dialog";
@@ -23,6 +24,7 @@ import { cn } from "@plane/utils";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 // hooks
+import { useMember } from "@/hooks/store/use-member";
 import { PROJECT_RESOURCES, projectMilestoneService, useProjectResources } from "@/hooks/use-project-milestones";
 
 type Props = {
@@ -43,7 +45,71 @@ const RESOURCE_GRID = "grid grid-cols-[64px_minmax(180px,1fr)_130px_minmax(240px
 
 const DEFAULT_RESOURCE: TResourceForm = { role: "", resource_type: "", responsibilities: "", member_id: null };
 
-function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; workspaceSlug: string; projectId: string }) {
+/** The roles a resource can fill, in the order the Role dropdown lists them. */
+const RESOURCE_ROLES = [
+  "3D Artist",
+  "Admin",
+  "AI",
+  "Android",
+  "Angular JS",
+  "API Development",
+  "BA",
+  "Backend",
+  "Blockchain",
+  "Business Consultant",
+  "CI Backend",
+  "Content Writer",
+  "Data Labelling",
+  "Design",
+  "devOps",
+  "Discovery Phase",
+  "Embedded",
+  "EXTJS",
+  "Flutter",
+  "Ionic",
+  "iOS",
+  "JAVA",
+  "Java + Angular JS",
+  "Java + React JS",
+  "KT",
+  "Laravel Backend",
+  "Maintenance Package",
+  ".Net Backend",
+  "Next js",
+  "Node JS",
+  "Node JS + Angular JS",
+  "Node JS + React JS",
+  "Other",
+  "Partner Development Manager",
+  "Project Management",
+  "PyQt5",
+  "Python",
+  "Python + Angular JS",
+  "Python + React JS",
+  "React JS",
+  "React Native",
+  "Salesforce",
+  "Selenium",
+  "SEO",
+  "Support",
+  "System Admin",
+  "System Admin + DevOps",
+  "Testing",
+  "Trainees",
+  "Unity Game Development",
+  "Video Editor",
+  "Web Designer",
+  "Website",
+  "Wordpress Website",
+];
+const RESOURCE_ROLE_ITEMS = RESOURCE_ROLES.map((role) => ({ value: role, label: role }));
+
+const ResourceFormModal = observer(function ResourceFormModal(props: {
+  isOpen: boolean;
+  onClose: () => void;
+  workspaceSlug: string;
+  projectId: string;
+}) {
   const { isOpen, onClose, workspaceSlug, projectId } = props;
   const {
     control,
@@ -51,7 +117,9 @@ function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; worksp
     reset,
     formState: { errors, isSubmitting },
   } = useForm<TResourceForm>({ defaultValues: DEFAULT_RESOURCE });
-
+  const {
+    project: { fetchProjectMembers },
+  } = useMember();
   useEffect(() => {
     if (isOpen) reset(DEFAULT_RESOURCE);
   }, [isOpen, reset]);
@@ -63,7 +131,13 @@ function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; worksp
         role: formData.role.trim(),
       });
       await mutate(PROJECT_RESOURCES(projectId));
-      setToast({ type: "success", title: "Success!", message: "Resource added." });
+      // the mapped member joined the project and was emailed an invite
+      if (formData.member_id) await fetchProjectMembers(workspaceSlug, projectId);
+      setToast({
+        type: "success",
+        title: "Success!",
+        message: formData.member_id ? "Resource added. The member now has access to the project." : "Resource added.",
+      });
       onClose();
     } catch {
       setToast({ type: "error", title: "Error!", message: "Resource could not be added." });
@@ -89,15 +163,22 @@ function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; worksp
                 rules={{ validate: (value) => value.trim() !== "" || "Role is required" }}
                 render={({ field: { value, onChange } }) => (
                   <Field name="role" invalid={Boolean(errors.role)}>
-                    <InputGroup size="xl">
-                      <Input
-                        size="xl"
-                        type="text"
-                        value={value}
-                        onChange={onChange}
-                        placeholder="Role, e.g. QA Engineer"
-                      />
-                    </InputGroup>
+                    <Select<string>
+                      items={RESOURCE_ROLE_ITEMS}
+                      value={value || null}
+                      onValueChange={(role) => {
+                        if (role) onChange(role);
+                      }}
+                    >
+                      <SelectTrigger size="md" placeholder="Select role" aria-label="Role" />
+                      <SelectContent side="bottom" align="start">
+                        <SelectList>
+                          {RESOURCE_ROLE_ITEMS.map((option) => (
+                            <SelectItem key={option.value} value={option.value} size="md" label={option.label} />
+                          ))}
+                        </SelectList>
+                      </SelectContent>
+                    </Select>
                   </Field>
                 )}
               />
@@ -147,6 +228,7 @@ function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; worksp
                 render={({ field: { value, onChange } }) => (
                   <MemberSelect
                     projectId={projectId}
+                    workspaceAssignable
                     value={value}
                     onChange={(memberId) => onChange(!memberId || memberId === value ? null : memberId)}
                     multiple={false}
@@ -172,9 +254,12 @@ function ResourceFormModal(props: { isOpen: boolean; onClose: () => void; worksp
       </DialogContent>
     </Dialog>
   );
-}
+});
 
-/** SOW resources (roles) and the project member filling each one. Tasks of a resource are assigned to its member. */
+/**
+ * SOW resources (roles) and the member filling each one. Any workspace member can be mapped: they join the project
+ * and get an invite email, their resource's tasks are assigned to them, and they are who the Assignees pickers offer.
+ */
 export const ResourcesSection = observer(function ResourcesSection(props: Props) {
   const { workspaceSlug, projectId, isAdmin } = props;
   // states
@@ -184,17 +269,22 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   // hooks
   const { resources } = useProjectResources(workspaceSlug, projectId);
+  const {
+    project: { fetchProjectMembers },
+  } = useMember();
 
   const handleMemberChange = async (resource: TProjectResource, memberId: string | null) => {
     setUpdatingId(resource.id);
     try {
       await projectMilestoneService.updateResource(workspaceSlug, projectId, resource.id, { member_id: memberId });
       await mutate(PROJECT_RESOURCES(projectId));
+      // the mapped member joined the project and was emailed an invite
+      if (memberId) await fetchProjectMembers(workspaceSlug, projectId);
       setToast({
         type: "success",
         title: "Success!",
         message: memberId
-          ? `${resource.task_count} work items of ${resource.role} are assigned to the selected member.`
+          ? `${resource.task_count} work items of ${resource.role} are assigned to the selected member, who now has access to the project.`
           : `${resource.role} is no longer mapped to a member.`,
       });
     } catch {
@@ -222,7 +312,8 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
     <div className="flex h-full w-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-subtle px-page-x py-2.5">
         <span className="text-caption-sm-regular text-tertiary">
-          Map each role to the member who fills it. Their tasks are assigned to that member automatically.
+          Map each role to the member who fills it. They get access to the project and an invite email, their tasks are
+          assigned to them automatically, and they are the people offered in Assignees.
         </span>
         {isAdmin && (
           <div className="ml-auto">
@@ -281,6 +372,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
                   <span className="min-w-0 pr-3">
                     <MemberSelect
                       projectId={projectId}
+                      workspaceAssignable
                       value={resource.member_id}
                       onChange={(memberId) =>
                         handleMemberChange(resource, !memberId || memberId === resource.member_id ? null : memberId)

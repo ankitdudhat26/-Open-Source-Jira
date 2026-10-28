@@ -135,6 +135,7 @@ export const IssueDefaultProperties = observer(function IssueDefaultProperties(p
           <MemberSelect
             testId="create-work-item-assignee-select"
             projectId={projectId ?? undefined}
+            resourceMembers
             value={value}
             onChange={(assigneeIds) => {
               onChange(assigneeIds);

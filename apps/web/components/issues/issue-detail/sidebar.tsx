@@ -109,6 +109,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
                 onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { assignee_ids: val })}
                 disabled={!isEditable}
                 projectId={projectId}
+                resourceMembers
                 placeholder={t("issue.add.assignee")}
                 multiple
                 variant="select-ghost-md"

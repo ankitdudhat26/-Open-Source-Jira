@@ -7,8 +7,8 @@ from rest_framework import serializers
 
 # Module imports
 from .base import BaseSerializer
-from plane.db.models import Deliverable, Milestone, Module, ProjectResource, User
-from plane.utils.project_resources import is_assignable_member
+from plane.db.models import Deliverable, Milestone, Module, Project, ProjectResource, User
+from plane.utils.project_membership import is_workspace_assignable
 
 
 class MilestoneSerializer(BaseSerializer):
@@ -109,8 +109,15 @@ class ProjectResourceSerializer(BaseSerializer):
 
     def validate(self, attrs):
         member = attrs.get("member")
-        if member is not None and not is_assignable_member(self.context.get("project_id"), member.id):
-            raise serializers.ValidationError({"member_id": "Only members and admins of the project can be mapped"})
+        if member is not None:
+            workspace_id = (
+                Project.objects.filter(pk=self.context.get("project_id")).values_list("workspace_id", flat=True).first()
+            )
+            # the member joins the project when mapped (see ProjectResourceEndpoint)
+            if not is_workspace_assignable(workspace_id, member.id):
+                raise serializers.ValidationError(
+                    {"member_id": "Only members and admins of the workspace can be mapped"}
+                )
         if "role" in attrs and not attrs["role"].strip():
             raise serializers.ValidationError({"role": "Role is required"})
         return attrs

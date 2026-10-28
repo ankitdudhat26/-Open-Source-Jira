@@ -3,7 +3,9 @@
 # See the LICENSE file for details.
 
 import json
+import uuid
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -365,7 +367,7 @@ class TestProjectResources:
         assert not IssueAssignee.objects.filter(issue__external_id="T003", assignee=create_user).exists()
 
     @pytest.mark.django_db
-    def test_only_project_members_can_be_mapped(self, session_client, workspace):
+    def test_only_workspace_members_can_be_mapped(self, session_client, workspace):
         project = _create_project(session_client, workspace)
         outsider = User.objects.create(email="outsider@plane.so", username="outsider")
 
@@ -532,3 +534,96 @@ class TestWorkItemTree:
 
         ordered = list(Module.objects.filter(project=project).order_by("sort_order").values_list("external_id", flat=True))
         assert ordered == ["MOD01", "MOD02"]
+
+
+def _workspace_user(workspace, role=15):
+    suffix = uuid.uuid4().hex[:6]
+    user = User.objects.create(email=f"dev-{suffix}@example.com", username=f"dev_{suffix}")
+    WorkspaceMember.objects.create(workspace=workspace, member=user, role=role)
+    return user
+
+
+@pytest.fixture
+def invite_email():
+    with mock.patch("plane.utils.project_membership.project_add_user_email.delay") as delay:
+        yield delay
+
+
+@pytest.mark.contract
+class TestResourceMemberJoinsProject:
+    """The member who fills a resource gets full access to the project and the invite email."""
+
+    @pytest.mark.django_db
+    def test_added_resource_brings_the_member_in(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        tester = _workspace_user(workspace)
+
+        response = session_client.post(
+            _url(workspace, project, "resources/"),
+            {"role": "QA Engineer", "resource_type": "QA", "member_id": str(tester.id)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        member = ProjectMember.objects.get(project=project, member=tester)
+        assert (member.role, member.designation, member.is_active) == (15, "QA Engineer", True)
+        invite_email.assert_called_once()
+        assert invite_email.call_args.args[1] == member.id
+
+    @pytest.mark.django_db
+    def test_workspace_admin_joins_as_project_admin(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        lead = _workspace_user(workspace, role=20)
+        resource = ProjectResource.objects.create(project=project, workspace=workspace, role="Tech Lead")
+
+        response = session_client.patch(
+            _url(workspace, project, f"resources/{resource.id}/"), {"member_id": str(lead.id)}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert ProjectMember.objects.get(project=project, member=lead).role == 20
+        invite_email.assert_called_once()
+
+    @pytest.mark.django_db
+    def test_existing_project_member_is_not_invited_again(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        developer = _workspace_user(workspace)
+        ProjectMember.objects.create(project=project, member=developer, role=15, designation="Developer")
+
+        session_client.post(
+            _url(workspace, project, "resources/"), {"role": "Backend", "member_id": str(developer.id)}, format="json"
+        )
+
+        invite_email.assert_not_called()
+        assert ProjectMember.objects.get(project=project, member=developer).designation == "Developer"
+
+    @pytest.mark.django_db
+    def test_workspace_guest_cannot_be_mapped(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        client = _workspace_user(workspace, role=5)
+
+        response = session_client.post(
+            _url(workspace, project, "resources/"), {"role": "QA", "member_id": str(client.id)}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not ProjectMember.objects.filter(project=project, member=client).exists()
+        invite_email.assert_not_called()
+
+    @pytest.mark.django_db
+    def test_sow_import_brings_mapped_members_in(self, session_client, workspace, invite_email):
+        project = _create_project(session_client, workspace)
+        developer = _workspace_user(workspace)
+
+        response = session_client.post(
+            _url(workspace, project, "sow-import/"),
+            {"file": _sow_file(), "resource_members": json.dumps({"R02": str(developer.id)})},
+            format="multipart",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        resource = ProjectResource.objects.get(project=project, code="R02")
+        assert resource.member_id == developer.id
+        member = ProjectMember.objects.get(project=project, member=developer)
+        assert member.designation == resource.role
+        invite_email.assert_called_once()

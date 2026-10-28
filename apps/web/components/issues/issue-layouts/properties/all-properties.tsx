@@ -57,7 +57,7 @@ export interface IIssueProperties {
 }
 
 export const IssueProperties = observer(function IssueProperties(props: IIssueProperties) {
-  const { issue, updateIssue, displayProperties, isReadOnly, className, isEpic = false } = props;
+  const { issue, updateIssue, displayProperties, isReadOnly, className, activeLayout, isEpic = false } = props;
   // i18n
   const { t } = useTranslation();
   // store hooks
@@ -322,11 +322,14 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
         <div className="h-5" onFocus={handleEventPropagation} onClick={handleEventPropagation}>
           <MemberSelect
             projectId={issue?.project_id ?? undefined}
+            resourceMembers
             value={issue?.assignee_ids ?? []}
             onChange={handleAssignee}
             disabled={isReadOnly}
             multiple
             variant={issue.assignee_ids?.length ? "avatar-group-sm" : "pill-sm"}
+            // the list row has room for the assignees' names next to their faces
+            showLabel={activeLayout === "List" ? true : undefined}
             placeholder={t("common.assignees")}
             tooltip={{ heading: t("common.assignees") }}
           />

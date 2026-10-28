@@ -36,7 +36,8 @@ from plane.db.models import (
     ProjectResource,
     State,
 )
-from plane.utils.project_resources import is_assignable_member, sync_resource_assignees
+from plane.utils.project_membership import is_workspace_assignable
+from plane.utils.project_resources import sync_resource_assignees
 from plane.utils.sow_descriptions import fill_sow_descriptions
 from plane.utils.work_item_types import ensure_project_work_item_types
 
@@ -280,7 +281,7 @@ def import_sow(project, data, resource_members=None, user=None):
         resource.external_source = SOW_SOURCE
         resource.external_id = row["id"]
         member_id = (resource_members or {}).get(row["id"])
-        if member_id and is_assignable_member(project.id, member_id):
+        if member_id and is_workspace_assignable(project.workspace_id, member_id):
             resource.member_id = member_id
         resource.save()
         resources.append(resource)

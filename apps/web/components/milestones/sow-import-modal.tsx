@@ -18,6 +18,7 @@ import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import type { TSOWImportError, TSOWImportResponse } from "@plane/types";
 // hooks
 import { useLabel } from "@/hooks/store/use-label";
+import { useMember } from "@/hooks/store/use-member";
 import { useModule } from "@/hooks/store/use-module";
 import { useProject } from "@/hooks/store/use-project";
 import {
@@ -88,6 +89,9 @@ export const SOWImportModal = observer(function SOWImportModal(props: Props) {
   const { fetchModules } = useModule();
   const { fetchProjectLabels } = useLabel();
   const { fetchProjectDetails } = useProject();
+  const {
+    project: { fetchProjectMembers },
+  } = useMember();
   const { resources: existingResources } = useProjectResources(workspaceSlug, projectId);
 
   const reset = () => {
@@ -150,6 +154,8 @@ export const SOWImportModal = observer(function SOWImportModal(props: Props) {
         fetchProjectLabels(workspaceSlug, projectId),
         // the import turns on modules for the project
         fetchProjectDetails(workspaceSlug, projectId),
+        // the members mapped to resources joined the project
+        fetchProjectMembers(workspaceSlug, projectId),
       ]);
       const { counts } = response.summary;
       setToast({
@@ -301,6 +307,7 @@ export const SOWImportModal = observer(function SOWImportModal(props: Props) {
                             <td className="w-48 px-3 py-1.5">
                               <MemberSelect
                                 projectId={projectId}
+                                workspaceAssignable
                                 value={resourceMembers[resource.id] ?? null}
                                 onChange={(memberId) =>
                                   setResourceMembers((current) => {

@@ -3,14 +3,7 @@
 # See the LICENSE file for details.
 
 # Module imports
-from plane.db.models import IssueAssignee, IssueLabel, ProjectMember
-
-
-def is_assignable_member(project_id, user_id):
-    """Only active members and admins of the project can be assigned work."""
-    return ProjectMember.objects.filter(
-        project_id=project_id, member_id=user_id, role__gte=15, is_active=True
-    ).exists()
+from plane.db.models import IssueAssignee, IssueLabel
 
 
 def sync_resource_assignees(resource, previous_member_id=None):

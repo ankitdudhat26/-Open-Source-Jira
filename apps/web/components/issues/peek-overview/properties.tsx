@@ -104,6 +104,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
             onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { assignee_ids: val })}
             disabled={disabled}
             projectId={projectId}
+            resourceMembers
             placeholder={t("issue.add.assignee")}
             multiple
             variant="select-ghost-md"

@@ -28,6 +28,8 @@ from plane.db.models import (
     ProjectResource,
 )
 from plane.utils.grouper import issue_queryset_grouper
+from plane.utils.host import base_host
+from plane.utils.project_membership import add_members_to_project
 from plane.utils.project_resources import sync_resource_assignees
 from plane.utils.sow_import import GROUP_COLORS, RESOURCE_GROUP, ensure_label
 from plane.utils.sow_import import build_summary, import_sow
@@ -259,6 +261,9 @@ class SOWImportEndpoint(BaseAPIView):
             resource_members={k: v for k, v in resource_members.items() if v},
             user=request.user,
         )
+        bring_resource_members_in(
+            project, ProjectResource.objects.filter(project=project, member_id__isnull=False), request
+        )
         return Response(
             {"summary": summary, "errors": [], "warnings": warnings, "imported": True},
             status=status.HTTP_200_OK,
@@ -288,6 +293,19 @@ def serialize_resources(resources):
     ]
 
 
+def bring_resource_members_in(project, resources, request):
+    """The member who fills a resource joins the project (full access as a member) and gets the invite email."""
+    for resource in resources:
+        if resource.member_id:
+            add_members_to_project(
+                project,
+                [resource.member_id],
+                request.user.id,
+                base_host(request=request, is_app=True),
+                designation=resource.role,
+            )
+
+
 class ProjectResourceEndpoint(BaseAPIView):
     """Roles of the project (from the SOW or added manually) and the members mapped to them."""
 
@@ -314,6 +332,9 @@ class ProjectResourceEndpoint(BaseAPIView):
                 color=GROUP_COLORS[RESOURCE_GROUP],
             )
             resource.save(update_fields=["label", "updated_at"])
+        bring_resource_members_in(project, [resource], request)
+        if resource.member_id:
+            sync_resource_assignees(resource)
         return Response(serialize_resources([resource])[0], status=status.HTTP_201_CREATED)
 
     @allow_permission([ROLE.ADMIN])
@@ -326,8 +347,9 @@ class ProjectResourceEndpoint(BaseAPIView):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             resource = serializer.save()
-            if "member_id" in request.data:
-                sync_resource_assignees(resource, previous_member_id=previous_member_id)
+        if "member_id" in request.data:
+            bring_resource_members_in(resource.project, [resource], request)
+            sync_resource_assignees(resource, previous_member_id=previous_member_id)
         return Response(serialize_resources([resource])[0], status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN])
