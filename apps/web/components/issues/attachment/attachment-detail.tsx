@@ -46,6 +46,7 @@ export const IssueAttachmentsDetail = observer(function IssueAttachmentsDetail(p
   const { getUserDetails } = useMember();
   const {
     attachment: { getAttachmentById },
+    toggleAttachmentPreview,
   } = useIssueDetail();
   // state
   const [isDeleteIssueAttachmentModalOpen, setIsDeleteIssueAttachmentModalOpen] = useState(false);
@@ -71,7 +72,15 @@ export const IssueAttachmentsDetail = observer(function IssueAttachmentsDetail(p
         />
       )}
       <div className="flex h-[60px] items-center justify-between gap-1 rounded-md border-[2px] border-subtle bg-surface-1 px-4 py-2 text-13">
-        <Link href={fileURL ?? ""} target="_blank" rel="noopener noreferrer">
+        <Link
+          href={fileURL ?? ""}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            e.preventDefault();
+            toggleAttachmentPreview(attachmentId);
+          }}
+        >
           <div className="flex items-center gap-3">
             <div className="h-7 w-7">{fileIcon}</div>
             <div className="flex flex-col gap-1">

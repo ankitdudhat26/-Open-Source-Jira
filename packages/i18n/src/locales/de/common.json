@@ -768,7 +768,8 @@
     "only_one_file_allowed": "Es kann jeweils nur eine Datei hochgeladen werden.",
     "file_size_limit": "Die Datei muss kleiner als {size} MB sein.",
     "drag_and_drop": "Datei hierher ziehen, um sie hochzuladen",
-    "delete": "Anhang löschen"
+    "delete": "Anhang löschen",
+    "preview_not_available": "Für diesen Dateityp ist keine Vorschau verfügbar."
   },
   "label": {
     "select": "Label auswählen",

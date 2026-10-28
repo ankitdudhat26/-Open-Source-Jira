@@ -768,7 +768,8 @@
     "only_one_file_allowed": "Solo se puede subir un archivo a la vez.",
     "file_size_limit": "El archivo debe tener {size}MB o menos de tamaño.",
     "drag_and_drop": "Arrastra y suelta en cualquier lugar para subir",
-    "delete": "Eliminar archivo adjunto"
+    "delete": "Eliminar archivo adjunto",
+    "preview_not_available": "La vista previa no está disponible para este tipo de archivo."
   },
   "label": {
     "select": "Seleccionar etiqueta",

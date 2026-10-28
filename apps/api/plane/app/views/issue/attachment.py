@@ -27,6 +27,7 @@ from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from plane.utils.host import base_host
 from plane.utils.asset_paths import asset_storage_key
+from plane.utils.attachment_preview import inline_preview_content_type
 
 
 class IssueAttachmentEndpoint(BaseAPIView):
@@ -184,11 +185,18 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # ?disposition=inline serves the file for the in-app viewer; anything that
+            # can't be shown safely inline stays a download.
+            content_type = None
+            if request.GET.get("disposition") == "inline":
+                content_type = inline_preview_content_type(asset.attributes.get("name"), asset.attributes.get("type"))
+
             storage = S3Storage(request=request)
             presigned_url = storage.generate_presigned_url(
                 object_name=asset.asset.name,
-                disposition="attachment",
+                disposition="inline" if content_type else "attachment",
                 filename=asset.attributes.get("name"),
+                content_type=content_type,
             )
             return HttpResponseRedirect(presigned_url)
 

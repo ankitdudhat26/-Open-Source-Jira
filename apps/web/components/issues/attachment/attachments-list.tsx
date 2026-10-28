@@ -11,6 +11,7 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import type { TAttachmentHelpers } from "../issue-detail-widgets/attachments/helper";
 // components
 import { IssueAttachmentsDetail } from "./attachment-detail";
+import { IssueAttachmentViewer } from "./attachment-viewer";
 import { IssueAttachmentsUploadDetails } from "./attachment-upload-details";
 
 type TIssueAttachmentsList = {
@@ -32,8 +33,8 @@ export const IssueAttachmentsList = observer(function IssueAttachmentsList(props
 
   return (
     <>
-      {uploadStatus?.map((uploadStatus) => (
-        <IssueAttachmentsUploadDetails key={uploadStatus.id} uploadStatus={uploadStatus} />
+      {uploadStatus?.map((status) => (
+        <IssueAttachmentsUploadDetails key={status.id} uploadStatus={status} />
       ))}
       {issueAttachments?.map((attachmentId) => (
         <IssueAttachmentsDetail
@@ -43,6 +44,7 @@ export const IssueAttachmentsList = observer(function IssueAttachmentsList(props
           attachmentHelpers={attachmentHelpers}
         />
       ))}
+      <IssueAttachmentViewer issueId={issueId} />
     </>
   );
 });

@@ -222,3 +222,30 @@ class TestS3StorageObjectMetadata:
 
         assert S3Storage().get_object_metadata("ws/missing.png") is None
         assert mock_log.called is logged
+
+
+@pytest.mark.unit
+class TestS3StoragePresignedURLContentType:
+    """The optional content_type override on generate_presigned_url"""
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("plane.settings.storage.boto3")
+    def test_content_type_override_is_passed_to_s3(self, mock_boto3):
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        S3Storage().generate_presigned_url("a/notes.csv", content_type="text/plain; charset=utf-8")
+
+        params = mock_client.generate_presigned_url.call_args.kwargs["Params"]
+        assert params["ResponseContentType"] == "text/plain; charset=utf-8"
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("plane.settings.storage.boto3")
+    def test_no_override_by_default(self, mock_boto3):
+        mock_client = Mock()
+        mock_boto3.client.return_value = mock_client
+
+        S3Storage().generate_presigned_url("a/report.pdf")
+
+        params = mock_client.generate_presigned_url.call_args.kwargs["Params"]
+        assert "ResponseContentType" not in params

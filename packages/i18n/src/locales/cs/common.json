@@ -768,7 +768,8 @@
     "only_one_file_allowed": "Je možné nahrát pouze jeden soubor najednou.",
     "file_size_limit": "Soubor musí být menší než {size}MB.",
     "drag_and_drop": "Přetáhněte soubor kamkoli pro nahrání",
-    "delete": "Smazat přílohu"
+    "delete": "Smazat přílohu",
+    "preview_not_available": "Náhled tohoto typu souboru není k dispozici."
   },
   "label": {
     "select": "Vybrat štítek",

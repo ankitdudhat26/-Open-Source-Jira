@@ -25,6 +25,20 @@ export const getFileName = (fileName: string) => {
   return nameWithoutExtension;
 };
 
+export type TFilePreviewType = "image" | "video" | "audio" | "pdf" | "text";
+
+const FILE_PREVIEW_TYPES: Record<string, TFilePreviewType> = {
+  ...Object.fromEntries(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"].map((ext) => [ext, "image"])),
+  ...Object.fromEntries(["mp4", "webm", "mov", "m4v", "ogv"].map((ext) => [ext, "video"])),
+  ...Object.fromEntries(["mp3", "wav", "ogg", "m4a", "aac", "flac"].map((ext) => [ext, "audio"])),
+  pdf: "pdf",
+  ...Object.fromEntries(["txt", "csv", "md", "log", "json"].map((ext) => [ext, "text"])),
+};
+
+/** How a file can be shown in the browser, judged by the extension of its name; undefined when it can't. */
+export const getFilePreviewType = (fileName: string): TFilePreviewType | undefined =>
+  FILE_PREVIEW_TYPES[getFileExtension(fileName).toLowerCase()];
+
 export const convertBytesToSize = (bytes: number) => {
   let size;
 

@@ -116,19 +116,24 @@ class S3Storage(S3Boto3Storage):
         http_method="GET",
         disposition="inline",
         filename=None,
+        content_type=None,
     ):
         """Generate a presigned URL to share an S3 object"""
         if expiration is None:
             expiration = self.signed_url_expiration
         content_disposition = self._get_content_disposition(disposition, filename)
+        params = {
+            "Bucket": self.aws_storage_bucket_name,
+            "Key": str(object_name),
+            "ResponseContentDisposition": content_disposition,
+        }
+        # Overrides the stored Content-Type, e.g. so a text file shows instead of downloading
+        if content_type:
+            params["ResponseContentType"] = content_type
         try:
             response = self.s3_client.generate_presigned_url(
                 "get_object",
-                Params={
-                    "Bucket": self.aws_storage_bucket_name,
-                    "Key": str(object_name),
-                    "ResponseContentDisposition": content_disposition,
-                },
+                Params=params,
                 ExpiresIn=expiration,
                 HttpMethod=http_method,
             )

@@ -768,7 +768,8 @@
     "only_one_file_allowed": "Apenas um arquivo pode ser enviado por vez.",
     "file_size_limit": "O arquivo deve ter {size}MB ou menos.",
     "drag_and_drop": "Arraste e solte em qualquer lugar para enviar",
-    "delete": "Excluir anexo"
+    "delete": "Excluir anexo",
+    "preview_not_available": "A pré-visualização não está disponível para este tipo de arquivo."
   },
   "label": {
     "select": "Selecionar etiqueta",
