@@ -843,6 +843,7 @@
   "in_app": "Uygulama İçi",
   "forms": "Formlar",
   "milestones": "Kilometre taşları",
+  "resources": "Kaynaklar",
   "milestones_description": "Kilometre taşları, iş öğelerini ortak tamamlanma tarihlerine göre hizalamak için bir katman sağlar.",
   "file_upload": {
     "upload_text": "Dosya yüklemek için buraya tıklayın",

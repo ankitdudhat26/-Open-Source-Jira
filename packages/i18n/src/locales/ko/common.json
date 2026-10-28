@@ -843,6 +843,7 @@
   "in_app": "인앱",
   "forms": "폼스",
   "milestones": "마일스톤",
+  "resources": "리소스",
   "milestones_description": "마일스톤은 공유된 완료 일자에 맞춰 작업 항목을 정렬할 수 있는 레이어를 제공합니다.",
   "file_upload": {
     "upload_text": "파일을 업로드하려면 여기를 클릭하세요",

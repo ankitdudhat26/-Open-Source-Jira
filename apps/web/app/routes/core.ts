@@ -193,6 +193,14 @@ export const coreRoutes: RouteConfigEntry[] = [
             ),
           ]),
 
+          // Resources (projects without a Milestones page)
+          layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/resources/layout.tsx", [
+            route(
+              ":workspaceSlug/projects/:projectId/resources",
+              "./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/resources/page.tsx"
+            ),
+          ]),
+
           // Modules List
           layout("./(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/modules/(list)/layout.tsx", [
             route(

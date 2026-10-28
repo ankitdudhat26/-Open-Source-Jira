@@ -843,6 +843,7 @@
   "in_app": "アプリ内",
   "forms": "フォーム",
   "milestones": "マイルストーン",
+  "resources": "リソース",
   "milestones_description": "マイルストーンは、共通の完了日に向けて作業項目を揃えるためのレイヤーを提供します。",
   "file_upload": {
     "upload_text": "クリックしてファイルをアップロード",

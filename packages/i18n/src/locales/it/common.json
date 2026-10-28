@@ -843,6 +843,7 @@
   "in_app": "In-app",
   "forms": "Moduli",
   "milestones": "Milestone",
+  "resources": "Risorse",
   "milestones_description": "Le milestone forniscono un livello per allineare gli elementi di lavoro verso date di completamento condivise.",
   "file_upload": {
     "upload_text": "Clicca qui per caricare il file",

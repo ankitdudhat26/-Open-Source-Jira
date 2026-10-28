@@ -843,6 +843,7 @@
   "in_app": "In-app",
   "forms": "Forms",
   "milestones": "Milestones",
+  "resources": "რესურსები",
   "milestones_description": "Milestones provide a layer to align work items toward shared completion dates.",
   "file_upload": {
     "upload_text": "Click here to upload file",

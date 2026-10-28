@@ -50,7 +50,7 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
 
   const { loader, getPartialProjectById, joinedProjectIds: joinedProjects, updateProjectView } = useProject();
   // router params
-  const { workspaceSlug } = useParams();
+  const { workspaceSlug, projectId: URLProjectId } = useParams();
   const pathname = usePathname();
 
   // auth
@@ -64,18 +64,26 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
     ? joinedProjects.slice(0, projectPreferences.limitedProjectsCount)
     : joinedProjects;
 
+  // The open project (e.g. one opened from All projects) is listed first when it is not visible in the list already
+  const activeProjectId = URLProjectId?.toString();
+  const activeProject = getPartialProjectById(activeProjectId);
+  const pinnedProjectId =
+    activeProjectId && activeProject && !activeProject.archived_at && !displayedProjects.includes(activeProjectId)
+      ? activeProjectId
+      : undefined;
+
   // Check if there are more projects to show
   const hasMoreProjects =
     projectPreferences.showLimitedProjects && joinedProjects.length > projectPreferences.limitedProjectsCount;
 
   const handleCopyText = (projectId: string) => {
-    copyUrlToClipboard(`${workspaceSlug}/projects/${projectId}/issues`).then(() => {
+    copyUrlToClipboard(`${workspaceSlug}/projects/${projectId}/issues`).then(() =>
       setToast({
         type: "success",
         title: t("link_copied"),
         message: t("project_link_copied_to_clipboard"),
-      });
-    });
+      })
+    );
   };
 
   const handleOnProjectDrop = (
@@ -203,6 +211,18 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
                     <Loader.Item key={index} height="28px" />
                   ))}
                 </Loader>
+              )}
+              {pinnedProjectId && (
+                <SidebarProjectsListItem
+                  key={pinnedProjectId}
+                  projectId={pinnedProjectId}
+                  handleCopyText={() => handleCopyText(pinnedProjectId)}
+                  projectListType={"JOINED"}
+                  disableDrag
+                  disableDrop
+                  isLastChild={displayedProjects.length === 0}
+                  handleOnProjectDrop={handleOnProjectDrop}
+                />
               )}
               {displayedProjects.map((projectId, index) => (
                 <SidebarProjectsListItem

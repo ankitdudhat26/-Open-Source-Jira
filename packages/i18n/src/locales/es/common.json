@@ -843,6 +843,7 @@
   "in_app": "En la aplicación",
   "forms": "Formularios",
   "milestones": "Hitos",
+  "resources": "Recursos",
   "milestones_description": "Los hitos proporcionan una capa para alinear los elementos de trabajo hacia fechas de finalización compartidas.",
   "file_upload": {
     "upload_text": "Haz clic aquí para subir archivo",

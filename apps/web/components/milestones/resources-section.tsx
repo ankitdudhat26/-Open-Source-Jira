@@ -347,7 +347,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
           </div>
           {!resources || resources.length === 0 ? (
             <div className="px-page-x py-6 text-body-xs-regular text-tertiary">
-              No resources yet. Import the SOW or add them manually.
+              No resources yet. Add them with Add resource, or import a SOW on a Fixed Cost project.
             </div>
           ) : (
             resources.map((resource) => {

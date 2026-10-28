@@ -14,6 +14,7 @@ import { useTranslation } from "@plane/i18n";
 import {
   CyclesOutline,
   IntakeOutline,
+  MembersOutline,
   MilestoneOutline,
   ModuleOutline,
   PagesOutline,
@@ -98,6 +99,17 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
         access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
         shouldRender: project?.project_type === "fixed_cost",
         sortOrder: 1.5,
+      },
+      {
+        i18n_key: "resources",
+        key: "resources",
+        name: "Resources",
+        href: `/${workspaceSlug}/projects/${projectId}/resources`,
+        icon: MembersOutline,
+        access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+        // fixed cost projects have Resources as a tab of Milestones
+        shouldRender: !!project && project.project_type !== "fixed_cost",
+        sortOrder: 1.6,
       },
       {
         i18n_key: "sidebar.cycles",

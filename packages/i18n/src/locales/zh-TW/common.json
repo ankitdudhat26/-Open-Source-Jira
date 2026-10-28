@@ -843,6 +843,7 @@
   "in_app": "應用內",
   "forms": "表單",
   "milestones": "里程碑",
+  "resources": "資源",
   "milestones_description": "里程碑提供了一個層級，讓工作事項對齊共同的完成日期。",
   "file_upload": {
     "upload_text": "點擊此處上傳文件",

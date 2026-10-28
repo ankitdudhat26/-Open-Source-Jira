@@ -843,6 +843,7 @@
   "in_app": "Dans l'application",
   "forms": "Formulaires",
   "milestones": "Jalons",
+  "resources": "Ressources",
   "milestones_description": "Les jalons offrent une couche permettant d’aligner les éléments de travail sur des dates d’achèvement partagées.",
   "file_upload": {
     "upload_text": "Cliquez ici pour télécharger le fichier",

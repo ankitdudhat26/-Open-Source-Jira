@@ -843,6 +843,7 @@
   "in_app": "No aplicativo",
   "forms": "Formulários",
   "milestones": "Marcos",
+  "resources": "Recursos",
   "milestones_description": "Os marcos oferecem uma camada para alinhar os itens de trabalho com datas de conclusão compartilhadas.",
   "file_upload": {
     "upload_text": "Clique aqui para fazer upload do arquivo",

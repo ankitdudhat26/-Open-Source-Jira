@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
 // plane imports
@@ -49,6 +49,8 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
   const { workspaceSlug, projectId, children, isLoading: isParentLoading = false } = props;
   // states
   const [isJoiningProject, setIsJoiningProject] = useState(false);
+  // refs
+  const autoJoinAttemptedFor = useRef<string | null>(null);
   // store hooks
   const { fetchUserProjectInfo, allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   const { fetchProjectDetails } = useProject();
@@ -143,8 +145,27 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
   };
 
   const isProjectLoading = (isParentLoading || isProjectDetailsLoading) && !projectDetailsError;
+  // a workspace admin can join any project, so one who opens a project they are not in (e.g. from All projects)
+  // joins it right away instead of being shown the join screen
+  const shouldAutoJoin =
+    !isProjectLoading &&
+    hasPermissionToCurrentProject === false &&
+    isWorkspaceAdmin &&
+    (projectDetailsError?.status === 409 || projectDetailsError?.status === 403);
+  const isAutoJoinPending = shouldAutoJoin && autoJoinAttemptedFor.current !== projectId;
+
+  useEffect(() => {
+    if (!shouldAutoJoin || autoJoinAttemptedFor.current === projectId) return;
+    autoJoinAttemptedFor.current = projectId;
+    setIsJoiningProject(true);
+    joinProject(workspaceSlug, projectId)
+      .catch(() => undefined)
+      .finally(() => setIsJoiningProject(false));
+  }, [shouldAutoJoin, workspaceSlug, projectId, joinProject]);
 
   if (isProjectLoading) return null;
+  // while an admin is being added, show nothing rather than flashing the join screen
+  if (isAutoJoinPending || (shouldAutoJoin && isJoiningProject)) return null;
 
   if (!isProjectLoading && hasPermissionToCurrentProject === false) {
     return (
