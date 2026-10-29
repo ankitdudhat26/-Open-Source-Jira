@@ -30,6 +30,7 @@ from plane.app.views import (
     IssueAttachmentV2Endpoint,
     IssueBulkUpdateDateEndpoint,
     WorkItemExportEndpoint,
+    WorkItemExportOptionsEndpoint,
     IssueVersionEndpoint,
     WorkItemDescriptionVersionEndpoint,
     IssueMetaEndpoint,
@@ -255,6 +256,11 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/export/",
         WorkItemExportEndpoint.as_view(),
         name="project-work-item-export",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/export/options/",
+        WorkItemExportOptionsEndpoint.as_view(),
+        name="project-work-item-export-options",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issue-dates/",

@@ -17,7 +17,9 @@ from plane.db.models import (
     CustomField,
     CustomFieldValue,
     Issue,
+    IssueAssignee,
     IssueComment,
+    IssueType,
     JiraEntityMap,
     Project,
     ProjectMember,
@@ -35,8 +37,9 @@ def project(db, workspace, create_user):
     return project
 
 
-def _url(workspace, project, export_format):
-    return f"/api/workspaces/{workspace.slug}/projects/{project.id}/work-items/export/?file_type={export_format}"
+def _url(workspace, project, export_format, **filters):
+    query = "".join(f"&{name}={value}" for name, value in filters.items())
+    return f"/api/workspaces/{workspace.slug}/projects/{project.id}/work-items/export/?file_type={export_format}{query}"
 
 
 def _csv_rows(response):
@@ -118,5 +121,55 @@ class TestWorkItemExport:
     @pytest.mark.django_db
     def test_unknown_format_is_rejected(self, session_client, workspace, project):
         response = session_client.get(_url(workspace, project, "pdf"))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.django_db
+    def test_feature_filter_exports_the_feature_with_everything_under_it(self, session_client, workspace, project):
+        feature_type = IssueType.objects.create(workspace=workspace, name="Feature")
+        user_side = Issue.objects.create(name="User side", project=project, workspace=workspace, type=feature_type)
+        story = Issue.objects.create(name="Login", project=project, workspace=workspace, parent=user_side)
+        Issue.objects.create(name="Login API", project=project, workspace=workspace, parent=story)
+        Issue.objects.create(name="Admin side", project=project, workspace=workspace, type=feature_type)
+
+        rows = _csv_rows(session_client.get(_url(workspace, project, "csv", feature=user_side.id)))
+
+        assert [row["Summary"] for row in rows] == ["User side", "Login", "Login API"]
+
+    @pytest.mark.django_db
+    def test_filters_combine_type_and_assignee(self, session_client, workspace, project, create_user):
+        bug = IssueType.objects.create(workspace=workspace, name="Bug")
+        task = IssueType.objects.create(workspace=workspace, name="Task")
+        other = User.objects.create(email=f"dev-{uuid4().hex[:6]}@example.com", username=uuid4().hex[:10])
+        mine = Issue.objects.create(name="Crash on login", project=project, workspace=workspace, type=bug)
+        theirs = Issue.objects.create(name="Crash on logout", project=project, workspace=workspace, type=bug)
+        my_task = Issue.objects.create(name="Write docs", project=project, workspace=workspace, type=task)
+        for issue, assignee in ((mine, create_user), (theirs, other), (my_task, create_user)):
+            IssueAssignee.objects.create(issue=issue, assignee=assignee, project=project, workspace=workspace)
+        # an assignment that was removed does not count
+        removed = IssueAssignee.objects.create(issue=theirs, assignee=create_user, project=project, workspace=workspace)
+        removed.delete()
+
+        rows = _csv_rows(session_client.get(_url(workspace, project, "csv", type=bug.id, assignee=create_user.id)))
+
+        assert [row["Summary"] for row in rows] == ["Crash on login"]
+
+    @pytest.mark.django_db
+    def test_options_list_features_and_assignees(self, session_client, workspace, project, create_user):
+        feature_type = IssueType.objects.create(workspace=workspace, name="Feature")
+        feature = Issue.objects.create(name="User side", project=project, workspace=workspace, type=feature_type)
+
+        response = session_client.get(
+            f"/api/workspaces/{workspace.slug}/projects/{project.id}/work-items/export/options/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["feature"] == [{"id": str(feature.id), "name": f"EXP-{feature.sequence_id} User side"}]
+        assert str(create_user.id) in [option["id"] for option in response.data["assignee"]]
+        assert [option["name"] for option in response.data["type"]] == ["Feature"]
+
+    @pytest.mark.django_db
+    def test_invalid_filter_value_is_rejected(self, session_client, workspace, project):
+        response = session_client.get(_url(workspace, project, "csv", state="not-a-uuid"))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST

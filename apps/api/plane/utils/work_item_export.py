@@ -17,6 +17,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 # Django imports
+from django.db.models import Q
 from django.utils import timezone
 
 # Module imports
@@ -28,9 +29,16 @@ from plane.db.models import (
     IssueAssignee,
     IssueComment,
     IssueLabel,
+    IssueType,
     JiraEntityMap,
+    Label,
+    Milestone,
+    Module,
     ModuleIssue,
+    ProjectMember,
+    State,
     User,
+    Cycle,
 )
 
 EXPORT_FORMATS = ("word", "excel", "csv")
@@ -63,17 +71,97 @@ def _custom_value(field, value, people):
     return ", ".join(str(item) for item in values)
 
 
-def collect_work_items(project, user_id=None):
-    """The work items of the project in key order, each as a dict of its exported fields.
+# filter name -> the work item field it matches; each filter takes a list of ids (of priorities for "priority")
+FIELD_FILTERS = {"type": "type_id", "state": "state_id", "priority": "priority", "milestone": "milestone_id"}
+# filter name -> (link model, its field) of the filters through a link (soft-deleted links don't count)
+LINK_FILTERS = {
+    "assignee": (IssueAssignee, "assignee_id"),
+    "label": (IssueLabel, "label_id"),
+    "module": (ModuleIssue, "module_id"),
+    "cycle": (CycleIssue, "cycle_id"),
+}
+FILTER_NAMES = ("feature", *FIELD_FILTERS, *LINK_FILTERS)
 
-    `user_id` limits the export to the work items that user created (clients of a project that hides the others).
-    Returns (custom field names, has Jira keys, items).
-    """
-    issues = Issue.issue_objects.filter(project=project).select_related(
-        "state", "type", "parent", "milestone", "created_by", "estimate_point"
-    )
+
+def _feature_tree(project, feature_ids):
+    """The given Features (or any parent work items) with every work item under them, at any depth."""
+    found = set(Issue.issue_objects.filter(project=project, id__in=feature_ids).values_list("id", flat=True))
+    level = set(found)
+    while level:
+        level = set(
+            Issue.issue_objects.filter(project=project, parent_id__in=level)
+            .exclude(id__in=found)
+            .values_list("id", flat=True)
+        )
+        found |= level
+    return found
+
+
+def filter_work_items(issues, project, filters):
+    """Narrow the work items to the ones matching every given filter (several values of one filter match any)."""
+    for name, field in FIELD_FILTERS.items():
+        if filters.get(name):
+            issues = issues.filter(**{f"{field}__in": filters[name]})
+    for name, (model, field) in LINK_FILTERS.items():
+        if filters.get(name):
+            linked = model.objects.filter(project=project, **{f"{field}__in": filters[name]}).values("issue_id")
+            issues = issues.filter(id__in=linked)
+    if filters.get("feature"):
+        issues = issues.filter(id__in=_feature_tree(project, filters["feature"]))
+    return issues
+
+
+def export_filter_options(project, user_id=None):
+    """What the work items of the project can be filtered by when exporting: id + name of each option."""
+    issues = Issue.issue_objects.filter(project=project)
     if user_id is not None:
         issues = issues.filter(created_by_id=user_id)
+    parent_ids = issues.filter(parent__isnull=False).values_list("parent_id", flat=True)
+    features = (
+        issues.filter(Q(type__name__iexact="feature") | Q(id__in=parent_ids))
+        .order_by("sequence_id")
+        .values_list("id", "sequence_id", "name")
+    )
+    members = ProjectMember.objects.filter(project=project, is_active=True).select_related("member")
+
+    def options(rows):
+        return [{"id": str(row_id), "name": name} for row_id, name in rows]
+
+    return {
+        "feature": [
+            {"id": str(row_id), "name": f"{project.identifier}-{sequence_id} {name.strip()}"}
+            for row_id, sequence_id, name in features
+        ],
+        "type": options(
+            IssueType.objects.filter(id__in=issues.values_list("type_id", flat=True))
+            .order_by("name")
+            .values_list("id", "name")
+        ),
+        "state": options(State.objects.filter(project=project).order_by("sequence").values_list("id", "name")),
+        "priority": [{"id": key, "name": label} for key, label in PRIORITY_LABELS.items()],
+        "assignee": sorted(
+            ({"id": str(member.member_id), "name": _person(member.member)} for member in members),
+            key=lambda option: option["name"].lower(),
+        ),
+        "label": options(Label.objects.filter(project=project).order_by("name").values_list("id", "name")),
+        "module": options(Module.objects.filter(project=project).order_by("name").values_list("id", "name")),
+        "cycle": options(Cycle.objects.filter(project=project).order_by("-start_date").values_list("id", "name")),
+        "milestone": options(Milestone.objects.filter(project=project).order_by("name").values_list("id", "name")),
+    }
+
+
+def collect_work_items(project, user_id=None, filters=None):
+    """The work items of the project in key order, each as a dict of its exported fields.
+
+    `user_id` limits the export to the work items that user created (clients of a project that hides the others);
+    `filters` (see FILTERS) to the work items matching them. Returns (custom field names, has Jira keys, items).
+    """
+    issues = Issue.issue_objects.filter(project=project)
+    if user_id is not None:
+        issues = issues.filter(created_by_id=user_id)
+    if filters:
+        issues = filter_work_items(issues, project, filters)
+    issues = issues.select_related("state", "type", "parent", "milestone", "created_by", "estimate_point")
     issues = list(issues.order_by("sequence_id"))
     issue_ids = [issue.id for issue in issues]
 
@@ -291,9 +379,9 @@ def export_word(project, custom_names, has_jira_keys, items):
     return "".join(parts).encode("utf-8")
 
 
-def export_work_items(project, export_format, user_id=None):
+def export_work_items(project, export_format, user_id=None, filters=None):
     """Returns (file bytes, content type, file name) of the project's work items in the given format."""
-    custom_names, has_jira_keys, items = collect_work_items(project, user_id=user_id)
+    custom_names, has_jira_keys, items = collect_work_items(project, user_id=user_id, filters=filters)
     custom_names = _merge_matching_custom_fields(custom_names, items)
     stamp = timezone.localtime().strftime("%Y-%m-%d")
     name = f"{project.identifier}-work-items-{stamp}"
