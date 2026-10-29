@@ -127,6 +127,7 @@ from .issue.base import (
     IssueMetaEndpoint,
     IssueDetailIdentifierEndpoint,
 )
+from .issue.export import WorkItemExportEndpoint
 
 from .issue.activity import IssueActivityEndpoint
 

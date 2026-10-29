@@ -22,6 +22,7 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { CountChip } from "@/components/common/count-chip";
 // constants
 import { HeaderFilters } from "@/components/issues/filters";
+import { WorkItemExportMenu } from "@/components/issues/work-item-export-menu";
 // helpers
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
@@ -124,6 +125,9 @@ export const IssuesHeader = observer(function IssuesHeader() {
             canUserCreateIssue={isProjectMemberOrAdmin}
           />
         </div>
+        {workspaceSlug && projectId && (
+          <WorkItemExportMenu workspaceSlug={workspaceSlug.toString()} projectId={projectId.toString()} />
+        )}
         {canUserCreateIssue && (
           <Button
             variant="primary"

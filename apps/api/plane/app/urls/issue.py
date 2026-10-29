@@ -29,6 +29,7 @@ from plane.app.views import (
     IssueDetailEndpoint,
     IssueAttachmentV2Endpoint,
     IssueBulkUpdateDateEndpoint,
+    WorkItemExportEndpoint,
     IssueVersionEndpoint,
     WorkItemDescriptionVersionEndpoint,
     IssueMetaEndpoint,
@@ -249,6 +250,11 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/deleted-issues/",
         DeletedIssuesListViewSet.as_view(),
         name="deleted-issues",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/work-items/export/",
+        WorkItemExportEndpoint.as_view(),
+        name="project-work-item-export",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issue-dates/",
