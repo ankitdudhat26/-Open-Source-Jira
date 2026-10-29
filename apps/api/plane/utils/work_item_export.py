@@ -17,7 +17,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 # Django imports
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 # Module imports
@@ -31,6 +31,7 @@ from plane.db.models import (
     IssueLabel,
     IssueRelation,
     IssueType,
+    IssueVote,
     JiraEntityMap,
     Label,
     Milestone,
@@ -190,7 +191,7 @@ RELATION_LINKS = {
     "finish_before": ("Finishes before", "Finishes after"),
     "implemented_by": ("Is implemented by", "Implements"),
 }
-PART_OF, IS_PART_OF = "Part of", "Is part of"
+PART_OF, IS_PART_OF = "Part of", "Is Part of"
 
 
 def _issue_links(project, issues, user_id=None):
@@ -317,8 +318,19 @@ def collect_work_items(project, user_id=None, filters=None):
     comments = defaultdict(list)
     for comment in IssueComment.objects.filter(issue_id__in=issue_ids).select_related("actor").order_by("created_at"):
         comments[comment.issue_id].append(
-            {"author": _person(comment.actor), "at": _datetime(comment.created_at), "html": comment.comment_html or ""}
+            {
+                "author": _person(comment.actor),
+                "at": _datetime(comment.created_at),
+                "created_at": comment.created_at,
+                "html": comment.comment_html or "",
+            }
         )
+    votes = dict(
+        IssueVote.objects.filter(issue_id__in=issue_ids, vote=1)
+        .values("issue_id")
+        .annotate(count=Count("id"))
+        .values_list("issue_id", "count")
+    )
     jira_keys = dict(
         JiraEntityMap.objects.filter(
             workspace_id=project.workspace_id, entity_type="issue", plane_id__in=issue_ids
@@ -360,6 +372,18 @@ def collect_work_items(project, user_id=None, filters=None):
                 "assignees": ", ".join(assignees[issue.id]),
                 "reporter": _person(issue.created_by),
                 "parent": f"{identifier}-{parent.sequence_id} {parent.name}" if parent else "",
+                "parent_key": f"{identifier}-{parent.sequence_id}" if parent else "",
+                "parent_summary": parent.name.strip() if parent else "",
+                "state_group": issue.state.group if issue.state else "",
+                "votes": votes.get(issue.id, 0),
+                "assignee_list": assignees[issue.id],
+                "label_list": labels[issue.id],
+                "module_list": modules[issue.id],
+                "created_at": issue.created_at,
+                "updated_at": issue.updated_at,
+                "completed_at": issue.completed_at,
+                "target_date": issue.target_date,
+                "start_on": issue.start_date,
                 "milestone": issue.milestone.name if issue.milestone else "",
                 "modules": ", ".join(modules[issue.id]),
                 "sprint": sprints.get(issue.id, ""),
@@ -469,21 +493,44 @@ def export_excel(project, custom_names, has_jira_keys, items):
     return buffer.getvalue()
 
 
+# Jira's Word export ("Export > Word"), so the document reads the same as one exported from Jira
 WORD_STYLE = """
-body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #172B4D; }
-h1 { font-size: 20pt; margin: 0 0 4pt; }
-h2 { font-size: 14pt; margin: 18pt 0 6pt; border-bottom: 1px solid #DFE1E6; padding-bottom: 4pt; }
-h3 { font-size: 11pt; margin: 10pt 0 4pt; }
-.meta { color: #5E6C84; font-size: 9pt; margin-bottom: 12pt; }
-table.fields { border-collapse: collapse; width: 100%; }
-table.fields td { border: 1px solid #DFE1E6; padding: 3pt 6pt; vertical-align: top; font-size: 10pt; }
-table.fields td.label { background: #F4F5F7; font-weight: bold; width: 28%; }
-.comment { border-left: 3px solid #DFE1E6; padding-left: 8pt; margin: 6pt 0; }
-.comment .by { color: #5E6C84; font-size: 9pt; }
-table.links { border-collapse: collapse; width: 100%; }
-table.links td { border: none; padding: 1pt 6pt 1pt 0; font-size: 10pt; vertical-align: top; }
-table.links td.links-heading { font-weight: bold; padding-top: 2pt; }
+.tableBorder, .grid { background-color: #fff; width: 100%; border-collapse: collapse; }
+.tableBorder td, .grid td { vertical-align: top; padding: 2px; border: 1px solid #ccc; }
+.noPadding { padding: 0 !important; }
+h3 .subText { font-size: 60%; font-weight: normal; }
+.blank td { border: none; }
+#descriptionArea, .commentArea { margin: 0; padding: 2px; border: 1px solid #ccc; }
+hr { border-top: 1px solid #aaa; }
 """
+# fields Jira shows in its own rows, filled from the custom fields cloned from Jira: (row, custom field names)
+JIRA_FIELD_ROWS = {
+    "Affects versions": ("Affects versions",),
+    "Fix versions": ("Fix versions",),
+    "Resolution": ("Resolution",),
+    "Remaining Estimate": ("Time remaining", "Remaining Estimate"),
+    "Time Spent": ("Time spent", "Time Spent"),
+    "Original estimate": ("Original estimate", "Original Estimate"),
+}
+RESOLUTIONS = {"completed": "Done", "cancelled": "Cancelled"}
+
+
+def _jira_date(value):
+    """Jira's short date: 19/Mar/26."""
+    if not value:
+        return ""
+    if hasattr(value, "tzinfo"):
+        value = timezone.localtime(value)
+    return value.strftime("%d/%b/%y")
+
+
+def _jira_field(item, row):
+    """The value of one of Jira's own rows (see JIRA_FIELD_ROWS), taken out of the item's custom fields."""
+    for name in JIRA_FIELD_ROWS[row]:
+        value = item["custom"].get(name)
+        if value:
+            return value
+    return ""
 
 
 def _work_item_url(app_url, project, key):
@@ -491,107 +538,183 @@ def _work_item_url(app_url, project, key):
     return f"{app_url.rstrip('/')}/{project.workspace.slug}/browse/{key}/" if app_url else ""
 
 
-def _word_links(project, links, app_url, nested_links):
-    """Jira's "Issue links" box: a heading per kind of link, then one row per linked work item, its key opening it.
+def _link(url, text):
+    return f'<a href="{escape(url)}">{escape(text)}</a>' if url else escape(text)
 
-    `nested_links` has the links of the work items listed only here (see _listed_parts): their parts follow them,
-    indented — a Feature's stories, each with its tasks.
-    """
+
+def _word_links(project, links, app_url):
+    """Jira's "Issue links" box: a heading per kind of link, then one row per linked work item, its key opening it."""
     rows = []
     heading = None
-
-    def add(row, depth, seen):
-        key = escape(row["key"])
-        url = _work_item_url(app_url, project, row["key"])
-        key_html = f'<a href="{escape(url)}">{key}</a>' if url else key
-        summary = row["summary"] if len(row["summary"]) <= 60 else f"{row['summary'][:57]}..."
-        indent = f' style="padding-left: {depth * 14}pt"' if depth else ""
-        rows.append(
-            f"<tr><td{indent}>{escape(row['link'])}</td><td>{key_html}</td>"
-            f"<td>{escape(summary)}</td><td>{escape(row['status'])}</td></tr>"
-        )
-        if row["link"] != PART_OF or row["key"] in seen:
-            return
-        for part in nested_links.get(row["key"], []):
-            if part["link"] == PART_OF:
-                add(part, depth + 1, seen | {row["key"]})
-
     for row in links:
-        kind = "Part of" if row["link"] in (PART_OF, IS_PART_OF) else row["link"]
+        kind = PART_OF if row["link"] in (PART_OF, IS_PART_OF) else row["link"]
         if kind != heading:
             heading = kind
-            rows.append(f'<tr><td colspan="4" class="links-heading">{escape(kind)}</td></tr>')
-        add(row, 0, set())
-    return f'<table class="links">{"".join(rows)}</table>'
+            rows.append(f'<tr><td colspan="4" bgcolor="#f0f0f0"><b>{escape(kind)}</b><br/></td></tr>')
+        # Jira cuts the summary short in this box
+        summary = row["summary"] if len(row["summary"]) <= 40 else f"{row['summary'][:37]}..."
+        rows.append(
+            f"<tr><td>{escape(row['link'])}</td>"
+            f"<td>{_link(_work_item_url(app_url, project, row['key']), row['key'])}</td>"
+            f"<td>{escape(summary)}</td><td>{escape(row['status'])}</td></tr>"
+        )
+    return f'<table cellpadding="0" cellspacing="0" border="0" width="100%" class="blank">{"".join(rows)}</table>'
 
 
-def _listed_parts(items):
-    """The keys of the work items listed in the "Part of" links of another exported work item — a Feature's stories,
-    a story's tasks. They are shown there, not again on their own (a work item part of nothing exported keeps its
-    own section)."""
-    keys = {item["key"] for item in items}
-    parts = {item["key"]: [row["key"] for row in item["links"] if row["link"] == PART_OF] for item in items}
-    roots = [
-        item["key"]
-        for item in items
-        if not any(row["link"] == IS_PART_OF and row["key"] in keys for row in item["links"])
-    ]
-    listed, pending = set(), list(roots)
-    while pending:
-        for part in parts.get(pending.pop(), []):
-            if part in keys and part not in listed and part not in roots:
-                listed.add(part)
-                pending.append(part)
+def _listed_items(items):
+    """The keys of the work items not given a section of their own, as in Jira's export of a Feature (an epic):
+
+    - the sub-tasks — parts of another exported work item that is not a Feature (a story's Backend / QA tasks):
+      they are listed in its "Issue links";
+    - the Features with exported work items under them: they head each of those work items' sections.
+    """
+    types = {item["key"]: item["type"].lower() for item in items}
+    listed = set()
+    for item in items:
+        for row in item["links"]:
+            if row["link"] != IS_PART_OF or row["key"] not in types:
+                continue
+            if types[row["key"]] == "feature":
+                listed.add(row["key"])
+            else:
+                listed.add(item["key"])
+    # a Feature that is itself a part of a listed work item is not hidden twice; one under a sub-task stays listed
     return listed
 
 
-def export_word(project, custom_names, has_jira_keys, items, app_url=None):
-    """A Word document (HTML that Word opens, the way Jira exports to Word): one section per work item, the work items
-    that are part of another one listed in its "Issue links" instead."""
-    columns = [column for column in _columns(has_jira_keys) if column[1] not in ("key", "summary", "links_text")]
-    listed = _listed_parts(items)
-    nested_links = {item["key"]: item["links"] for item in items if item["key"] in listed}
-    items = [item for item in items if item["key"] not in listed]
-    listed_count = f" · {len(listed)} more listed in their issue links" if listed else ""
-    item_count = f"{len(items)} work item{'' if len(items) == 1 else 's'}"
-    parts = [
-        '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"'
-        ' xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">',
-        f"<title>{escape(project.name)} work items</title><style>{WORD_STYLE}</style></head><body>",
-        f"<h1>{escape(project.name)}</h1>",
-        f'<div class="meta">{item_count}{listed_count} · exported {_datetime(timezone.now())}</div>',
+def _word_item(project, item, custom_names, has_jira_keys, app_url):
+    """One work item, laid out as Jira lays out an issue in its Word export."""
+    url = _work_item_url(app_url, project, item["key"])
+    parent_url = _work_item_url(app_url, project, item["parent_key"]) if item["parent_key"] else ""
+    project_url = f"{app_url.rstrip('/')}/{project.workspace.slug}/projects/{project.id}/issues/" if app_url else ""
+    dates = [f"Created: {_jira_date(item['created_at'])}", f"Updated: {_jira_date(item['updated_at'])}"]
+    if item["completed_at"]:
+        dates.append(f"Resolved: {_jira_date(item['completed_at'])}")
+    if item["target_date"]:
+        dates.append(f"Due: {_jira_date(item['target_date'])}")
+
+    parts = ['<table class="tableBorder" cellpadding="0" cellspacing="0" border="0" width="100%">']
+    parts.append('<tr><td bgcolor="#f0f0f0" width="100%" colspan="2" valign="top">')
+    if item["parent_key"]:
+        parts.append(
+            f"<b>{_link(parent_url, item['parent_summary'])}</b> "
+            f'<span style="font-size: 9px">({_link(parent_url, item["parent_key"])})</span>'
+        )
+    parts.append(
+        f'<h3 class="formtitle">[{escape(item["key"])}]&nbsp;{_link(url, item["summary"].strip())}'
+        f' <span class="subText">{"&nbsp; ".join(escape(date) for date in dates)}</span></h3></td></tr>'
+    )
+
+    def row(label, value_html):
+        parts.append(f'<tr><td width="20%"><b>{escape(label)}:</b></td><td width="80%">{value_html}</td></tr>')
+
+    row("Status", escape(item["status"]))
+    row("Project", _link(project_url, project.name))
+    row("Components", escape(", ".join(item["module_list"]) or "None"))
+    row("Affects versions", escape(_jira_field(item, "Affects versions") or "None"))
+    row("Fix versions", escape(_jira_field(item, "Fix versions") or "None"))
+    if item["parent_key"]:
+        row("Parent", _link(parent_url, item["parent_summary"]))
+    parts.append("</table><br />")
+
+    def pair(left_label, left, right_label, right):
+        parts.append(
+            f'<tr><td bgcolor="#f0f0f0" width="20%"><b>{escape(left_label)}:</b></td>'
+            f'<td bgcolor="#ffffff" width="30%">{escape(left)}</td>'
+            f'<td bgcolor="#f0f0f0" width="20%"><b>{escape(right_label)}:</b></td>'
+            f'<td bgcolor="#ffffff" width="30%">{escape(right)}</td></tr>'
+        )
+
+    def wide(label, value):
+        parts.append(
+            f'<tr><td bgcolor="#f0f0f0" width="20%"><b>{escape(label)}:</b></td>'
+            f'<td bgcolor="#ffffff" width="80%" colspan="3">{escape(value)}</td></tr>'
+        )
+
+    resolution = _jira_field(item, "Resolution") or RESOLUTIONS.get(item["state_group"], "Unresolved")
+    parts.append('<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">')
+    pair("Type", item["type"], "Priority", item["priority"])
+    pair("Reporter", item["reporter"], "Assignee", ", ".join(item["assignee_list"]) or "Unassigned")
+    pair("Resolution", resolution, "Votes", str(item["votes"]))
+    wide("Labels", ", ".join(item["label_list"]) or "None")
+    wide("Remaining Estimate", _jira_field(item, "Remaining Estimate") or "Not Specified")
+    wide("Time Spent", _jira_field(item, "Time Spent") or "Not Specified")
+    wide("Original estimate", _jira_field(item, "Original estimate") or "Not Specified")
+    parts.append("</table><br />")
+
+    # the links, then every other field that has a value — Jira's custom fields
+    shown = {name for names in JIRA_FIELD_ROWS.values() for name in names}
+    extra = [(name, item["custom"].get(name, "")) for name in custom_names if name not in shown]
+    if has_jira_keys and item["jira_key"] and item["jira_key"] != item["key"]:
+        extra.insert(0, ("Jira key", item["jira_key"]))
+    extra += [
+        ("Sprint", item["sprint"]),
+        ("Milestone", item["milestone"]),
+        ("Estimate", item["estimate"]),
+        ("Start date", _jira_date(item["start_on"])),
     ]
-    for item in items:
-        key, url = escape(item["key"]), _work_item_url(app_url, project, item["key"])
-        key_html = f'<a href="{escape(url)}">{key}</a>' if url else key
-        parts.append(f"<h2>[{key_html}] {escape(item['summary'])}</h2>")
-        parts.append('<table class="fields">')
-        values = [(label, item[key]) for label, key in columns] + [
-            (name, item["custom"].get(name, "")) for name in custom_names
-        ]
-        for label, value in values:
-            if value in ("", None) or (label == "Jira key" and value == item["key"]):
-                continue
-            parts.append(f'<tr><td class="label">{escape(label)}</td><td>{escape(str(value))}</td></tr>')
+    extra = [(label, value) for label, value in extra if value not in ("", None)]
+    if item["links"] or extra:
+        parts.append('<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">')
         if item["links"]:
-            links_html = _word_links(project, item["links"], app_url, nested_links)
-            parts.append(f'<tr><td class="label">Issue links</td><td>{links_html}</td></tr>')
+            parts.append(
+                '<tr><td bgcolor="#f0f0f0" width="20%" valign="top"><b>Issue links:</b></td>'
+                f'<td bgcolor="#ffffff" valign="top" class="noPadding">{_word_links(project, item["links"], app_url)}'
+                "</td></tr>"
+            )
+        for label, value in extra:
+            parts.append(
+                f'<tr><td bgcolor="#f0f0f0" width="20%" valign="top"><b>{escape(label)}:</b></td>'
+                f'<td bgcolor="#ffffff" width="80%">{escape(str(value))}</td></tr>'
+            )
+        parts.append("</table><br/>")
+
+    def tab(label):
+        parts.append(
+            '<table cellpadding="2" cellspacing="0" border="0" width="100%" align="center"><tr>'
+            f'<td bgcolor="#bbbbbb" width="1%" nowrap align="center">&nbsp;<font color="#ffffff"><b>{label}</b></font>'
+            "&nbsp;</td><td>&nbsp;</td></tr></table>"
+        )
+
+    tab("Description")
+    # the description is stored sanitized when the work item is saved
+    description = item["description_html"] if item["description_text"].strip() else ""
+    parts.append(
+        '<table cellpadding="0" cellspacing="0" border="0" width="100%">'
+        f'<tr><td id="descriptionArea">{description}<br/></td></tr></table>'
+    )
+    if item["comments"]:
+        parts.append("<br/>")
+        tab("Comments")
+        parts.append('<table cellpadding="0" cellspacing="0" border="0" width="100%">')
+        for comment in item["comments"]:
+            parts.append(
+                f'<tr><td class="commentArea"><font size="1">Comment by <b>{escape(comment["author"])}</b>'
+                f" [ {escape(_jira_date(comment['created_at']))} ]</font><br/>{comment['html']}</td></tr>"
+            )
         parts.append("</table>")
-        if item["description_html"].strip() and item["description_text"].strip():
-            # the description is stored sanitized when the work item is saved
-            parts.append(f"<h3>Description</h3>{item['description_html']}")
-        if item["comments"]:
-            parts.append(f"<h3>Comments ({len(item['comments'])})</h3>")
-            for comment in item["comments"]:
-                parts.append(
-                    f'<div class="comment"><div class="by">{escape(comment["author"])} · {escape(comment["at"])}</div>'
-                    f"{comment['html']}</div>"
-                )
-    parts.append("</body></html>")
+    parts.append("<hr><br /><br style='page-break-before:always;'/><br />")
+    return "".join(parts)
+
+
+def export_word(project, custom_names, has_jira_keys, items, app_url=None, generated_by=""):
+    """A Word document laid out like Jira's Word export: a section per work item, its sub-tasks listed in its
+    "Issue links" and its Feature heading it (see _listed_items)."""
+    listed = _listed_items(items)
+    sections = [item for item in items if item["key"] not in listed] or items
+    parts = [
+        '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="application/vnd.ms-word; charset=UTF-8">',
+        f'<meta charset="utf-8"><title>{escape(project.name)}</title><style type="text/css">{WORD_STYLE}</style>',
+        "</head><body>",
+    ]
+    parts += [_word_item(project, item, custom_names, has_jira_keys, app_url) for item in sections]
+    generated = timezone.now().strftime("%a %b %d %H:%M:%S UTC %Y")
+    by = f" by {escape(generated_by)}" if generated_by else ""
+    parts.append(f"Generated at {generated}{by}.</body></html>")
     return "".join(parts).encode("utf-8")
 
 
-def export_work_items(project, export_format, user_id=None, filters=None, app_url=None):
+def export_work_items(project, export_format, user_id=None, filters=None, app_url=None, generated_by=""):
     """Returns (file bytes, content type, file name) of the project's work items in the given format.
 
     `app_url` (the web app) makes the keys in the Word document links that open the work items."""
@@ -601,7 +724,7 @@ def export_work_items(project, export_format, user_id=None, filters=None, app_ur
     name = f"{project.identifier}-work-items-{stamp}"
     if export_format == "word":
         return (
-            export_word(project, custom_names, has_jira_keys, items, app_url=app_url),
+            export_word(project, custom_names, has_jira_keys, items, app_url=app_url, generated_by=generated_by),
             "application/msword",
             f"{name}.doc",
         )

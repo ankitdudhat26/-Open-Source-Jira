@@ -63,9 +63,10 @@ class TestWorkItemExport:
         assert response["Content-Type"] == "application/msword"
         assert response["Content-Disposition"].endswith('.doc"')
         html = response.content.decode("utf-8")
-        assert f'/browse/EXP-{story.sequence_id}/">EXP-{story.sequence_id}</a>] Login with OTP' in html
+        assert f'[EXP-{story.sequence_id}]&nbsp;<a href="' in html
+        assert f'/browse/EXP-{story.sequence_id}/">Login with OTP</a>' in html
         assert "Profile page" in html
-        assert "Ready for QA" in html
+        assert "Comment by <b>" in html and "Ready for QA" in html
 
     @pytest.mark.django_db
     def test_excel_export_lists_the_work_items(self, session_client, workspace, project):
@@ -209,9 +210,9 @@ class TestWorkItemExportLinks:
         ]
         assert rows[1]["Issue links"] == (
             f"Part of EXP-{tasks[0].sequence_id}; Part of EXP-{tasks[1].sequence_id}; "
-            f"Is part of EXP-{feature.sequence_id}"
+            f"Is Part of EXP-{feature.sequence_id}"
         )
-        assert rows[2]["Issue links"] == f"Is part of EXP-{story.sequence_id}"
+        assert rows[2]["Issue links"] == f"Is Part of EXP-{story.sequence_id}"
 
     @pytest.mark.django_db
     def test_word_export_shows_the_issue_links_like_jira(self, session_client, workspace, project):
@@ -221,33 +222,59 @@ class TestWorkItemExportLinks:
             issue=story, related_issue=blocker, relation_type="blocked_by", project=project, workspace=workspace
         )
 
-        # the story on its own (exported with its Feature, it is listed under it)
+        # the story on its own
         html = session_client.get(_url(workspace, project, "word", feature=story.id)).content.decode("utf-8")
 
-        story_section = html.split(f"EXP-{story.sequence_id}</a>] Splash screen")[1].split("<h2>")[0]
-        assert "Issue links" in story_section
+        assert html.count('class="formtitle"') == 1
+        assert "<b>Issue links:</b>" in html
         # a key opens the work item in the app
         task_key = f"EXP-{tasks[0].sequence_id}"
-        assert f'/{workspace.slug}/browse/{task_key}/">{task_key}</a>' in story_section
-        assert "Backend Task - Splash screen" in story_section
-        assert "Is part of" in story_section and "Customer App" in story_section
-        assert "Is blocked by" in story_section and "Design approval" in story_section
-        assert html.count("<h2>") == 1
+        assert f'/{workspace.slug}/browse/{task_key}/">{task_key}</a>' in html
+        assert "Backend Task - Splash screen" in html
+        assert "<td>Is Part of</td>" in html and "Customer App" in html
+        assert "<td>Is blocked by</td>" in html and "Design approval" in html
 
     @pytest.mark.django_db
-    def test_word_export_lists_stories_and_tasks_only_under_their_feature(self, session_client, workspace, project):
+    def test_word_export_of_a_feature_is_laid_out_like_jira(self, session_client, workspace, project):
         feature, story, tasks = _jira_feature(workspace, project)
+        CustomFieldValue.objects.create(
+            project=project,
+            workspace=workspace,
+            issue=story,
+            field=CustomField.objects.create(project=project, workspace=workspace, name="Time spent"),
+            value="2h",
+        )
 
         html = session_client.get(_url(workspace, project, "word", feature=feature.id)).content.decode("utf-8")
 
-        headings = [heading.split("</h2>")[0] for heading in html.split("<h2>")[1:]]
-        assert len(headings) == 1 and "Customer App" in headings[0]
-        # the story is listed under the Feature, its tasks indented under it — each once
-        assert html.count("<td>Splash screen</td>") == 1
+        # a section per story, headed by its Feature; its tasks only in its issue links
+        titles = html.split('class="formtitle"')[1:]
+        assert len(titles) == 1 and "Splash screen" in titles[0]
+        assert f"({feature.name}" not in html and f"EXP-{feature.sequence_id}</a>)" in html
         assert html.count("Backend Task - Splash screen") == 1
-        assert html.index("<td>Splash screen</td>") < html.index("Backend Task - Splash screen")
-        assert 'style="padding-left: 14pt">Part of' in html
-        assert "1 work item · 3 more listed in their issue links" in html
+        # every Jira field, the empty ones too
+        for label in (
+            "Status",
+            "Project",
+            "Components",
+            "Affects versions",
+            "Fix versions",
+            "Parent",
+            "Type",
+            "Priority",
+            "Reporter",
+            "Assignee",
+            "Resolution",
+            "Votes",
+            "Labels",
+            "Remaining Estimate",
+            "Time Spent",
+            "Original estimate",
+        ):
+            assert f"<b>{label}:</b>" in html
+        assert "Unassigned" in html and "Unresolved" in html and "Not Specified" in html
+        assert ">2h</td>" in html
+        assert "<b>Description</b>" in html and "Generated at " in html
 
     @pytest.mark.django_db
     def test_word_export_keeps_a_story_whose_feature_is_not_exported(self, session_client, workspace, project):
@@ -255,8 +282,8 @@ class TestWorkItemExportLinks:
 
         html = session_client.get(_url(workspace, project, "word", feature=story.id)).content.decode("utf-8")
 
-        headings = [heading.split("</h2>")[0] for heading in html.split("<h2>")[1:]]
-        assert len(headings) == 1 and "Splash screen" in headings[0]
+        titles = html.split('class="formtitle"')[1:]
+        assert len(titles) == 1 and "Splash screen" in titles[0]
         assert html.count("Backend Task - Splash screen") == 1
 
     @pytest.mark.django_db

@@ -67,6 +67,7 @@ class WorkItemExportEndpoint(BaseAPIView):
                 user_id=request.user.id if _own_only(request, project) else None,
                 filters=_filters(request),
                 app_url=base_host(request=request, is_app=True),
+                generated_by=request.user.display_name or request.user.email,
             )
         except ValidationError:
             return Response({"error": "A filter has an invalid value"}, status=status.HTTP_400_BAD_REQUEST)
