@@ -29,6 +29,7 @@ from plane.db.models import (
     IssueAssignee,
     IssueComment,
     IssueLabel,
+    IssueRelation,
     IssueType,
     JiraEntityMap,
     Label,
@@ -83,16 +84,46 @@ LINK_FILTERS = {
 FILTER_NAMES = ("feature", *FIELD_FILTERS, *LINK_FILTERS)
 
 
+def _part_links(issue_ids):
+    """(work item, its part) pairs: a work item under a Feature linked to a work item with no parent.
+
+    Jira's "Part of" links (a story and its Backend / Frontend / QA tasks) were cloned as "relates to" links, the
+    tasks having no parent of their own — they are the parts of the story, as Jira shows them.
+    """
+    relations = IssueRelation.objects.filter(
+        Q(issue_id__in=issue_ids) | Q(related_issue_id__in=issue_ids),
+        relation_type="relates_to",
+        issue__deleted_at__isnull=True,
+        related_issue__deleted_at__isnull=True,
+    ).values_list(
+        "issue_id",
+        "issue__parent_id",
+        "issue__type__name",
+        "related_issue_id",
+        "related_issue__parent_id",
+        "related_issue__type__name",
+    )
+    pairs = set()
+    for first, first_parent, first_type, second, second_parent, second_type in relations:
+        for whole, whole_parent, part, part_parent, part_type in (
+            (first, first_parent, second, second_parent, second_type),
+            (second, second_parent, first, first_parent, first_type),
+        ):
+            if whole_parent and not part_parent and (part_type or "").lower() != "feature":
+                pairs.add((whole, part))
+    return pairs
+
+
 def _feature_tree(project, feature_ids):
-    """The given Features (or any parent work items) with every work item under them, at any depth."""
-    found = set(Issue.issue_objects.filter(project=project, id__in=feature_ids).values_list("id", flat=True))
+    """The given Features (or any parent work items) with every work item under them, at any depth — the work items
+    under them and the parts of those (see _part_links)."""
+    project_issues = Issue.issue_objects.filter(project=project)
+    found = set(project_issues.filter(id__in=feature_ids).values_list("id", flat=True))
     level = set(found)
     while level:
-        level = set(
-            Issue.issue_objects.filter(project=project, parent_id__in=level)
-            .exclude(id__in=found)
-            .values_list("id", flat=True)
-        )
+        children = set(project_issues.filter(parent_id__in=level).values_list("id", flat=True))
+        parts = {part for whole, part in _part_links(level) if whole in level}
+        level = set(project_issues.filter(id__in=(children | parts) - found).values_list("id", flat=True))
         found |= level
     return found
 
@@ -150,8 +181,110 @@ def export_filter_options(project, user_id=None):
     }
 
 
+# relation type -> (how the work item shows it, how the other work item shows it), as Jira words its links
+RELATION_LINKS = {
+    "relates_to": ("Relates to", "Relates to"),
+    "blocked_by": ("Is blocked by", "Blocks"),
+    "duplicate": ("Duplicates", "Is duplicated by"),
+    "start_before": ("Starts before", "Starts after"),
+    "finish_before": ("Finishes before", "Finishes after"),
+    "implemented_by": ("Is implemented by", "Implements"),
+}
+PART_OF, IS_PART_OF = "Part of", "Is part of"
+
+
+def _issue_links(project, issues, user_id=None):
+    """The links of each work item, like Jira's "Issue links": {issue id: [(link, other work item)]}.
+
+    "Is part of" the parent and "Part of" each work item under it (and each part, see _part_links), then the
+    relations ("Relates to", "Blocks"…). Only work items of the project that aren't archived, drafts or deleted — and
+    with `user_id`, only the ones that user created (a client who sees only their own).
+    """
+    issue_ids = [issue.id for issue in issues]
+    project_issues = Issue.issue_objects.filter(project=project)
+    if user_id is not None:
+        project_issues = project_issues.filter(created_by_id=user_id)
+    links = defaultdict(list)
+    for child in project_issues.filter(parent_id__in=issue_ids).order_by("sequence_id"):
+        links[child.parent_id].append((PART_OF, child.id))
+    for issue in issues:
+        if issue.parent_id:
+            links[issue.id].append((IS_PART_OF, issue.parent_id))
+    parts = _part_links(issue_ids)
+    for whole, part in sorted(parts, key=str):
+        links[whole].append((PART_OF, part))
+        links[part].append((IS_PART_OF, whole))
+    relations = IssueRelation.objects.filter(
+        Q(issue_id__in=issue_ids) | Q(related_issue_id__in=issue_ids),
+        issue__deleted_at__isnull=True,
+        related_issue__deleted_at__isnull=True,
+    ).values_list("issue_id", "related_issue_id", "relation_type")
+    for first, second, relation_type in relations:
+        if relation_type == "relates_to" and ((first, second) in parts or (second, first) in parts):
+            continue
+        forward, reverse = RELATION_LINKS.get(relation_type, (relation_type, relation_type))
+        links[first].append((forward, second))
+        links[second].append((reverse, first))
+
+    wanted = set(issue_ids)
+    others = {
+        other.id: other
+        for other in project_issues.filter(
+            id__in={other for item_links in links.values() for _, other in item_links}
+        ).select_related("state")
+    }
+    identifier = project.identifier
+    result = {}
+    for issue_id in wanted:
+        seen = set()
+        rows = []
+        for link, other_id in links.get(issue_id, []):
+            other = others.get(other_id)
+            if other is None or (link, other_id) in seen:
+                continue
+            seen.add((link, other_id))
+            rows.append(
+                {
+                    "link": link,
+                    "id": other_id,
+                    "key": f"{identifier}-{other.sequence_id}",
+                    "summary": other.name.strip(),
+                    "status": other.state.name if other.state else "",
+                    "sequence_id": other.sequence_id,
+                }
+            )
+        # Jira's order: the parts, then what it is part of, then the other links — each in key order
+        order = {PART_OF: 0, IS_PART_OF: 1}
+        rows.sort(key=lambda row: (order.get(row["link"], 2), row["link"], row["sequence_id"]))
+        result[issue_id] = rows
+    return result
+
+
+def _hierarchy_order(issues, links, root_ids):
+    """The work items in document order from the selected Features: each followed by the work items under it."""
+    by_id = {issue.id: issue for issue in issues}
+    ordered, placed = [], set()
+
+    def place(issue_id):
+        if issue_id in placed or issue_id not in by_id:
+            return
+        placed.add(issue_id)
+        ordered.append(by_id[issue_id])
+        for row in links.get(issue_id, []):
+            if row["link"] == PART_OF:
+                place(row["id"])
+
+    for issue in issues:
+        if str(issue.id) in root_ids:
+            place(issue.id)
+    for issue in issues:
+        place(issue.id)
+    return ordered
+
+
 def collect_work_items(project, user_id=None, filters=None):
-    """The work items of the project in key order, each as a dict of its exported fields.
+    """The work items of the project in key order (a Feature export: each Feature followed by the work items under
+    it), each as a dict of its exported fields.
 
     `user_id` limits the export to the work items that user created (clients of a project that hides the others);
     `filters` (see FILTERS) to the work items matching them. Returns (custom field names, has Jira keys, items).
@@ -164,6 +297,9 @@ def collect_work_items(project, user_id=None, filters=None):
     issues = issues.select_related("state", "type", "parent", "milestone", "created_by", "estimate_point")
     issues = list(issues.order_by("sequence_id"))
     issue_ids = [issue.id for issue in issues]
+    links = _issue_links(project, issues, user_id=user_id)
+    if filters and filters.get("feature"):
+        issues = _hierarchy_order(issues, links, {str(feature_id) for feature_id in filters["feature"]})
 
     assignees = defaultdict(list)
     for record in IssueAssignee.objects.filter(issue_id__in=issue_ids).select_related("assignee"):
@@ -238,6 +374,8 @@ def collect_work_items(project, user_id=None, filters=None):
                 "description_html": issue.description_html or "",
                 "description_text": issue.description_stripped or "",
                 "comments": comments[issue.id],
+                "links": links.get(issue.id, []),
+                "links_text": "; ".join(f"{row['link']} {row['key']}" for row in links.get(issue.id, [])),
             }
         )
     return [field.name for field in fields], bool(jira_keys), items
@@ -258,6 +396,7 @@ COLUMNS = [
     ("Modules", "modules"),
     ("Sprint", "sprint"),
     ("Labels", "labels"),
+    ("Issue links", "links_text"),
     ("Estimate", "estimate"),
     ("Start date", "start_date"),
     ("Due date", "due_date"),
@@ -341,21 +480,91 @@ table.fields td { border: 1px solid #DFE1E6; padding: 3pt 6pt; vertical-align: t
 table.fields td.label { background: #F4F5F7; font-weight: bold; width: 28%; }
 .comment { border-left: 3px solid #DFE1E6; padding-left: 8pt; margin: 6pt 0; }
 .comment .by { color: #5E6C84; font-size: 9pt; }
+table.links { border-collapse: collapse; width: 100%; }
+table.links td { border: none; padding: 1pt 6pt 1pt 0; font-size: 10pt; vertical-align: top; }
+table.links td.links-heading { font-weight: bold; padding-top: 2pt; }
 """
 
 
-def export_word(project, custom_names, has_jira_keys, items):
-    """A Word document (HTML that Word opens, the way Jira exports to Word): one section per work item."""
-    columns = [column for column in _columns(has_jira_keys) if column[1] not in ("key", "summary")]
+def _work_item_url(app_url, project, key):
+    """Where the work item opens in the app (its key, like a Jira issue link)."""
+    return f"{app_url.rstrip('/')}/{project.workspace.slug}/browse/{key}/" if app_url else ""
+
+
+def _word_links(project, links, app_url, nested_links):
+    """Jira's "Issue links" box: a heading per kind of link, then one row per linked work item, its key opening it.
+
+    `nested_links` has the links of the work items listed only here (see _listed_parts): their parts follow them,
+    indented — a Feature's stories, each with its tasks.
+    """
+    rows = []
+    heading = None
+
+    def add(row, depth, seen):
+        key = escape(row["key"])
+        url = _work_item_url(app_url, project, row["key"])
+        key_html = f'<a href="{escape(url)}">{key}</a>' if url else key
+        summary = row["summary"] if len(row["summary"]) <= 60 else f"{row['summary'][:57]}..."
+        indent = f' style="padding-left: {depth * 14}pt"' if depth else ""
+        rows.append(
+            f"<tr><td{indent}>{escape(row['link'])}</td><td>{key_html}</td>"
+            f"<td>{escape(summary)}</td><td>{escape(row['status'])}</td></tr>"
+        )
+        if row["link"] != PART_OF or row["key"] in seen:
+            return
+        for part in nested_links.get(row["key"], []):
+            if part["link"] == PART_OF:
+                add(part, depth + 1, seen | {row["key"]})
+
+    for row in links:
+        kind = "Part of" if row["link"] in (PART_OF, IS_PART_OF) else row["link"]
+        if kind != heading:
+            heading = kind
+            rows.append(f'<tr><td colspan="4" class="links-heading">{escape(kind)}</td></tr>')
+        add(row, 0, set())
+    return f'<table class="links">{"".join(rows)}</table>'
+
+
+def _listed_parts(items):
+    """The keys of the work items listed in the "Part of" links of another exported work item — a Feature's stories,
+    a story's tasks. They are shown there, not again on their own (a work item part of nothing exported keeps its
+    own section)."""
+    keys = {item["key"] for item in items}
+    parts = {item["key"]: [row["key"] for row in item["links"] if row["link"] == PART_OF] for item in items}
+    roots = [
+        item["key"]
+        for item in items
+        if not any(row["link"] == IS_PART_OF and row["key"] in keys for row in item["links"])
+    ]
+    listed, pending = set(), list(roots)
+    while pending:
+        for part in parts.get(pending.pop(), []):
+            if part in keys and part not in listed and part not in roots:
+                listed.add(part)
+                pending.append(part)
+    return listed
+
+
+def export_word(project, custom_names, has_jira_keys, items, app_url=None):
+    """A Word document (HTML that Word opens, the way Jira exports to Word): one section per work item, the work items
+    that are part of another one listed in its "Issue links" instead."""
+    columns = [column for column in _columns(has_jira_keys) if column[1] not in ("key", "summary", "links_text")]
+    listed = _listed_parts(items)
+    nested_links = {item["key"]: item["links"] for item in items if item["key"] in listed}
+    items = [item for item in items if item["key"] not in listed]
+    listed_count = f" · {len(listed)} more listed in their issue links" if listed else ""
+    item_count = f"{len(items)} work item{'' if len(items) == 1 else 's'}"
     parts = [
         '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"'
         ' xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">',
         f"<title>{escape(project.name)} work items</title><style>{WORD_STYLE}</style></head><body>",
         f"<h1>{escape(project.name)}</h1>",
-        f'<div class="meta">{len(items)} work items · exported {_datetime(timezone.now())}</div>',
+        f'<div class="meta">{item_count}{listed_count} · exported {_datetime(timezone.now())}</div>',
     ]
     for item in items:
-        parts.append(f"<h2>[{escape(item['key'])}] {escape(item['summary'])}</h2>")
+        key, url = escape(item["key"]), _work_item_url(app_url, project, item["key"])
+        key_html = f'<a href="{escape(url)}">{key}</a>' if url else key
+        parts.append(f"<h2>[{key_html}] {escape(item['summary'])}</h2>")
         parts.append('<table class="fields">')
         values = [(label, item[key]) for label, key in columns] + [
             (name, item["custom"].get(name, "")) for name in custom_names
@@ -364,6 +573,9 @@ def export_word(project, custom_names, has_jira_keys, items):
             if value in ("", None) or (label == "Jira key" and value == item["key"]):
                 continue
             parts.append(f'<tr><td class="label">{escape(label)}</td><td>{escape(str(value))}</td></tr>')
+        if item["links"]:
+            links_html = _word_links(project, item["links"], app_url, nested_links)
+            parts.append(f'<tr><td class="label">Issue links</td><td>{links_html}</td></tr>')
         parts.append("</table>")
         if item["description_html"].strip() and item["description_text"].strip():
             # the description is stored sanitized when the work item is saved
@@ -379,14 +591,20 @@ def export_word(project, custom_names, has_jira_keys, items):
     return "".join(parts).encode("utf-8")
 
 
-def export_work_items(project, export_format, user_id=None, filters=None):
-    """Returns (file bytes, content type, file name) of the project's work items in the given format."""
+def export_work_items(project, export_format, user_id=None, filters=None, app_url=None):
+    """Returns (file bytes, content type, file name) of the project's work items in the given format.
+
+    `app_url` (the web app) makes the keys in the Word document links that open the work items."""
     custom_names, has_jira_keys, items = collect_work_items(project, user_id=user_id, filters=filters)
     custom_names = _merge_matching_custom_fields(custom_names, items)
     stamp = timezone.localtime().strftime("%Y-%m-%d")
     name = f"{project.identifier}-work-items-{stamp}"
     if export_format == "word":
-        return export_word(project, custom_names, has_jira_keys, items), "application/msword", f"{name}.doc"
+        return (
+            export_word(project, custom_names, has_jira_keys, items, app_url=app_url),
+            "application/msword",
+            f"{name}.doc",
+        )
     if export_format == "excel":
         return (
             export_excel(project, custom_names, has_jira_keys, items),

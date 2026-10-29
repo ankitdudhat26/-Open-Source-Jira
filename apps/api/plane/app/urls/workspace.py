@@ -12,6 +12,7 @@ from plane.app.views.workspace.jira import (
     JiraSyncStopEndpoint,
     WorkspaceHistoryEndpoint,
 )
+from plane.app.views.workspace.user_migration import UserMigrationSheetEndpoint
 
 from plane.app.views.workspace.member_invite import (
     WorkspaceMemberDetailsEndpoint,
@@ -317,6 +318,12 @@ urlpatterns = [
         "workspaces/<str:slug>/queues/<uuid:group_id>/items/<uuid:issue_id>/comments/",
         QueueItemCommentEndpoint.as_view(),
         name="workspace-queue-item-comments",
+    ),
+    # the user migration sheet (who to migrate / delete in Jira)
+    path(
+        "workspaces/<str:slug>/user-migration-sheet/",
+        UserMigrationSheetEndpoint.as_view(),
+        name="workspace-user-migration-sheet",
     ),
     # Jira import (read only) and the change history
     path("workspaces/<str:slug>/jira/connection/", JiraConnectionEndpoint.as_view(), name="jira-connection"),

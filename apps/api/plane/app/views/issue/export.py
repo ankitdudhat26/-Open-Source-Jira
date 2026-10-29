@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember
+from plane.utils.host import base_host
 from plane.utils.work_item_export import EXPORT_FORMATS, FILTER_NAMES, export_filter_options, export_work_items
 
 
@@ -65,6 +66,7 @@ class WorkItemExportEndpoint(BaseAPIView):
                 export_format,
                 user_id=request.user.id if _own_only(request, project) else None,
                 filters=_filters(request),
+                app_url=base_host(request=request, is_app=True),
             )
         except ValidationError:
             return Response({"error": "A filter has an invalid value"}, status=status.HTTP_400_BAD_REQUEST)

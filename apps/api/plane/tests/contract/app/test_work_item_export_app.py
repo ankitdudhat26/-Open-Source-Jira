@@ -19,6 +19,7 @@ from plane.db.models import (
     Issue,
     IssueAssignee,
     IssueComment,
+    IssueRelation,
     IssueType,
     JiraEntityMap,
     Project,
@@ -62,7 +63,7 @@ class TestWorkItemExport:
         assert response["Content-Type"] == "application/msword"
         assert response["Content-Disposition"].endswith('.doc"')
         html = response.content.decode("utf-8")
-        assert f"[EXP-{story.sequence_id}] Login with OTP" in html
+        assert f'/browse/EXP-{story.sequence_id}/">EXP-{story.sequence_id}</a>] Login with OTP' in html
         assert "Profile page" in html
         assert "Ready for QA" in html
 
@@ -173,3 +174,95 @@ class TestWorkItemExport:
         response = session_client.get(_url(workspace, project, "csv", state="not-a-uuid"))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def _jira_feature(workspace, project):
+    """A Jira clone: Feature > story, the story's tasks linked to it ("Part of" in Jira, "relates to" here)."""
+    feature_type = IssueType.objects.create(workspace=workspace, name="Feature")
+    feature = Issue.objects.create(name="Customer App", project=project, workspace=workspace, type=feature_type)
+    story = Issue.objects.create(name="Splash screen", project=project, workspace=workspace, parent=feature)
+    Issue.objects.create(name="Other feature story", project=project, workspace=workspace)
+    tasks = [
+        Issue.objects.create(name=f"{kind} Task - Splash screen", project=project, workspace=workspace)
+        for kind in ("Backend", "Frontend")
+    ]
+    for task in tasks:
+        IssueRelation.objects.create(
+            issue=story, related_issue=task, relation_type="relates_to", project=project, workspace=workspace
+        )
+    return feature, story, tasks
+
+
+@pytest.mark.contract
+class TestWorkItemExportLinks:
+    @pytest.mark.django_db
+    def test_feature_export_includes_the_tasks_of_its_stories_in_order(self, session_client, workspace, project):
+        feature, story, tasks = _jira_feature(workspace, project)
+
+        rows = _csv_rows(session_client.get(_url(workspace, project, "csv", feature=feature.id)))
+
+        assert [row["Summary"] for row in rows] == [
+            "Customer App",
+            "Splash screen",
+            "Backend Task - Splash screen",
+            "Frontend Task - Splash screen",
+        ]
+        assert rows[1]["Issue links"] == (
+            f"Part of EXP-{tasks[0].sequence_id}; Part of EXP-{tasks[1].sequence_id}; "
+            f"Is part of EXP-{feature.sequence_id}"
+        )
+        assert rows[2]["Issue links"] == f"Is part of EXP-{story.sequence_id}"
+
+    @pytest.mark.django_db
+    def test_word_export_shows_the_issue_links_like_jira(self, session_client, workspace, project):
+        feature, story, tasks = _jira_feature(workspace, project)
+        blocker = Issue.objects.create(name="Design approval", project=project, workspace=workspace)
+        IssueRelation.objects.create(
+            issue=story, related_issue=blocker, relation_type="blocked_by", project=project, workspace=workspace
+        )
+
+        # the story on its own (exported with its Feature, it is listed under it)
+        html = session_client.get(_url(workspace, project, "word", feature=story.id)).content.decode("utf-8")
+
+        story_section = html.split(f"EXP-{story.sequence_id}</a>] Splash screen")[1].split("<h2>")[0]
+        assert "Issue links" in story_section
+        # a key opens the work item in the app
+        task_key = f"EXP-{tasks[0].sequence_id}"
+        assert f'/{workspace.slug}/browse/{task_key}/">{task_key}</a>' in story_section
+        assert "Backend Task - Splash screen" in story_section
+        assert "Is part of" in story_section and "Customer App" in story_section
+        assert "Is blocked by" in story_section and "Design approval" in story_section
+        assert html.count("<h2>") == 1
+
+    @pytest.mark.django_db
+    def test_word_export_lists_stories_and_tasks_only_under_their_feature(self, session_client, workspace, project):
+        feature, story, tasks = _jira_feature(workspace, project)
+
+        html = session_client.get(_url(workspace, project, "word", feature=feature.id)).content.decode("utf-8")
+
+        headings = [heading.split("</h2>")[0] for heading in html.split("<h2>")[1:]]
+        assert len(headings) == 1 and "Customer App" in headings[0]
+        # the story is listed under the Feature, its tasks indented under it — each once
+        assert html.count("<td>Splash screen</td>") == 1
+        assert html.count("Backend Task - Splash screen") == 1
+        assert html.index("<td>Splash screen</td>") < html.index("Backend Task - Splash screen")
+        assert 'style="padding-left: 14pt">Part of' in html
+        assert "1 work item · 3 more listed in their issue links" in html
+
+    @pytest.mark.django_db
+    def test_word_export_keeps_a_story_whose_feature_is_not_exported(self, session_client, workspace, project):
+        _, story, tasks = _jira_feature(workspace, project)
+
+        html = session_client.get(_url(workspace, project, "word", feature=story.id)).content.decode("utf-8")
+
+        headings = [heading.split("</h2>")[0] for heading in html.split("<h2>")[1:]]
+        assert len(headings) == 1 and "Splash screen" in headings[0]
+        assert html.count("Backend Task - Splash screen") == 1
+
+    @pytest.mark.django_db
+    def test_spreadsheet_keeps_a_row_for_every_sub_task(self, session_client, workspace, project):
+        feature, _, _ = _jira_feature(workspace, project)
+
+        rows = _csv_rows(session_client.get(_url(workspace, project, "csv", feature=feature.id)))
+
+        assert len(rows) == 4

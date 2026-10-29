@@ -61,6 +61,13 @@ export function WorkItemExportMenu(props: Props) {
   const [filters, setFilters] = useState<TExportFilters>({});
   const [exportFormat, setExportFormat] = useState("word");
   const [isExporting, setIsExporting] = useState(false);
+  const [filtersProjectId, setFiltersProjectId] = useState(projectId);
+
+  // the filters chosen in another project (its Features, sprints…) match nothing here
+  if (filtersProjectId !== projectId) {
+    setFiltersProjectId(projectId);
+    setFilters({});
+  }
 
   const exportUrl = `${API_BASE_URL}/api/workspaces/${workspaceSlug}/projects/${projectId}/work-items/export/`;
 
@@ -72,7 +79,17 @@ export function WorkItemExportMenu(props: Props) {
         const response = await fetch(`${exportUrl}options/`, { credentials: "include" });
         if (!response.ok) throw new Error(`Loading the export filters failed with status ${response.status}`);
         const data = (await response.json()) as TExportOptions;
-        if (!ignore) setOptions(data);
+        if (ignore) return;
+        setOptions(data);
+        // keep only the choices this project still has
+        setFilters((current) =>
+          Object.fromEntries(
+            Object.entries(current).map(([name, values]) => [
+              name,
+              values?.filter((value) => data[name as TExportFilterName]?.some((option) => option.id === value)),
+            ])
+          )
+        );
       } catch (error) {
         console.error(error);
         if (!ignore) setOptions({});
@@ -145,7 +162,7 @@ export function WorkItemExportMenu(props: Props) {
               <div className="flex flex-col gap-4">
                 <p className="text-13 text-secondary">
                   Choose filters to export only the matching work items. Leave a filter empty to include all. A Feature
-                  is exported with every work item under it.
+                  is exported with its stories and their tasks.
                 </p>
                 {options === undefined ? (
                   <p className="text-13 text-tertiary">Loading filters...</p>
