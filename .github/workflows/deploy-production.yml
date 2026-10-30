@@ -160,6 +160,10 @@ jobs:
           else
             ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           fi
+          # The deploy prints nothing while it pulls images for minutes, and the idle connection was dropped on the
+          # way ("Connection reset by peer", 2026-10-30). Keep-alives every 15 s hold it open; give up after ~2 min.
+          printf 'Host *\n  ServerAliveInterval 15\n  ServerAliveCountMax 8\n  TCPKeepAlive yes\n' >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Upload deployment files
         run: |
