@@ -9,6 +9,7 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import useSWR from "swr";
 // plane imports
 import { ETabIndices } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
@@ -29,6 +30,7 @@ import { Switch } from "@makeplane/propel/components/switch";
 import { renderFormattedPayloadDate, getTabIndex } from "@plane/utils";
 // hooks
 import { useProjectInbox } from "@/hooks/store/use-project-inbox";
+import { intakeFormService } from "@/services/intake-form.service";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useAppRouter } from "@/hooks/use-app-router";
 import useKeypress from "@/hooks/use-keypress";
@@ -78,6 +80,13 @@ export const InboxIssueCreateRoot = observer(function InboxIssueCreateRoot(props
   const { getWorkspaceBySlug } = useWorkspace();
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id;
   const { isMobile } = usePlatformOS();
+  // the fields the project turned off on its request form are not asked for (nor saved)
+  const { data: requestForm } = useSWR(
+    workspaceSlug && projectId ? ["INTAKE_FORM", workspaceSlug, projectId] : null,
+    () => intakeFormService.fetch(workspaceSlug, projectId),
+    { revalidateOnFocus: false }
+  );
+  const isFieldShown = (key: string) => requestForm?.fields.find((field) => field.key === key)?.visible ?? true;
   const { t } = useTranslation();
   // states
   const [createMore, setCreateMore] = useState<boolean>(false);
@@ -205,22 +214,26 @@ export const InboxIssueCreateRoot = observer(function InboxIssueCreateRoot(props
                   handleData={handleFormData}
                   isTitleLengthMoreThan255Character={isTitleLengthMoreThan255Character}
                 />
-                <InboxIssueDescription
-                  workspaceSlug={workspaceSlug}
-                  projectId={projectId}
-                  workspaceId={workspaceId}
-                  data={formData}
-                  handleData={handleFormData}
-                  editorRef={descriptionEditorRef}
-                  containerClassName="bg-layer-2 border-[0.5px] border-subtle-1 py-3 min-h-[150px]"
-                  onEnterKeyPress={() => submitBtnRef?.current?.click()}
-                  onAssetUpload={(assetId) => setUploadedAssetIds((prev) => [...prev, assetId])}
-                />
+                {isFieldShown("description") && (
+                  <InboxIssueDescription
+                    workspaceSlug={workspaceSlug}
+                    projectId={projectId}
+                    workspaceId={workspaceId}
+                    data={formData}
+                    handleData={handleFormData}
+                    editorRef={descriptionEditorRef}
+                    containerClassName="bg-layer-2 border-[0.5px] border-subtle-1 py-3 min-h-[150px]"
+                    onEnterKeyPress={() => submitBtnRef?.current?.click()}
+                    onAssetUpload={(assetId) => setUploadedAssetIds((prev) => [...prev, assetId])}
+                  />
+                )}
                 <InboxIssueProperties
                   workspaceSlug={workspaceSlug}
                   projectId={projectId}
                   data={formData}
                   handleData={handleFormData}
+                  showPriority={isFieldShown("priority")}
+                  showLabels={isFieldShown("labels")}
                 />
               </div>
             </DialogBody>

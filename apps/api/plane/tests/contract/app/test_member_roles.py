@@ -117,9 +117,7 @@ class TestClientAccess:
         assert project.guest_view_all_features is True
 
     @pytest.mark.django_db
-    def test_client_sees_work_items_and_comments_but_cannot_edit_others(
-        self, api_client, session_client, workspace, project, client_user
-    ):
+    def test_client_only_views_work_items(self, api_client, session_client, workspace, project, client_user):
         issue = Issue.objects.create(name="Home page", project=project, workspace=workspace)
         base = f"/api/workspaces/{workspace.slug}/projects/{project.id}"
         api_client.force_authenticate(user=client_user)
@@ -128,18 +126,16 @@ class TestClientAccess:
         response = api_client.get(f"{base}/issues/{issue.id}/")
         assert response.status_code == status.HTTP_200_OK
 
-        # can comment
+        # but cannot comment, edit or create (see test_client_work_item_access_app)
         response = api_client.post(
             f"{base}/issues/{issue.id}/comments/", {"comment_html": "<p>Looks good</p>"}, format="json"
         )
-        assert response.status_code == status.HTTP_201_CREATED, response.data
-        assert IssueComment.objects.filter(issue=issue, actor=client_user).exists()
-
-        # cannot edit the work items of the team, but can create their own (see test_client_work_item_access_app)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not IssueComment.objects.filter(issue=issue, actor=client_user).exists()
         response = api_client.patch(f"{base}/issues/{issue.id}/", {"name": "Changed"}, format="json")
         assert response.status_code == status.HTTP_403_FORBIDDEN
         response = api_client.post(f"{base}/issues/", {"name": "New"}, format="json")
-        assert response.status_code == status.HTTP_201_CREATED, response.data
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         issue.refresh_from_db()
         assert issue.name == "Home page"
 

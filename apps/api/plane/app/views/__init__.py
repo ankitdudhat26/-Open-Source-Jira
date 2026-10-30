@@ -196,6 +196,7 @@ from .intake.base import (
     IntakeIssueViewSet,
     IntakeWorkItemDescriptionVersionEndpoint,
 )
+from .intake.form import IntakeFormEndpoint, IntakeFormInviteEndpoint, IntakeFormResetLinkEndpoint
 
 from .analytic.base import (
     AnalyticsEndpoint,

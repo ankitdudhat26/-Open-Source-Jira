@@ -60,7 +60,7 @@ class IssueCommentViewSet(BaseViewSet):
             .distinct()
         )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id, issue_id):
         project = Project.objects.get(pk=project_id)
         issue = Issue.objects.get(pk=issue_id)
@@ -180,7 +180,7 @@ class CommentReactionViewSet(BaseViewSet):
             .distinct()
         )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id, comment_id):
         try:
             serializer = CommentReactionSerializer(data=request.data)
@@ -209,7 +209,7 @@ class CommentReactionViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, comment_id, reaction_code):
         comment_reaction = CommentReaction.objects.get(
             workspace__slug=slug,

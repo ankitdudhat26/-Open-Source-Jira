@@ -15,7 +15,6 @@ import type { EIssuesStoreType } from "@plane/types";
 import { EIssueServiceType, EIssueLayoutTypes } from "@plane/types";
 //hooks
 import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -124,12 +123,11 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  // clients create work items and edit the ones they created
+  // clients (project guests) only view work items
   const isCreatingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   const handleOnDrop = useGroupIssuesDragNDrop(storeType, orderBy, group_by, sub_group_by);
 
@@ -139,15 +137,15 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
   }, []);
 
   const canEditProperties = useCallback<TCanEditProperties>(
-    (issueProjectId, issue) => {
+    (issueProjectId) => {
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && issueProjectId
           ? canEditPropertiesBasedOnProject(issueProjectId)
           : isEditingAllowed;
 
-      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
+      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
   );
 
   // Enable Auto Scroll for Main Kanban

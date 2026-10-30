@@ -33,10 +33,21 @@ type TInboxIssueProperties = {
   data: Partial<TIssue>;
   handleData: (issueKey: keyof Partial<TIssue>, issueValue: Partial<TIssue>[keyof Partial<TIssue>]) => void;
   isVisible?: boolean;
+  /** off when the project turned the field off on its request form */
+  showPriority?: boolean;
+  showLabels?: boolean;
 };
 
 export const InboxIssueProperties = observer(function InboxIssueProperties(props: TInboxIssueProperties) {
-  const { workspaceSlug, projectId, data, handleData, isVisible = false } = props;
+  const {
+    workspaceSlug,
+    projectId,
+    data,
+    handleData,
+    isVisible = false,
+    showPriority = true,
+    showLabels = true,
+  } = props;
   // translation
   const { t } = useTranslation();
   // hooks
@@ -71,12 +82,14 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       />
 
       {/* priority */}
-      <PrioritySelect
-        value={data?.priority}
-        onChange={(priority) => handleData("priority", priority)}
-        variant="pill-md"
-        tabIndex={getIndex("priority")}
-      />
+      {showPriority && (
+        <PrioritySelect
+          value={data?.priority}
+          onChange={(priority) => handleData("priority", priority)}
+          variant="pill-md"
+          tabIndex={getIndex("priority")}
+        />
+      )}
 
       {/* Assignees */}
       <MemberSelect
@@ -90,14 +103,16 @@ export const InboxIssueProperties = observer(function InboxIssueProperties(props
       />
 
       {/* labels */}
-      <LabelSelect
-        projectId={projectId}
-        value={data?.label_ids || []}
-        onChange={(labelIds) => handleData("label_ids", labelIds)}
-        variant="pill-md"
-        placeholder={t("labels")}
-        tabIndex={getIndex("label_ids")}
-      />
+      {showLabels && (
+        <LabelSelect
+          projectId={projectId}
+          value={data?.label_ids || []}
+          onChange={(labelIds) => handleData("label_ids", labelIds)}
+          variant="pill-md"
+          placeholder={t("labels")}
+          tabIndex={getIndex("label_ids")}
+        />
+      )}
 
       {/* start date */}
       {isVisible && (

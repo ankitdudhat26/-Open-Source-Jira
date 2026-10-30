@@ -128,7 +128,12 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
   const toOption = useCallback(
     (id: string): MemberOption => {
       const member = getUserDetails(id);
-      const name = member?.display_name ?? "";
+      // the person's name — invited users' display names are made from their email (kevalk.hyperlinkinfosystem)
+      const fullName = [member?.first_name, member?.last_name]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(" ");
+      const name = fullName || member?.display_name || "";
       return {
         id,
         display_name: id === currentUser?.id ? `${name} (${youLabel})` : name,

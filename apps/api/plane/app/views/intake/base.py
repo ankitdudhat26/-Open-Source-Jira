@@ -51,7 +51,8 @@ from plane.app.views.base import BaseAPIView
 from plane.utils.timezone_converter import user_timezone_converter
 from plane.utils.global_paginator import paginate
 from plane.utils.host import base_host
-from plane.db.models.intake import SourceType
+from plane.db.models.intake import IntakeIssueStatus, SourceType
+from plane.utils.intake_form import strip_hidden_fields
 
 
 class IntakeViewSet(BaseViewSet):
@@ -174,7 +175,7 @@ class IntakeIssueViewSet(BaseViewSet):
             )
         ).distinct()
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def list(self, request, slug, project_id):
         intake = Intake.objects.filter(workspace__slug=slug, project_id=project_id).first()
         if not intake:
@@ -225,7 +226,7 @@ class IntakeIssueViewSet(BaseViewSet):
             on_results=lambda intake_issues: IntakeIssueSerializer(intake_issues, many=True).data,
         )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id):
         if not request.data.get("issue", {}).get("name", False):
             return Response({"error": "Name is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -241,6 +242,8 @@ class IntakeIssueViewSet(BaseViewSet):
             return Response({"error": "Invalid priority"}, status=status.HTTP_400_BAD_REQUEST)
 
         project = Project.objects.get(pk=project_id)
+        # the fields the project turned off on its Intake form are not taken from a request
+        request.data["issue"] = strip_hidden_fields(project_id, request.data.get("issue", {}))
 
         # get the triage state
         triage_state = State.triage_objects.filter(project_id=project_id, workspace__slug=slug).first()
@@ -422,7 +425,17 @@ class IntakeIssueViewSet(BaseViewSet):
         intake_serializer = None
         intake_current_instance = None
 
-        if (project_member and project_member.role > ROLE.MEMBER.value) or is_workspace_admin:
+        can_change_status = (project_member and project_member.role > ROLE.MEMBER.value) or is_workspace_admin
+        # a request is only declined with the reason, which the person who sent it sees
+        declining = can_change_status and str(request.data.get("status")) == str(IntakeIssueStatus.REJECTED)
+        reason = str(request.data.get("decline_reason") or "").strip()[:2000]
+        if declining and not reason:
+            return Response(
+                {"error": "Add the reason for declining this request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if can_change_status:
             intake_current_instance = json.dumps(IntakeIssueSerializer(intake_issue).data, cls=DjangoJSONEncoder)
             intake_serializer = IntakeIssueSerializer(intake_issue, data=request.data, partial=True)
 
@@ -458,7 +471,15 @@ class IntakeIssueViewSet(BaseViewSet):
                     )
 
         if intake_serializer:
-            intake_serializer.save()
+            intake_issue = intake_serializer.save()
+            if "status" in request.data:
+                extra = dict(intake_issue.extra or {})
+                if intake_issue.status == IntakeIssueStatus.REJECTED:
+                    extra["decline_reason"] = reason
+                else:
+                    extra.pop("decline_reason", None)
+                intake_issue.extra = extra
+                intake_issue.save(update_fields=["extra", "updated_at"])
             # create a activity for status change
             issue_activity.delay(
                 type="intake.activity.created",
@@ -502,7 +523,7 @@ class IntakeIssueViewSet(BaseViewSet):
         serializer = IntakeIssueDetailSerializer(intake_issue).data
         return Response(serializer, status=status.HTTP_200_OK)
 
-    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], creator=True, model=Issue)
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], creator=True, model=Issue)
     def retrieve(self, request, slug, project_id, pk):
         intake_id = Intake.objects.filter(workspace__slug=slug, project_id=project_id).first()
         project = Project.objects.get(pk=project_id)
@@ -578,7 +599,7 @@ class IntakeWorkItemDescriptionVersionEndpoint(BaseAPIView):
 
         return paginated_data
 
-    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER])
     def get(self, request, slug, project_id, work_item_id, pk=None):
         project = Project.objects.get(pk=project_id)
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=work_item_id)

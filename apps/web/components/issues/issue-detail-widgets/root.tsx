@@ -38,28 +38,29 @@ export const IssueDetailWidgets = observer(function IssueDetailWidgets(props: Pr
   } = props;
   // store hooks
   const { allowPermissions } = useUserPermissions();
-  // sub-work items, relations, links and attachments are added by members and admins only — a client editing their own
-  // work item sees them read-only
-  const disabled =
-    isEditingDisabled ||
-    !allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      workspaceSlug,
-      projectId
-    );
+  // sub-work items, relations, links and attachments are added by members and admins only — clients (project guests)
+  // only view them, without the add buttons
+  const isMemberOrAdmin = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
+  const disabled = isEditingDisabled || !isMemberOrAdmin;
 
   return (
     <>
       <div className="flex flex-col space-y-4">
-        <IssueDetailWidgetActionButtons
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          issueId={issueId}
-          disabled={disabled}
-          issueServiceType={issueServiceType}
-          hideWidgets={hideWidgets}
-        />
+        {isMemberOrAdmin && (
+          <IssueDetailWidgetActionButtons
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            issueId={issueId}
+            disabled={disabled}
+            issueServiceType={issueServiceType}
+            hideWidgets={hideWidgets}
+          />
+        )}
         <IssueDetailWidgetCollapsibles
           workspaceSlug={workspaceSlug}
           projectId={projectId}

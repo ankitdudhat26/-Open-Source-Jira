@@ -157,7 +157,8 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
         name: "Intake",
         href: `/${workspaceSlug}/projects/${projectId}/intake`,
         icon: IntakeOutline,
-        access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+        // clients (project guests) do not see Intake — invited clients send requests through its link instead
+        access: [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
         shouldRender: project?.inbox_view ?? false,
         sortOrder: 6,
       },

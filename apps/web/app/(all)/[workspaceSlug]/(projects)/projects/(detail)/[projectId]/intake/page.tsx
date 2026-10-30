@@ -16,6 +16,7 @@ import darkIntakeAsset from "@/app/assets/empty-state/disabled-feature/intake-da
 import lightIntakeAsset from "@/app/assets/empty-state/disabled-feature/intake-light.webp?url";
 // components
 import { PageHead } from "@/components/core/page-title";
+import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { DetailedEmptyState } from "@/components/empty-state/detailed-empty-state-root";
 import { InboxIssueRoot } from "@/components/inbox";
 // hooks
@@ -37,10 +38,17 @@ function ProjectInboxPage({ params }: Route.ComponentProps) {
   const { t } = useTranslation();
   // hooks
   const { currentProjectDetails } = useProject();
-  const { allowPermissions } = useUserPermissions();
+  const { workspaceUserInfo, allowPermissions } = useUserPermissions();
   // derived values
+  // clients (project guests) do not see Intake — invited clients send requests through its link instead
+  const canViewIntake = allowPermissions(
+    [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
   const canPerformEmptyStateActions = allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT);
   const resolvedPath = resolvedTheme === "light" ? lightIntakeAsset : darkIntakeAsset;
+
+  if (workspaceUserInfo && !canViewIntake) return <NotAuthorizedView isProjectView className="h-auto" />;
 
   // No access to inbox
   if (currentProjectDetails?.inbox_view === false)

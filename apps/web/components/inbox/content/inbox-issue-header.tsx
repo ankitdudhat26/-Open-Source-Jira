@@ -145,9 +145,9 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
     handleRedirection(nextOrPreviousIssueId);
   };
 
-  const handleInboxIssueDecline = async () => {
+  const handleInboxIssueDecline = async (reason: string) => {
     const nextOrPreviousIssueId = redirectIssue();
-    await inboxIssue?.updateInboxIssueStatus(EInboxIssueStatus.DECLINED);
+    await inboxIssue?.updateInboxIssueStatus(EInboxIssueStatus.DECLINED, reason);
     setDeclineIssueModal(false);
     handleRedirection(nextOrPreviousIssueId);
   };
@@ -165,9 +165,8 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
 
   const handleInboxIssueDelete = async () => {
     if (!inboxIssue || !currentInboxIssueId) return;
-    await deleteInboxIssue(workspaceSlug, projectId, currentInboxIssueId).then(() => {
-      if (!isNotificationEmbed) router.push(`/${workspaceSlug}/projects/${projectId}/intake`);
-    });
+    await deleteInboxIssue(workspaceSlug, projectId, currentInboxIssueId);
+    if (!isNotificationEmbed) router.push(`/${workspaceSlug}/projects/${projectId}/intake`);
   };
 
   const handleIssueSnoozeAction = async () => {

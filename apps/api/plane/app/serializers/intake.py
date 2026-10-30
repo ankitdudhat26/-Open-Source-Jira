@@ -26,6 +26,7 @@ class IntakeSerializer(BaseSerializer):
 
 class IntakeIssueSerializer(BaseSerializer):
     issue = IssueIntakeSerializer(read_only=True)
+    decline_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = IntakeIssue
@@ -37,8 +38,12 @@ class IntakeIssueSerializer(BaseSerializer):
             "source",
             "issue",
             "created_by",
+            "decline_reason",
         ]
         read_only_fields = ["project", "workspace"]
+
+    def get_decline_reason(self, obj):
+        return (obj.extra or {}).get("decline_reason", "")
 
     def validate(self, attrs):
         """
@@ -93,6 +98,7 @@ class IntakeIssueSerializer(BaseSerializer):
 class IntakeIssueDetailSerializer(BaseSerializer):
     issue = IssueDetailSerializer(read_only=True)
     duplicate_issue_detail = IssueIntakeSerializer(read_only=True, source="duplicate_to")
+    decline_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = IntakeIssue
@@ -104,8 +110,12 @@ class IntakeIssueDetailSerializer(BaseSerializer):
             "duplicate_issue_detail",
             "source",
             "issue",
+            "decline_reason",
         ]
         read_only_fields = ["project", "workspace"]
+
+    def get_decline_reason(self, obj):
+        return (obj.extra or {}).get("decline_reason", "")
 
     def to_representation(self, instance):
         # Pass the annotated fields to the Issue instance if they exist

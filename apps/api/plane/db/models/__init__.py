@@ -18,7 +18,7 @@ from .draft import (
 from .estimate import Estimate, EstimatePoint
 from .exporter import ExporterHistory
 from .importer import Importer
-from .intake import Intake, IntakeIssue
+from .intake import Intake, IntakeForm, IntakeFormInvite, IntakeIssue
 from .integration import (
     GithubCommentSync,
     GithubIssueSync,

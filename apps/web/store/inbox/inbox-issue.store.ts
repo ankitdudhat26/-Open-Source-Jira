@@ -31,8 +31,9 @@ export interface IInboxIssueStore {
   duplicate_to: string | undefined;
   created_by: string | undefined;
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined;
+  decline_reason: string | undefined;
   // actions
-  updateInboxIssueStatus: (status: TInboxIssueStatus) => Promise<void>; // accept, decline
+  updateInboxIssueStatus: (status: TInboxIssueStatus, declineReason?: string) => Promise<void>; // accept, decline (with the reason)
   updateInboxIssueDuplicateTo: (issueId: string) => Promise<void>; // connecting the inbox issue to the project existing issue
   updateInboxIssueSnoozeTill: (date: Date | undefined) => Promise<void>; // snooze the issue
   updateIssue: (issue: Partial<TIssue>) => Promise<void>; // updating the issue
@@ -51,6 +52,7 @@ export class InboxIssueStore implements IInboxIssueStore {
   duplicate_to: string | undefined;
   created_by: string | undefined;
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined = undefined;
+  decline_reason: string | undefined = undefined;
   workspaceSlug: string;
   projectId: string;
   // services
@@ -71,6 +73,7 @@ export class InboxIssueStore implements IInboxIssueStore {
     this.created_by = data?.created_by || undefined;
     this.source = data?.source || undefined;
     this.duplicate_issue_detail = data?.duplicate_issue_detail || undefined;
+    this.decline_reason = data?.decline_reason || undefined;
     this.workspaceSlug = workspaceSlug;
     this.projectId = projectId;
     // services
@@ -84,6 +87,7 @@ export class InboxIssueStore implements IInboxIssueStore {
       snoozed_till: observable,
       duplicate_to: observable,
       duplicate_issue_detail: observable,
+      decline_reason: observable,
       created_by: observable,
       source: observable,
       // actions
@@ -96,7 +100,7 @@ export class InboxIssueStore implements IInboxIssueStore {
     });
   }
 
-  updateInboxIssueStatus = async (status: TInboxIssueStatus) => {
+  updateInboxIssueStatus = async (status: TInboxIssueStatus, declineReason?: string) => {
     const previousData: Partial<TInboxIssue> = {
       status: this.status,
     };
@@ -107,9 +111,11 @@ export class InboxIssueStore implements IInboxIssueStore {
 
       const inboxIssue = await this.inboxIssueService.update(this.workspaceSlug, this.projectId, this.issue.id, {
         status: status,
+        ...(declineReason !== undefined ? { decline_reason: declineReason } : {}),
       });
       runInAction(() => {
         set(this, "status", inboxIssue?.status);
+        set(this, "decline_reason", inboxIssue?.decline_reason || undefined);
 
         // Handle intake_count transitions
         if (previousStatus === EInboxIssueStatus.PENDING && inboxIssue.status !== EInboxIssueStatus.PENDING) {

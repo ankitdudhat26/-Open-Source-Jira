@@ -28,7 +28,6 @@ import {
 import { toSideAndAlign } from "@plane/blocks/common";
 import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/blocks/context-menu";
 // hooks
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
@@ -85,7 +84,6 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
   const stateDetails = getStateById(issue.state_id);
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
   // auth
   const isMemberEditingAllowed =
     allowPermissions(
@@ -95,7 +93,7 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
       issue.project_id ?? undefined
     ) && !readOnly;
   // a client edits (and copies) the work items they created; archiving and deleting stay with members and admins
-  const isEditingAllowed = isMemberEditingAllowed || (canClientEditWorkItem(issue) && !readOnly);
+  const isEditingAllowed = isMemberEditingAllowed;
 
   const isArchivingAllowed = !issue.archived_at && isMemberEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);

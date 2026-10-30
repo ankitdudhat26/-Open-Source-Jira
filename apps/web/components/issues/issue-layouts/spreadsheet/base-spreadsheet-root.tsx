@@ -14,7 +14,6 @@ import type { EIssuesStoreType, IIssueDisplayFilterOptions } from "@plane/types"
 import { EIssueLayoutTypes } from "@plane/types";
 // hooks
 import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
@@ -67,27 +66,26 @@ export const BaseSpreadsheetRoot = observer(function BaseSpreadsheetRoot(props: 
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  // clients create work items and edit the ones they created
+  // clients (project guests) only view work items
   const isCreatingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   useEffect(() => {
     fetchIssues("init-loader", { canGroup: false, perPageCount: 100 }, viewId);
   }, [fetchIssues, storeType, viewId]);
 
   const canEditProperties = useCallback<TCanEditProperties>(
-    (issueProjectId, issue) => {
+    (issueProjectId) => {
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && issueProjectId
           ? canEditPropertiesBasedOnProject(issueProjectId)
           : isEditingAllowed;
 
-      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
+      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
   );
 
   const issueIds = issues.groupedIssueIds?.[ALL_ISSUES] ?? [];

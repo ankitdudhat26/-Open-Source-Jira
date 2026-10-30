@@ -9,7 +9,13 @@ import uniq from "lodash-es/uniq";
 import { observer } from "mobx-react";
 // plane package imports
 import type { TActivityFilters } from "@plane/constants";
-import { E_SORT_ORDER, EActivityFilterType, defaultActivityFilters } from "@plane/constants";
+import {
+  E_SORT_ORDER,
+  EActivityFilterType,
+  EUserPermissions,
+  EUserPermissionsLevel,
+  defaultActivityFilters,
+} from "@plane/constants";
 import { useLocalStorage } from "@plane/hooks";
 // i18n
 import { useTranslation } from "@plane/i18n";
@@ -19,6 +25,7 @@ import type { TFileSignedURLResponse, TIssueComment } from "@plane/types";
 import { CommentCreate } from "@/components/comments/comment-create";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { IssueActivityCommentRoot } from "./activity-comment-root";
 import { useWorkItemCommentOperations } from "./helper";
@@ -52,6 +59,16 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
   const { setValue: setSortOrder, storedValue: sortOrder } = useLocalStorage("activity_sort_order", E_SORT_ORDER.ASC);
 
   const { getProjectById } = useProject();
+  const { allowPermissions } = useUserPermissions();
+  // clients (project guests) only view work items — no new comments
+  const canComment =
+    !disabled &&
+    allowPermissions(
+      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+      EUserPermissionsLevel.PROJECT,
+      workspaceSlug,
+      projectId
+    );
 
   // toggle filter
   const toggleFilter = (filter: TActivityFilters) => {
@@ -142,7 +159,7 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
       <div className="space-y-3">
         <div className="min-h-[200px]">
           <div className="space-y-3">
-            {!disabled && sortOrder === E_SORT_ORDER.DESC && renderCommentCreationBox}
+            {canComment && sortOrder === E_SORT_ORDER.DESC && renderCommentCreationBox}
             <IssueActivityCommentRoot
               projectId={projectId}
               workspaceSlug={workspaceSlug}
@@ -154,7 +171,7 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
               disabled={disabled}
               sortOrder={sortOrder || E_SORT_ORDER.ASC}
             />
-            {!disabled && sortOrder === E_SORT_ORDER.ASC && renderCommentCreationBox}
+            {canComment && sortOrder === E_SORT_ORDER.ASC && renderCommentCreationBox}
           </div>
         </div>
       </div>

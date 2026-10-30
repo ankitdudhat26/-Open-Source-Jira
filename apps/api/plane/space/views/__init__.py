@@ -31,3 +31,5 @@ from .label import ProjectLabelsEndpoint
 from .asset import EntityAssetEndpoint, AssetRestoreEndpoint, EntityBulkAssetEndpoint
 
 from .meta import ProjectMetaDataEndpoint
+
+from .intake_form import IntakeFormAttachmentEndpoint, IntakeFormPortalEndpoint, IntakeFormRequestEndpoint

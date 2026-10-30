@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Python imports
+from uuid import uuid4
+
 # Django imports
 from django.db import models
 
@@ -82,3 +85,57 @@ class IntakeIssue(ProjectBaseModel):
     def __str__(self):
         """Return name of the Issue"""
         return f"{self.issue.name} <{self.intake.name}>"
+
+
+def get_form_anchor():
+    return uuid4().hex
+
+
+class IntakeForm(ProjectBaseModel):
+    """The request form of a project's Intake, opened from its link. Only the people invited to it (see
+    IntakeFormInvite) can log in there, send requests and follow their status. ``fields`` says which fields the form
+    shows — every one until a project admin turns it off (see plane.utils.intake_form for the keys)."""
+
+    anchor = models.CharField(max_length=64, default=get_form_anchor, unique=True, db_index=True)
+    is_enabled = models.BooleanField(default=False)
+    # {"<field key>": {"visible": bool}}
+    fields = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Intake Form"
+        verbose_name_plural = "Intake Forms"
+        db_table = "intake_forms"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="intake_form_unique_project_when_deleted_at_null",
+            )
+        ]
+
+    def __str__(self):
+        return f"Intake form <{self.project_id}>"
+
+
+class IntakeFormInvite(ProjectBaseModel):
+    """A person (a client) invited to a project's Intake form. They log in on the form's link with this email and can
+    only send requests there and follow them — they are not members of the project."""
+
+    email = models.EmailField()
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Intake Form Invite"
+        verbose_name_plural = "Intake Form Invites"
+        db_table = "intake_form_invites"
+        ordering = ("email",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "email"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="intake_form_invite_unique_project_email_when_deleted_at_null",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.email} <{self.project_id}>"

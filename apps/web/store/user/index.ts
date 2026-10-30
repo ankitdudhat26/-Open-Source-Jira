@@ -299,14 +299,14 @@ export class UserStore implements IUserStore {
   }
 
   /**
-   * @description returns the projects where the user can create work items: as a member or admin, or as a client
-   * (project guest) — clients create work items and edit the ones they created
+   * @description returns the projects where the user can create work items: as a member or admin (clients — project
+   * guests — only view work items)
    * @returns {string[]}
    */
   get projectIdsWithWorkItemCreatePermissions() {
     const { workspaceSlug } = this.store.router;
     const projectRoles = this.permission.getProjectRolesByWorkspaceSlug(workspaceSlug || "");
-    return Object.keys(projectRoles ?? {}).filter((projectId) => projectRoles[projectId] >= EUserPermissions.GUEST);
+    return Object.keys(projectRoles ?? {}).filter((projectId) => projectRoles[projectId] >= EUserPermissions.MEMBER);
   }
 
   /**

@@ -8,10 +8,28 @@ from django.urls import path
 from plane.space.views import (
     IntakeIssuePublicViewSet,
     WorkspaceProjectDeployBoardEndpoint,
+    IntakeFormAttachmentEndpoint,
+    IntakeFormPortalEndpoint,
+    IntakeFormRequestEndpoint,
 )
 
 
 urlpatterns = [
+    path(
+        "intake-forms/<str:anchor>/",
+        IntakeFormPortalEndpoint.as_view(),
+        name="intake-form-portal",
+    ),
+    path(
+        "intake-forms/<str:anchor>/requests/",
+        IntakeFormRequestEndpoint.as_view(),
+        name="intake-form-requests",
+    ),
+    path(
+        "intake-forms/<str:anchor>/requests/<uuid:issue_id>/attachments/",
+        IntakeFormAttachmentEndpoint.as_view(),
+        name="intake-form-request-attachments",
+    ),
     path(
         "anchor/<str:anchor>/intakes/<uuid:intake_id>/intake-issues/",
         IntakeIssuePublicViewSet.as_view({"get": "list", "post": "create"}),

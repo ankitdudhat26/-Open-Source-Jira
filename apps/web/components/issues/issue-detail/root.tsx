@@ -14,7 +14,6 @@ import { setPromiseToast, setToast } from "@plane/blocks/toast";
 import type { TIssue } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
 // assets
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import emptyIssue from "@/app/assets/empty-state/issue.svg?url";
 // components
 import { EmptyState } from "@/components/common/empty-state";
@@ -82,7 +81,6 @@ export const IssueDetailRoot = observer(function IssueDetailRoot(props: TIssueDe
     issues: { removeIssue: removeArchivedIssue },
   } = useIssues(EIssuesStoreType.ARCHIVED);
   const { allowPermissions } = useUserPermissions();
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
   const { issueDetailSidebarCollapsed } = useAppTheme();
 
   const issueOperations: TIssueOperations = useMemo(
@@ -226,13 +224,12 @@ export const IssueDetailRoot = observer(function IssueDetailRoot(props: TIssueDe
   // issue details
   const issue = getIssueById(issueId);
   // checking if issue is editable, based on user role (a client edits the work items they created)
-  const isEditable =
-    allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      workspaceSlug,
-      projectId
-    ) || canClientEditWorkItem(issue);
+  const isEditable = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
 
   return (
     <>

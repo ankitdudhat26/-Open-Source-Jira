@@ -22,7 +22,7 @@ from zxcvbn import zxcvbn
 from plane.bgtasks.user_activation_email_task import user_activation_email
 
 # Module imports
-from plane.db.models import FileAsset, Profile, User, WorkspaceMemberInvite
+from plane.db.models import FileAsset, IntakeFormInvite, Profile, User, WorkspaceMemberInvite
 from plane.license.utils.instance_value import get_configuration_value
 from plane.settings.storage import S3Storage
 from plane.utils.exception_logger import log_exception
@@ -108,7 +108,12 @@ class Adapter:
         ])
 
         # Check if sign up is disabled and invite is present or not
-        if ENABLE_SIGNUP == "0" and not WorkspaceMemberInvite.objects.filter(email=email).exists():
+        # people invited to a workspace, or to a project's request form (Intake), can sign up
+        if (
+            ENABLE_SIGNUP == "0"
+            and not WorkspaceMemberInvite.objects.filter(email=email).exists()
+            and not IntakeFormInvite.objects.filter(email__iexact=email).exists()
+        ):
             self.logger.warning("Sign up is disabled and invite is not present")
             # Raise exception
             raise AuthenticationException(

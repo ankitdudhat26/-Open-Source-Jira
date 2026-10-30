@@ -35,7 +35,7 @@ class IssueAttachmentEndpoint(BaseAPIView):
     model = FileAsset
     parser_classes = (MultiPartParser, FormParser)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id, issue_id):
         serializer = IssueAttachmentSerializer(data=request.data)
         workspace = Workspace.objects.get(slug=slug)
@@ -97,7 +97,7 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
     serializer_class = IssueAttachmentSerializer
     model = FileAsset
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id, issue_id):
         name = sanitize_filename(request.data.get("name")) or "unnamed"
         type = request.data.get("type", False)
@@ -212,7 +212,7 @@ class IssueAttachmentV2Endpoint(BaseAPIView):
         serializer = IssueAttachmentSerializer(issue_attachments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def patch(self, request, slug, project_id, issue_id, pk):
         issue_attachment = FileAsset.objects.get(
             pk=pk, workspace__slug=slug, project_id=project_id, issue_id=issue_id

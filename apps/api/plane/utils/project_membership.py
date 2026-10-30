@@ -12,6 +12,7 @@ from plane.bgtasks.project_add_user_email_task import project_add_user_email
 from plane.db.models import ProjectMember, ProjectUserProperty, WorkspaceMember
 
 MEMBER = 15
+ADMIN = 20
 DEFAULT_DESIGNATION = "Developer"
 
 
@@ -20,6 +21,16 @@ def is_workspace_assignable(workspace_id, user_id):
     return WorkspaceMember.objects.filter(
         workspace_id=workspace_id, member_id=user_id, is_active=True, member__is_bot=False
     ).exists()
+
+
+def is_project_client(user, slug, project_id):
+    """A client of the project (its guest role) who is not a workspace admin: they only view its work items."""
+    return (
+        ProjectMember.objects.filter(
+            project_id=project_id, workspace__slug=slug, member=user, is_active=True, role__lt=MEMBER
+        ).exists()
+        and not WorkspaceMember.objects.filter(workspace__slug=slug, member=user, is_active=True, role=ADMIN).exists()
+    )
 
 
 def is_project_assignee_role(project_id, user_id):

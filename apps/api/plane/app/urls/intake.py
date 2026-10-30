@@ -9,10 +9,33 @@ from plane.app.views import (
     IntakeViewSet,
     IntakeIssueViewSet,
     IntakeWorkItemDescriptionVersionEndpoint,
+    IntakeFormEndpoint,
+    IntakeFormInviteEndpoint,
+    IntakeFormResetLinkEndpoint,
 )
 
 
 urlpatterns = [
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/intake-form/",
+        IntakeFormEndpoint.as_view(),
+        name="intake-form",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/intake-form/reset-link/",
+        IntakeFormResetLinkEndpoint.as_view(),
+        name="intake-form-reset-link",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/intake-form/invites/",
+        IntakeFormInviteEndpoint.as_view(),
+        name="intake-form-invites",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/intake-form/invites/<uuid:pk>/",
+        IntakeFormInviteEndpoint.as_view(),
+        name="intake-form-invites",
+    ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/intakes/",
         IntakeViewSet.as_view({"get": "list", "post": "create"}),

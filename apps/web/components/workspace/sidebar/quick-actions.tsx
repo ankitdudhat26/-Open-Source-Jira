@@ -39,9 +39,9 @@ export const SidebarQuickActions = observer(function SidebarQuickActions() {
   // local storage
   const { storedValue, setValue } = useLocalStorage<Record<string, Partial<TIssue>>>("draftedIssue", {});
   // derived values
-  // clients create work items too, in the projects they are part of
+  // clients only view work items — they send requests through a project's Intake form
   const canCreateIssue = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.WORKSPACE
   );
   const disabled = joinedProjectIds.length === 0 || !canCreateIssue;

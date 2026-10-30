@@ -16,7 +16,6 @@ import { setPromiseToast, setToast } from "@plane/blocks/toast";
 import type { IWorkItemPeekOverview, TIssue } from "@plane/types";
 import { EIssueServiceType, EIssuesStoreType } from "@plane/types";
 // hooks
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -45,10 +44,9 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
   const {
     peekIssue,
     setPeekIssue,
-    issue: { fetchIssue, getIssueById },
+    issue: { fetchIssue },
     fetchActivities,
   } = useIssueDetail();
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
   const issueStoreType = useIssueStoreType();
   const storeType = issueStoreFromProps ?? issueStoreType;
   const { issues } = useIssues(storeType);
@@ -236,13 +234,12 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
 
   // Check if issue is editable, based on user role
   // a client edits the work items they created
-  const isEditable =
-    allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      peekIssue?.workspaceSlug,
-      peekIssue?.projectId
-    ) || canClientEditWorkItem(getIssueById(peekIssue.issueId));
+  const isEditable = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    peekIssue?.workspaceSlug,
+    peekIssue?.projectId
+  );
 
   return (
     <IssueView

@@ -39,8 +39,9 @@ export const ProjectInboxHeader = observer(function ProjectInboxHeader() {
   const { loader } = useProjectInbox();
 
   // derived value
+  // clients (project guests) do not use Intake — invited clients send requests through its link instead
   const isAuthorized = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
 

@@ -15,7 +15,6 @@ import type { TGroupedIssues } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
 // hooks
 import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
-import { useClientWorkItemAccess } from "@/hooks/use-client-work-item-access";
 import { useCalendarView } from "@/hooks/store/use-calendar-view";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
@@ -81,7 +80,6 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
     EUserPermissionsLevel.PROJECT
   );
   // clients edit the work items they created
-  const { canClientEditWorkItem } = useClientWorkItemAccess();
 
   const { enableInlineEditing } = issues?.viewFlags || {};
 
@@ -152,13 +150,13 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
   );
 
   const canEditProperties = useCallback<TCanEditProperties>(
-    (projectId, issue) => {
+    (projectId) => {
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && projectId ? canEditPropertiesBasedOnProject(projectId) : isEditingAllowed;
 
-      return !!enableInlineEditing && (isEditingAllowedBasedOnProject || canClientEditWorkItem(issue));
+      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, canClientEditWorkItem]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
   );
 
   return (

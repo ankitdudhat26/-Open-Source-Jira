@@ -63,6 +63,7 @@ from plane.db.models import (
 )
 from plane.utils.filters import ComplexFilterBackend, IssueFilterSet
 from plane.utils.global_paginator import paginate
+from plane.utils.project_membership import is_project_client
 from plane.utils.grouper import (
     issue_group_values,
     issue_on_results,
@@ -405,8 +406,8 @@ class IssueViewSet(BaseViewSet):
                 on_results=lambda issues: issue_on_results(group_by=group_by, issues=issues, sub_group_by=sub_group_by),
             )
 
-    # clients (project guests) create work items too; they edit the ones they created (see partial_update)
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    # clients (project guests) only view work items — they send requests through the project's Intake form instead
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id)
 
@@ -641,6 +642,9 @@ class IssueViewSet(BaseViewSet):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], creator=True, model=Issue)
     def partial_update(self, request, slug, project_id, pk=None):
+        # clients only view work items, even the ones they created earlier
+        if is_project_client(request.user, slug, project_id):
+            return Response({"error": "Clients can only view work items."}, status=status.HTTP_403_FORBIDDEN)
         queryset = self.get_queryset()
         queryset = self.apply_annotations(queryset)
 

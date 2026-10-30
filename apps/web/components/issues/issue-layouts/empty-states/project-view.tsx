@@ -19,9 +19,9 @@ export const ProjectViewEmptyState = observer(function ProjectViewEmptyState() {
   const { allowPermissions } = useUserPermissions();
 
   // auth
-  // clients (project guests) create work items too
+  // clients (project guests) only view work items
   const isCreatingIssueAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER, EUserPermissions.GUEST],
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
 

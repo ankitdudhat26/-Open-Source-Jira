@@ -40,6 +40,8 @@ export type TInboxIssue = {
   issue: TIssue;
   created_by: string;
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined;
+  /** why the request was declined — required when declining, shown to the person who sent it */
+  decline_reason?: string;
 };
 
 // filters
