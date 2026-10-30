@@ -40,6 +40,7 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
+import { CLIENT_READ_ONLY_CLASS_NAME } from "@/hooks/use-client-work-item-access";
 // plane web components
 import type { TIssueOperations } from "../issue-detail";
 import { IssueCycleSelect } from "../issue-detail/cycle-select";
@@ -94,7 +95,9 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
   return (
     <div>
       <h6 className="text-body-xs-medium">{t("common.properties")}</h6>
-      <div className={`mt-3 w-full space-y-3 ${disabled ? "opacity-60" : ""}`}>
+      <div
+        className={`mt-3 w-full space-y-3 ${!isMemberOrAdmin ? CLIENT_READ_ONLY_CLASS_NAME : disabled ? "opacity-60" : ""}`}
+      >
         <SidebarPropertyListItem icon={StateOutline} label={t("common.state")}>
           <StateSelect
             enforceWorkflow

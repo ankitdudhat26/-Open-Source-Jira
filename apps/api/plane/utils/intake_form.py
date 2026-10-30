@@ -7,7 +7,7 @@ and the requests they sent with their status."""
 
 from django.db.models import Q
 
-from plane.db.models import IntakeForm, IntakeFormInvite, IntakeIssue, Label, Project, ProjectIssueType
+from plane.db.models import IntakeForm, IntakeFormInvite, IntakeIssue, Label, Project, ProjectIssueType, ProjectMember
 
 # the fields of a request, in form order — every one is on until a project admin turns it off; the title is always on
 FORM_FIELDS = [
@@ -33,6 +33,8 @@ PRIORITIES = [
     {"value": "low", "label": "Low"},
     {"value": "none", "label": "None"},
 ]
+# the Client role of a project (a guest): views its work items and sends requests on its form
+CLIENT_ROLE = 5
 STATUS_LABELS = {-2: "Pending", -1: "Declined", 0: "Snoozed", 1: "Accepted", 2: "Duplicate"}
 
 
@@ -126,14 +128,24 @@ def open_form_filter():
     )
 
 
+def _client_access(user):
+    """Invited to the form by their email, or a client (guest) of the project — both send requests on its link."""
+    return Q(
+        project_intakeforminvite__email__iexact=user.email,
+        project_intakeforminvite__deleted_at__isnull=True,
+    ) | Q(
+        project_projectmember__member=user,
+        project_projectmember__is_active=True,
+        project_projectmember__role=CLIENT_ROLE,
+        project_projectmember__deleted_at__isnull=True,
+    )
+
+
 def invited_projects(user):
-    """The projects whose request form the user was invited to (by their email) and that take requests."""
+    """The projects whose request form the user can use (invited, or a client of the project) that take requests."""
     return (
-        Project.objects.filter(
-            open_form_filter(),
-            project_intakeforminvite__email__iexact=user.email,
-            project_intakeforminvite__deleted_at__isnull=True,
-        )
+        Project.objects.filter(open_form_filter())
+        .filter(_client_access(user))
         .select_related("workspace")
         .distinct()
         .order_by("name")
@@ -141,7 +153,10 @@ def invited_projects(user):
 
 
 def is_invited(user, project_id):
-    return IntakeFormInvite.objects.filter(project_id=project_id, email__iexact=user.email).exists()
+    return (
+        IntakeFormInvite.objects.filter(project_id=project_id, email__iexact=user.email).exists()
+        or ProjectMember.objects.filter(project_id=project_id, member=user, is_active=True, role=CLIENT_ROLE).exists()
+    )
 
 
 def decline_reason(intake_issue):

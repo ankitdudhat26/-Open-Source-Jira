@@ -13,3 +13,10 @@ type TWorkItemOwnership = Pick<TIssue, "created_by" | "project_id">;
  * guests of a project) only view work items; they send requests through the project's Intake form.
  */
 export type TCanEditProperties = (projectId: string | undefined, issue?: TWorkItemOwnership) => boolean;
+
+/**
+ * A client sees the properties of a work item as they are — at full colour, without the faded look of a disabled
+ * control — but cannot open or change them.
+ */
+export const CLIENT_READ_ONLY_CLASS_NAME =
+  "pointer-events-none select-text [&_*:disabled]:cursor-default [&_*:disabled]:text-secondary [&_*:disabled]:opacity-100";

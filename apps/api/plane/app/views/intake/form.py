@@ -19,7 +19,8 @@ from plane.bgtasks.intake_form_invitation_task import intake_form_invitation
 from plane.db.models import IntakeFormInvite, IntakeIssue, Project, User
 from plane.db.models.intake import get_form_anchor
 from plane.utils.host import base_host
-from plane.utils.intake_form import IntakeFormError, form_fields, get_form, save_form_fields
+from plane.utils.intake_form import IntakeFormError, form_fields, get_form, open_form_filter, save_form_fields
+from plane.utils.project_membership import is_project_client
 
 MAX_INVITES_PER_REQUEST = 50
 
@@ -66,11 +67,18 @@ def _invites_data(project_id):
 
 class IntakeFormEndpoint(BaseAPIView):
     """The request form of the project's Intake: its link (on/off), and which fields it shows. Members read it (their
-    own Intake dialog follows the fields); project admins change it."""
+    own Intake dialog follows the fields), clients get just its link; project admins change it."""
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id, workspace__slug=slug)
+        if is_project_client(request.user, slug, project_id):
+            # a client only needs the link (they send requests there, logged in as they are here) — while it is open
+            is_open = Project.objects.filter(open_form_filter(), pk=project.pk).exists()
+            form = get_form(project) if is_open else None
+            return Response(
+                {"is_enabled": is_open, "url": form_url(request, form) if form else None}, status=status.HTTP_200_OK
+            )
         return Response(_form_data(request, get_form(project)), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN])

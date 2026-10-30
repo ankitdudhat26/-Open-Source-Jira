@@ -243,3 +243,21 @@ class TestClientPortal:
 
         assert client_api.get(PORTAL_URL.format(anchor=anchor)).data["access"] == "not_invited"
         assert not IntakeFormInvite.objects.filter(email__iexact=client_user.email).exists()
+
+    @pytest.mark.django_db
+    def test_project_client_gets_the_link_and_sends_without_an_invite(
+        self, session_client, form_url, client_api, client_user, workspace, project
+    ):
+        WorkspaceMember.objects.create(workspace=workspace, member=client_user, role=5)
+        ProjectMember.objects.create(project=project, member=client_user, workspace=workspace, role=5)
+        assert client_api.get(form_url).data == {"is_enabled": False, "url": None}
+        anchor = _open_form(session_client, form_url)
+
+        link = client_api.get(form_url).data
+        response = _send(client_api, anchor)
+
+        assert link["is_enabled"] and link["url"].endswith(f"intake/{anchor}")
+        assert "fields" not in link
+        assert client_api.get(PORTAL_URL.format(anchor=anchor)).data["access"] == "ok"
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        assert IntakeIssue.objects.get(project=project).created_by_id == client_user.id

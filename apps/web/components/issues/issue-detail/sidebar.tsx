@@ -39,6 +39,7 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
+import { CLIENT_READ_ONLY_CLASS_NAME } from "@/hooks/use-client-work-item-access";
 // components
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { IssueCycleSelect } from "./cycle-select";
@@ -99,7 +100,9 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
       <div className="flex h-full w-full flex-col items-center divide-y-2 divide-subtle-1 overflow-hidden">
         <div className="h-full w-full overflow-y-auto px-6">
           <h5 className="mt-5 text-body-xs-medium">{t("common.properties")}</h5>
-          <div className={`mt-4 mb-2 space-y-2.5 truncate ${!isEditable ? "opacity-60" : ""}`}>
+          <div
+            className={`mt-4 mb-2 space-y-2.5 truncate ${!isMemberOrAdmin ? CLIENT_READ_ONLY_CLASS_NAME : !isEditable ? "opacity-60" : ""}`}
+          >
             <SidebarPropertyListItem icon={StateOutline} label={t("common.state")}>
               <StateSelect
                 enforceWorkflow
