@@ -4,8 +4,17 @@
  * See the LICENSE file for details.
  */
 
-import { useId } from "react";
-import { Input, InputGroup } from "@makeplane/propel/components/input";
+import {
+  Autocomplete,
+  AutocompleteContent,
+  AutocompleteInputGroup,
+  AutocompleteItem,
+  AutocompleteList,
+} from "@makeplane/propel/components/autocomplete";
+import { Icon } from "@makeplane/propel/components/icon";
+import { IconButton } from "@makeplane/propel/components/icon-button";
+import type { AutocompleteSize } from "@makeplane/propel/components/autocomplete";
+import { ChevronDownOutline } from "@makeplane/propel/icons";
 
 /** Common jobs on a project. Any other title can be typed. */
 export const PROJECT_ROLE_SUGGESTIONS = [
@@ -31,9 +40,10 @@ type Props = {
   disabled?: boolean;
   placeholder?: string;
   ariaLabel?: string;
+  size?: AutocompleteSize;
 };
 
-/** The person's job on the project ("Developer", "Graphic Designer", ...), with suggestions. */
+/** The person's job on the project ("Developer", "Graphic Designer", ...): pick a suggestion or type any title. */
 export function ProjectRoleInput(props: Props) {
   const {
     value,
@@ -43,29 +53,41 @@ export function ProjectRoleInput(props: Props) {
     disabled,
     placeholder = "Project role",
     ariaLabel = "Project role",
+    size = "md",
   } = props;
-  const listId = useId();
   return (
-    <InputGroup size="md">
-      <Input
-        size="md"
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
+    <Autocomplete<string>
+      items={PROJECT_ROLE_SUGGESTIONS}
+      value={value}
+      onValueChange={(nextValue) => onChange(nextValue)}
+      openOnInputClick
+      disabled={disabled}
+    >
+      <AutocompleteInputGroup
+        size={size}
         placeholder={placeholder}
         aria-label={ariaLabel}
         aria-invalid={invalid || undefined}
-        disabled={disabled}
-        list={listId}
+        onBlur={onBlur}
         maxLength={255}
-        autoComplete="off"
+        trigger={
+          <IconButton
+            variant="ghost"
+            size="xs"
+            icon={<Icon icon={ChevronDownOutline} />}
+            aria-label="Show role suggestions"
+          />
+        }
       />
-      <datalist id={listId}>
-        {PROJECT_ROLE_SUGGESTIONS.map((suggestion) => (
-          <option key={suggestion} value={suggestion} />
-        ))}
-      </datalist>
-    </InputGroup>
+      <AutocompleteContent side="bottom" align="start">
+        <AutocompleteList>
+          {(role: string) => (
+            <AutocompleteItem key={role} value={role} size="md">
+              {role}
+            </AutocompleteItem>
+          )}
+        </AutocompleteList>
+      </AutocompleteContent>
+    </Autocomplete>
   );
 }

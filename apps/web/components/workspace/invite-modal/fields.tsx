@@ -100,16 +100,15 @@ export const InvitationFields = observer(function InvitationFields(props: TInvit
               name={`emails.${index}.designation`}
               rules={{ validate: (value) => !!value?.trim() || "Role is required" }}
               render={({ field: { value, onChange, onBlur } }) => (
-                <div className="[&_input]:h-10">
-                  <ProjectRoleInput
-                    value={value ?? ""}
-                    onChange={onChange}
-                    onBlur={onBlur}
-                    invalid={Boolean(errors.emails?.[index]?.designation)}
-                    placeholder="Role * e.g. Developer"
-                    ariaLabel="Role"
-                  />
-                </div>
+                <ProjectRoleInput
+                  value={value ?? ""}
+                  onChange={onChange}
+                  onBlur={onBlur}
+                  invalid={Boolean(errors.emails?.[index]?.designation)}
+                  placeholder="Role *"
+                  ariaLabel="Role"
+                  size="2xl"
+                />
               )}
             />
             {errors.emails?.[index]?.designation && (

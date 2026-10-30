@@ -8,7 +8,7 @@ import { observer } from "mobx-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 // plane imports
-import { ProjectsOutline } from "@makeplane/propel/icons";
+import { GridOutline } from "@makeplane/propel/icons";
 import { EUserPermissions } from "@plane/constants";
 // components
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
@@ -36,8 +36,8 @@ export const AllProjectsSidebarItem = observer(function AllProjectsSidebarItem()
     >
       <SidebarNavItem isActive={pathname.includes(`/${slug}/all-projects`)}>
         <div className="flex items-center gap-1.5 py-[1px]">
-          <ProjectsOutline className="size-4 flex-shrink-0" />
-          <p className="text-13 leading-5 font-medium">All projects</p>
+          <GridOutline className="size-4 flex-shrink-0" />
+          <p className="text-13 leading-5 font-medium">All Projects</p>
         </div>
       </SidebarNavItem>
     </Link>

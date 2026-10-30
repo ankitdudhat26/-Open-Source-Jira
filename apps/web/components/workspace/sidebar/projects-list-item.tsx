@@ -20,6 +20,7 @@ import {
   LinkOutline,
   LogOutOutline,
   MoreHorizontalOutline,
+  ProjectsOutline,
   SettingsOutline,
   ShareAltOutline,
 } from "@makeplane/propel/icons";
@@ -27,7 +28,6 @@ import {
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useOutsideClickDetector } from "@plane/hooks";
 import { useTranslation } from "@plane/i18n";
-import { Logo } from "@plane/blocks/emoji-icon-picker";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
@@ -169,7 +169,7 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
               root.render(
                 <div className="flex items-center rounded-sm bg-surface-1 p-1 pr-2 text-13">
                   <div className="grid size-4 flex-shrink-0 place-items-center">
-                    {project && <Logo logo={project?.logo_props} />}
+                    <ProjectsOutline className="size-4 text-tertiary" />
                   </div>
                   <p className="truncate text-secondary">{project?.name}</p>
                 </div>
@@ -282,7 +282,8 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
     }
   };
 
-  const shouldHighlightProject = URLProjectId === project?.id && projectPreferences.navigationMode !== "ACCORDION";
+  // the open project stands out in both navigation modes
+  const shouldHighlightProject = URLProjectId === project?.id;
 
   return (
     <>
@@ -343,16 +344,34 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
                     }
                   >
                     <div className="grid size-4 flex-shrink-0 place-items-center">
-                      <Logo logo={project.logo_props} size={16} />
+                      <ProjectsOutline
+                        className={cn("size-4", shouldHighlightProject ? "text-primary" : "text-tertiary")}
+                      />
                     </div>
-                    <p className="truncate text-13 font-medium text-secondary">{project.name}</p>
+                    <p
+                      className={cn("truncate text-13 font-medium", {
+                        "font-semibold text-primary": shouldHighlightProject,
+                        "text-secondary": !shouldHighlightProject,
+                      })}
+                    >
+                      {project.name}
+                    </p>
                   </button>
                 ) : (
                   <div className="flex w-full flex-grow items-center gap-1.5 text-left select-none">
                     <div className="grid size-4 flex-shrink-0 place-items-center">
-                      <Logo logo={project.logo_props} size={16} />
+                      <ProjectsOutline
+                        className={cn("size-4", shouldHighlightProject ? "text-primary" : "text-tertiary")}
+                      />
                     </div>
-                    <p className="truncate text-13 font-medium text-secondary">{project.name}</p>
+                    <p
+                      className={cn("truncate text-13 font-medium", {
+                        "font-semibold text-primary": shouldHighlightProject,
+                        "text-secondary": !shouldHighlightProject,
+                      })}
+                    >
+                      {project.name}
+                    </p>
                   </div>
                 )}
               </ControlLink>
