@@ -75,9 +75,9 @@ export class IntakeFormService extends APIService {
     return unwrap(this.get(`${this.url(workspaceSlug, projectId)}invites/`));
   }
 
-  /** Invites the emails (again, for those already invited) — each is emailed the form's link. */
-  invite(workspaceSlug: string, projectId: string, emails: string[]): Promise<TIntakeFormInvite[]> {
-    return unwrap(this.post(`${this.url(workspaceSlug, projectId)}invites/`, { emails }));
+  /** Invites the emails (again, for those already invited) — each is emailed the form's link unless `sendEmail` is off. */
+  invite(workspaceSlug: string, projectId: string, emails: string[], sendEmail = true): Promise<TIntakeFormInvite[]> {
+    return unwrap(this.post(`${this.url(workspaceSlug, projectId)}invites/`, { emails, send_email: sendEmail }));
   }
 
   removeInvite(workspaceSlug: string, projectId: string, inviteId: string): Promise<void> {

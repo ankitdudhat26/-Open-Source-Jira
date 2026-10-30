@@ -52,6 +52,7 @@ export function IntakeFormSettings(props: Props) {
   const { workspaceSlug, projectId, isIntakeEnabled } = props;
   const [emails, setEmails] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [toRemove, setToRemove] = useState<TIntakeFormInvite | null>(null);
 
@@ -97,11 +98,11 @@ export function IntakeFormSettings(props: Props) {
     }
   };
 
-  const sendInvites = async (list: string[], successMessage: string) => {
+  const sendInvites = async (list: string[], successMessage: string, withEmail = true) => {
     setIsInviting(true);
     try {
-      await mutateInvites(intakeFormService.invite(workspaceSlug, projectId, list), { revalidate: false });
-      setToast({ type: "success", title: "Invitation sent", message: successMessage });
+      await mutateInvites(intakeFormService.invite(workspaceSlug, projectId, list, withEmail), { revalidate: false });
+      setToast({ type: "success", title: withEmail ? "Invitation sent" : "Client added", message: successMessage });
       return true;
     } catch (error) {
       setToast({ type: "error", title: "Error!", message: errorMessage(error, "The invitation could not be sent.") });
@@ -114,9 +115,13 @@ export function IntakeFormSettings(props: Props) {
   const handleInvite = async () => {
     const list = splitEmails(emails);
     if (!list.length) return;
+    const who = list.length === 1 ? list[0] : `${list.length} people`;
     const sent = await sendInvites(
       list,
-      list.length === 1 ? `${list[0]} was emailed the link.` : `${list.length} people were emailed the link.`
+      sendEmail
+        ? `${who} ${list.length === 1 ? "was" : "were"} emailed the link.`
+        : `${who} can log in on the link. No email was sent — share the link with them yourself.`,
+      sendEmail
     );
     if (sent) setEmails("");
   };
@@ -186,7 +191,7 @@ export function IntakeFormSettings(props: Props) {
           <div>
             <h4 className="text-body-sm-medium text-primary">Invited clients</h4>
             <p className="text-caption-md-regular text-tertiary">
-              Each person is emailed the link and logs in there with this email. Only they can send requests.
+              Each person logs in on the link with this email. Only they can send requests.
               {!form.is_enabled && " Turn on the request link so they can use it."}
             </p>
           </div>
@@ -212,11 +217,23 @@ export function IntakeFormSettings(props: Props) {
               variant="primary"
               size="md"
               stretch="auto"
-              label={isInviting ? "Inviting..." : "Invite"}
+              label={isInviting ? "Inviting..." : sendEmail ? "Invite" : "Add"}
               disabled={isInviting || !splitEmails(emails).length}
               onClick={() => void handleInvite()}
             />
           </div>
+          <label className="flex w-fit cursor-pointer items-center gap-2">
+            <Switch
+              size="sm"
+              checked={sendEmail}
+              onCheckedChange={setSendEmail}
+              aria-label="Send an invitation email"
+            />
+            <span className="text-body-xs-regular text-secondary">
+              Send an invitation email with the link
+              {!sendEmail && <span className="text-tertiary"> — off: they are added, share the link yourself</span>}
+            </span>
+          </label>
           {invites && invites.length > 0 && (
             <div className="divide-y divide-subtle rounded-lg border border-subtle">
               {invites.map((invite) => (
@@ -228,16 +245,23 @@ export function IntakeFormSettings(props: Props) {
                         ? `Has an account${invite.name ? ` · ${invite.name}` : ""}`
                         : "Not signed up yet"}
                       {` · ${invite.request_count} ${invite.request_count === 1 ? "request" : "requests"}`}
-                      {invite.last_sent_at ? ` · invited ${renderFormattedDate(invite.last_sent_at)}` : ""}
+                      {invite.last_sent_at
+                        ? ` · emailed ${renderFormattedDate(invite.last_sent_at)}`
+                        : ` · added ${renderFormattedDate(invite.created_at)}, not emailed`}
                     </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     stretch="auto"
-                    label="Resend"
+                    label={invite.last_sent_at ? "Resend" : "Send email"}
                     disabled={isInviting}
-                    onClick={() => void sendInvites([invite.email], `${invite.email} was emailed the link again.`)}
+                    onClick={() =>
+                      void sendInvites(
+                        [invite.email],
+                        `${invite.email} was emailed the link${invite.last_sent_at ? " again" : ""}.`
+                      )
+                    }
                   />
                   <Button variant="ghost" size="sm" stretch="auto" label="Remove" onClick={() => setToRemove(invite)} />
                 </div>

@@ -142,17 +142,21 @@ class IntakeFormInviteEndpoint(BaseAPIView):
         if not project.intake_view:
             return Response({"error": "Turn on Intake for this project first."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # off: the clients are added without an email — the admin shares the link with them another way
+        send_email = request.data.get("send_email", True) is not False
+
         form = get_form(project)
         url = form_url(request, form)
-        now = timezone.now()
+        sent_at = timezone.now() if send_email else None
         for email in cleaned:
             invite = IntakeFormInvite.objects.filter(project=project, email__iexact=email).first()
-            if invite:
-                invite.last_sent_at = now
+            if not invite:
+                IntakeFormInvite.objects.create(project=project, email=email, last_sent_at=sent_at)
+            elif send_email:
+                invite.last_sent_at = sent_at
                 invite.save(update_fields=["last_sent_at", "updated_at"])
-            else:
-                IntakeFormInvite.objects.create(project=project, email=email, last_sent_at=now)
-            intake_form_invitation.delay(email, str(project.id), url, str(request.user.id))
+            if send_email:
+                intake_form_invitation.delay(email, str(project.id), url, str(request.user.id))
         return Response(_invites_data(project_id), status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN])

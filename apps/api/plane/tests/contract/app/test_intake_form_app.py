@@ -110,6 +110,18 @@ class TestIntakeFormSettings:
         assert "/spaces/intake/" in no_background_tasks.call_args.args[2]
 
     @pytest.mark.django_db
+    def test_admin_adds_clients_without_emailing_them(self, session_client, form_url, client_user, no_background_tasks):
+        response = session_client.post(
+            f"{form_url}invites/", {"emails": [client_user.email], "send_email": False}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert [(invite["email"], invite["last_sent_at"]) for invite in response.data] == [
+            (client_user.email.lower(), None)
+        ]
+        assert no_background_tasks.call_count == 0
+
+    @pytest.mark.django_db
     def test_invalid_email_is_rejected(self, session_client, form_url):
         assert _invite(session_client, form_url, "not-an-email").status_code == status.HTTP_400_BAD_REQUEST
 
