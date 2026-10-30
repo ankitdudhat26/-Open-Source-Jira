@@ -19,6 +19,7 @@ from plane.db.models import (
     CustomField,
     CustomFieldValue,
     Cycle,
+    Intake,
     CycleIssue,
     FileAsset,
     Issue,
@@ -312,6 +313,11 @@ class TestJiraImport:
 
         project = Project.objects.get(pk=run.projects["SHOP"]["project_id"])
         assert (project.identifier, project.name, project.project_lead_id) == ("SHOP", "Web Shop", ada_user.id)
+        # the same features as a project created in the app, with its Intake
+        assert all(
+            (project.cycle_view, project.module_view, project.issue_views_view, project.page_view, project.intake_view)
+        )
+        assert Intake.objects.filter(project=project, is_default=True).exists()
         # statuses keep their Jira names, in the right group
         groups = dict(State.objects.filter(project=project).values_list("name", "group"))
         assert groups == {

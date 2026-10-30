@@ -42,6 +42,7 @@ from plane.db.models import (
     CustomFieldValue,
     CycleIssue,
     FileAsset,
+    Intake,
     Issue,
     IssueActivity,
     IssueAssignee,
@@ -980,9 +981,16 @@ class JiraImporter:
                     identifier=identifier,
                     description=(jira_project.get("description") or "")[:5000],
                     network=2,
+                    # the same features as a project created in the app
+                    cycle_view=True,
+                    module_view=True,
+                    issue_views_view=True,
+                    page_view=True,
+                    intake_view=True,
                     created_by=self.actor,
                     updated_by=self.actor,
                 )
+                Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
                 ProjectIdentifier.objects.create(name=identifier, project=project, workspace=self.workspace)
                 ProjectMember.objects.create(
                     project=project,

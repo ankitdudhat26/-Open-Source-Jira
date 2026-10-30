@@ -23,6 +23,7 @@ import { cn, renderFormattedDate } from "@plane/utils";
 import { LogoSpinner } from "@/components/common/logo-spinner";
 // local imports
 import { IntakeDescriptionEditor } from "./description-editor";
+import { ThemeSwitch } from "./theme-switch";
 
 type TFieldKey = "title" | "description" | "type" | "priority" | "labels" | "attachments";
 
@@ -777,12 +778,16 @@ export function IntakePortal({ anchor }: { anchor: string }) {
             </>
           )}
         </div>
-        {portal?.access === "ok" && (
-          <div className="flex shrink-0 items-center gap-3">
-            <span className="hidden text-body-xs-regular text-tertiary sm:inline">{portal.email}</span>
-            <SignOutButton anchor={anchor} />
-          </div>
-        )}
+        <div className="flex shrink-0 items-center gap-3">
+          <ThemeSwitch />
+          {portal?.access === "ok" && (
+            <>
+              <span className="h-5 w-px shrink-0 bg-layer-3" />
+              <span className="hidden text-body-xs-regular text-tertiary sm:inline">{portal.email}</span>
+              <SignOutButton anchor={anchor} />
+            </>
+          )}
+        </div>
       </header>
       <main className="w-full flex-1 px-4 py-6 sm:px-8 sm:py-8">{content}</main>
     </div>
