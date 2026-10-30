@@ -25,8 +25,18 @@ const InstanceWrapper = observer(function InstanceWrapper(props: TInstanceWrappe
   const { isLoading: isInstanceSWRLoading, error: instanceSWRError } = useSWR(
     "INSTANCE_INFORMATION",
     async () => await fetchInstanceInfo(),
-    { revalidateOnFocus: false }
+    {
+      revalidateOnFocus: false,
+      // while the API restarts (a deploy) keep asking every 5 s — the page recovers by itself once it answers,
+      // instead of SWR's growing back-off leaving users on the error page until they reload
+      onErrorRetry: (_error, _key, _config, revalidate) => {
+        setTimeout(() => void revalidate(), 5000);
+      },
+    }
   );
+
+  // the last try failed — stay on this page (no spinner flicker) while the retries above run
+  if (instanceSWRError && !instance) return <MaintenanceView />;
 
   // loading state
   if ((isLoading || isInstanceSWRLoading) && !instance)
@@ -35,8 +45,6 @@ const InstanceWrapper = observer(function InstanceWrapper(props: TInstanceWrappe
         <LogoSpinner />
       </div>
     );
-
-  if (instanceSWRError) return <MaintenanceView />;
 
   // something went wrong while in the request
   if (error && error?.status === "error") return <>{children}</>;
