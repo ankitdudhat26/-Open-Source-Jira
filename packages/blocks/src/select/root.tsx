@@ -96,6 +96,7 @@ export function SelectRoot<T>(props: SelectProps<T>) {
     modal = false,
     pinSelected: shouldPinSelected = true,
     contentSizing = "auto",
+    wide = false,
     defaultOpen = false,
     open: controlledOpen,
     onOpenChange,
@@ -482,6 +483,7 @@ export function SelectRoot<T>(props: SelectProps<T>) {
       {children}
       <ComboboxContent
         data-select-popup=""
+        data-popup-width={wide ? "wide" : undefined}
         aria-label={popupLabel}
         sizing={contentSizing}
         side={dropdownPlacement?.side}

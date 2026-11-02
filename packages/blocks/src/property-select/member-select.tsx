@@ -23,6 +23,8 @@ export type MemberOption = {
   /** The person's plain name for the avatar (accessible name and derived initials), when `display_name` carries
    *  a label such as " (you)". Defaults to `display_name`, with parenthetical tokens stripped. */
   name?: string;
+  /** The person's email, shown under the name in the dropdown — omitted when the viewer may not see it. */
+  email?: string;
   /** Final avatar URL (the client applies `getFileURL`); empty/undefined falls back to initials. */
   avatar_url?: string | null;
   /**
@@ -86,6 +88,24 @@ export const MAX_TRIGGER_AVATARS = 3;
 
 /** Id for the "No assignee" clear option — an empty string maps to `null` via `val || null`. */
 const CLEAR_OPTION_ID = "";
+
+/** A long email wraps after its "@" (the panel is narrow), never mid-name. */
+function MemberEmail({ email }: { email: string }) {
+  const at = email.lastIndexOf("@");
+  return (
+    <span className="block [overflow-wrap:anywhere]">
+      {at > 0 ? (
+        <>
+          {email.slice(0, at + 1)}
+          <wbr />
+          {email.slice(at + 1)}
+        </>
+      ) : (
+        email
+      )}
+    </span>
+  );
+}
 
 /** Initials must not see labels like " (you)" — Propel uses first+last whitespace tokens. */
 function memberAvatarAlt(member: MemberOption): string {
@@ -227,6 +247,8 @@ export function MemberSelect(props: MemberSelectProps) {
     lazyMount: isSearchInput ? false : undefined,
     showSearch: isSearchInput ? false : undefined,
     filterOption: isSearchInput ? combinedFilterOption : filterOption,
+    // room for each member's email on one line
+    wide: true,
     getOptionValue: (member: MemberOption) => member.id,
     getOptionLabel: (member: MemberOption) => member.display_name,
     getOptionIcon: (member: MemberOption) =>
@@ -245,6 +267,7 @@ export function MemberSelect(props: MemberSelectProps) {
       ),
     // Suspended members cannot be newly picked; an already-selected one stays toggleable so it can be removed.
     getOptionDisabled: (member: MemberOption) => !!member.suspended && !selectedIds.has(member.id),
+    getOptionDescription: (member: MemberOption) => (member.email ? <MemberEmail email={member.email} /> : undefined),
     getOptionTrailing: (member: MemberOption) =>
       member.suspended ? <Badge variant="neutral" size="xs" label={suspendedLabel} /> : undefined,
     renderChip: (member: MemberOption) => (

@@ -209,6 +209,11 @@ type SelectBaseProps<T> = {
    */
   contentSizing?: ComboboxContentSizing;
   /**
+   * A wider panel (`data-popup-width="wide"`, sized by the app's stylesheet) — for options with a second line too long
+   * for the default floor, such as a member's email.
+   */
+  wide?: boolean;
+  /**
    * Opens the dropdown on mount (and mounts the engine, whatever `lazyMount` says) — for a picker
    * that IS the surface, e.g. a filter row that appears already open. Uncontrolled after that: the
    * user closes it like any other dropdown.

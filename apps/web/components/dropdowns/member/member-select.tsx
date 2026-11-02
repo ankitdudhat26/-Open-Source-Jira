@@ -138,6 +138,7 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
         id,
         display_name: id === currentUser?.id ? `${name} (${youLabel})` : name,
         name,
+        email: member?.email,
         avatar_url: getFileURL(member?.avatar_url ?? ""),
         suspended: !!slug && isUserSuspended(id, slug),
       };
@@ -167,7 +168,8 @@ export const MemberSelect = observer(function MemberSelect(props: MemberSelectWe
       for (const id of rosterIds ?? []) {
         const member = getUserDetails(id);
         if (!member) continue;
-        const searchText = `${member.display_name} ${member.first_name} ${member.last_name}`.toLowerCase();
+        const searchText =
+          `${member.display_name} ${member.first_name} ${member.last_name} ${member.email ?? ""}`.toLowerCase();
         if (query && !searchText.includes(query)) continue;
         // Legacy CE ordering: the current user leads the roster (the block then pins the selected ones).
         if (id === currentUser?.id) results.unshift(toOption(id));

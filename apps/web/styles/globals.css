@@ -167,3 +167,9 @@
     0 0 4px --alpha(var(--background-color-accent-primary) / 40%) !important;
   will-change: transform, opacity;
 }
+
+/* member dropdowns: wide enough for each member's email on one line (the default floor is 12rem) */
+[data-popup-width="wide"] {
+  --popup-width-min: 22rem;
+  --popup-width-max: 28rem;
+}
