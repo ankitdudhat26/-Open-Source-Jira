@@ -19,7 +19,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import WorkSpaceAdminPermission
+from plane.app.permissions import ROLE, WorkSpaceAdminPermission
 from plane.app.serializers import (
     WorkSpaceMemberInviteSerializer,
     WorkSpaceMemberInvitePublicSerializer,
@@ -138,6 +138,39 @@ class WorkspaceInvitationsViewset(BaseViewSet):
             )
 
         return Response({"message": "Emails sent successfully"}, status=status.HTTP_200_OK)
+
+    def resend(self, request, slug, pk):
+        """Emails a pending invitation again — e.g. when the first email never arrived."""
+        if not WorkspaceMember.objects.filter(
+            workspace__slug=slug, member=request.user, role=ROLE.ADMIN.value, is_active=True
+        ).exists():
+            return Response(
+                {"error": "Only workspace admins can resend invitations."}, status=status.HTTP_403_FORBIDDEN
+            )
+        invitation = (
+            WorkspaceMemberInvite.objects.filter(pk=pk, workspace__slug=slug).select_related("workspace").first()
+        )
+        if not invitation:
+            return Response({"error": "This invitation no longer exists."}, status=status.HTTP_404_NOT_FOUND)
+        if (
+            invitation.accepted
+            or WorkspaceMember.objects.filter(
+                workspace_id=invitation.workspace_id, member__email__iexact=invitation.email, is_active=True
+            ).exists()
+        ):
+            return Response(
+                {"error": f"{invitation.email} has already joined the workspace."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        workspace_invitation.delay(
+            invitation.email,
+            invitation.workspace_id,
+            invitation.token,
+            base_host(request=request, is_app=True),
+            request.user.email,
+        )
+        return Response(
+            {"message": f"The invitation was emailed to {invitation.email} again."}, status=status.HTTP_200_OK
+        )
 
     def destroy(self, request, slug, pk):
         workspace_member_invite = WorkspaceMemberInvite.objects.get(pk=pk, workspace__slug=slug)

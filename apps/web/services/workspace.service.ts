@@ -220,6 +220,15 @@ export class WorkspaceService extends APIService {
       });
   }
 
+  /** Emails a pending invitation again — e.g. when the first email never arrived. */
+  async resendWorkspaceInvitation(workspaceSlug: string, invitationId: string): Promise<{ message: string }> {
+    return this.post(`/api/workspaces/${workspaceSlug}/invitations/${invitationId}/resend/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async workspaceSlugCheck(slug: string): Promise<any> {
     return this.get(`/api/workspace-slug-check/?slug=${slug}`)
       .then((response) => response?.data)

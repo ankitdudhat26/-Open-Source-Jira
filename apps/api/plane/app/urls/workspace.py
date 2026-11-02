@@ -96,6 +96,11 @@ urlpatterns = [
         WorkspaceInvitationsViewset.as_view({"delete": "destroy", "get": "retrieve", "patch": "partial_update"}),
         name="workspace-invitations",
     ),
+    path(
+        "workspaces/<str:slug>/invitations/<uuid:pk>/resend/",
+        WorkspaceInvitationsViewset.as_view({"post": "resend"}),
+        name="workspace-invitation-resend",
+    ),
     # user workspace invitations
     path(
         "users/me/workspaces/invitations/",
