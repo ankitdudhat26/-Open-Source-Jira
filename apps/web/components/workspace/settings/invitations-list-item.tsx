@@ -131,10 +131,11 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
       setToast({
         type: "success",
         title: t("common.link_copied"),
-        message: t("entity.link_copied_to_clipboard", { entity: t("common.invite") }),
+        message: `Send it to ${invitationDetails.email} — they open it to sign up and join the workspace.`,
       });
     } catch (error) {
       console.error("Error generating invite link:", error);
+      setToast({ type: "error", title: "Error!", message: "The link could not be copied. Please try again." });
     }
   };
 
@@ -193,6 +194,16 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
           <div className="flex items-center justify-center rounded-sm bg-label-yellow-bg-strong/20 px-2.5 py-1 text-center text-caption-sm-medium text-label-yellow-text">
             <p>{t("common.pending")}</p>
           </div>
+          {isAdmin && invitationDetails.invite_link && (
+            <button
+              type="button"
+              className="rounded-md border border-subtle px-2 py-0.5 text-caption-md-medium text-accent-primary hover:bg-layer-transparent-hover"
+              title="Copy the link from the invitation email, to send it to them yourself"
+              onClick={() => void handleCopyText()}
+            >
+              Copy link
+            </button>
+          )}
           {isAdmin && (
             <button
               type="button"
