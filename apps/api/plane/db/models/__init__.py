@@ -76,6 +76,7 @@ from .workspace import (
     WorkspaceUserLink,
     WorkspaceHomePreference,
     WorkspaceUserPreference,
+    WorkspaceAccessPolicy,
 )
 
 from .favorite import UserFavorite

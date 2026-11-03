@@ -17,6 +17,8 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.app.permissions import ROLE, ProjectMemberPermission, allow_permission
+from plane.utils.access_control import is_granted
+from plane.utils.workspace_roles import can_create_projects
 from plane.app.serializers import (
     DeployBoardSerializer,
     ProjectListSerializer,
@@ -116,19 +118,13 @@ class ProjectViewSet(BaseViewSet):
                 project_projectmember__is_active=True,
             )
 
-        if WorkspaceMember.objects.filter(
-            member=request.user,
-            workspace__slug=slug,
-            is_active=True,
-            role=ROLE.MEMBER.value,
-        ).exists():
-            projects = projects.filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
-                )
-                | Q(network=2)
-            )
+        membership = WorkspaceMember.objects.filter(
+            member=request.user, workspace__slug=slug, is_active=True, role=ROLE.MEMBER.value
+        ).first()
+        if membership:
+            joined = Q(project_projectmember__member=self.request.user, project_projectmember__is_active=True)
+            # a Sub Admin sees only the projects they created or were added to — not the workspace's public ones
+            projects = projects.filter(joined if membership.is_sub_admin else joined | Q(network=2))
 
         if request.GET.get("per_page", False) and request.GET.get("cursor", False):
             return self.paginate(
@@ -212,19 +208,13 @@ class ProjectViewSet(BaseViewSet):
                 project_projectmember__is_active=True,
             )
 
-        if WorkspaceMember.objects.filter(
-            member=request.user,
-            workspace__slug=slug,
-            is_active=True,
-            role=ROLE.MEMBER.value,
-        ).exists():
-            projects = projects.filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
-                )
-                | Q(network=2)
-            )
+        membership = WorkspaceMember.objects.filter(
+            member=request.user, workspace__slug=slug, is_active=True, role=ROLE.MEMBER.value
+        ).first()
+        if membership:
+            joined = Q(project_projectmember__member=self.request.user, project_projectmember__is_active=True)
+            # a Sub Admin sees only the projects they created or were added to — not the workspace's public ones
+            projects = projects.filter(joined if membership.is_sub_admin else joined | Q(network=2))
         return Response(projects, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
@@ -261,6 +251,11 @@ class ProjectViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def create(self, request, slug):
+        if not can_create_projects(request.user, slug) and not is_granted(request):
+            return Response(
+                {"error": "Only workspace admins and sub admins can create projects."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         workspace = Workspace.objects.get(slug=slug)
 
         # Milestones (name + amount) and deliverables entered in the create project form

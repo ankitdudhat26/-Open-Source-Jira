@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 from plane.db.models import ProjectMember, Page
+from plane.utils.access_control import is_granted
 from plane.app.permissions import ROLE
 
 
@@ -27,6 +28,9 @@ class ProjectPagePermission(BasePermission):
         """
         if request.user.is_anonymous:
             return False
+        # Settings → Roles & access allows it for this person (private pages stay their owner's)
+        if is_granted(request):
+            return True
 
         user_id = request.user.id
         slug = view.kwargs.get("slug")

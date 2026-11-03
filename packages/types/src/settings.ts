@@ -15,6 +15,7 @@ export type TWorkspaceSettingsTabs =
   | "members"
   | "groups"
   | "jira-import"
+  | "access"
   | "billing-and-plans"
   | "export"
   | "webhooks";
@@ -23,6 +24,8 @@ export type TWorkspaceSettingsItem = {
   i18n_label: string;
   href: string;
   access: EUserWorkspaceRoles[];
+  /** a Sub Admin (a Member with `is_sub_admin`) opens it too */
+  subAdminAccess?: boolean;
   highlight: (pathname: string, baseUrl: string) => boolean;
 };
 

@@ -14,6 +14,7 @@ import { EIssuesStoreType, EUserWorkspaceRoles } from "@plane/types";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
   // plane imports
@@ -28,6 +29,9 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
     EUserPermissionsLevel.WORKSPACE
   );
 
+  // Admins and Sub Admins create projects
+  const { canCreateProjects } = useWorkspaceRoleAccess();
+
   if (workspaceProjectIds?.length === 0) {
     return (
       <EmptyStateDetailed
@@ -41,7 +45,7 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
             onClick: () => {
               toggleCreateProjectModal(true);
             },
-            disabled: !hasMemberLevelPermission,
+            disabled: !canCreateProjects,
             variant: "primary",
           },
         ]}

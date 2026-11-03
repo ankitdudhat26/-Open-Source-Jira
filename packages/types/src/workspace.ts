@@ -51,6 +51,8 @@ export interface IWorkspaceMemberInvitation {
   role: TUserPermissions;
   /** job given in the invite, e.g. "Developer" */
   designation?: string;
+  /** invited as Sub Admin (with role Member) */
+  is_sub_admin?: boolean;
   token: string;
   invite_link: string;
   workspace: {
@@ -62,7 +64,7 @@ export interface IWorkspaceMemberInvitation {
 }
 
 export interface IWorkspaceBulkInviteFormData {
-  emails: { email: string; role: TUserPermissions; designation: string }[];
+  emails: { email: string; role: TUserPermissions; designation: string; is_sub_admin?: boolean }[];
 }
 
 export type Properties = {
@@ -85,6 +87,8 @@ export interface IWorkspaceMember {
   id: string;
   member: IUserLite;
   role: TUserPermissions | EUserWorkspaceRoles;
+  /** Sub Admin: a Member who can also create projects and invite people as Member or Client */
+  is_sub_admin?: boolean;
   created_at?: string;
   avatar_url?: string;
   email?: string;
@@ -118,6 +122,8 @@ export interface IWorkspaceMemberMe {
   id: string;
   member: string;
   role: TUserPermissions | EUserWorkspaceRoles;
+  /** Sub Admin: a Member who can also create projects and invite people as Member or Client */
+  is_sub_admin?: boolean;
   updated_at: Date;
   updated_by: string;
   view_props: IWorkspaceViewProps;

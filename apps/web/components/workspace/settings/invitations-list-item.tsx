@@ -30,6 +30,7 @@ import { ConfirmWorkspaceMemberRemove } from "@/components/workspace/confirm-wor
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 
@@ -63,7 +64,8 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
   const currentWorkspaceMemberInfo = workspaceInfoBySlug(workspaceSlug.toString());
   const currentWorkspaceRole = currentWorkspaceMemberInfo?.role;
   // is the current logged in user admin
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  // admins and sub admins manage the pending invites (resend, copy the link, remove)
+  const { canInviteMembers: isAdmin } = useWorkspaceRoleAccess();
   // role change access-
   // 1. user cannot change their own role
   // 2. only admin or member can change role
@@ -243,7 +245,9 @@ export const WorkspaceInvitationsListItem = observer(function WorkspaceInvitatio
                 variant="pill-sm"
                 appendIcon={hasRoleChangeAccess ? <ChevronDownOutline /> : undefined}
               >
-                <span className="min-w-0 truncate">{ROLE[invitationDetails.role]}</span>
+                <span className="min-w-0 truncate">
+                  {invitationDetails.is_sub_admin ? "Sub Admin" : ROLE[invitationDetails.role]}
+                </span>
               </Select.Trigger>
             </Select>
           </SelectDropdownPlacementContext.Provider>

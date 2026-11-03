@@ -19,6 +19,7 @@ import ViewsTour from "@/app/assets/onboarding/views.webp?url";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useUser } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // local imports
 import { TourSidebar } from "./sidebar";
 
@@ -85,6 +86,8 @@ export const TourRoot = observer(function TourRoot(props: TOnboardingTourProps) 
   const [step, setStep] = useState<TTourSteps>("welcome");
   // store hooks
   const { toggleCreateProjectModal } = useCommandPalette();
+  // Admins and Sub Admins create projects
+  const { canCreateProjects } = useWorkspaceRoleAccess();
   const { data: currentUser } = useUser();
 
   const currentStepIndex = TOUR_STEPS.findIndex((tourStep) => tourStep.key === step);
@@ -173,7 +176,7 @@ export const TourRoot = observer(function TourRoot(props: TOnboardingTourProps) 
                     />
                   )}
                 </div>
-                {currentStepIndex === TOUR_STEPS.length - 1 && (
+                {currentStepIndex === TOUR_STEPS.length - 1 && canCreateProjects && (
                   <Button
                     variant="primary"
                     size="sm"

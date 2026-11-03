@@ -28,8 +28,10 @@ from plane.app.serializers import (
 from plane.app.views.base import BaseAPIView
 from plane.bgtasks.workspace_invitation_task import workspace_invitation
 from plane.db.models import User, Workspace, WorkspaceMember, WorkspaceMemberInvite
+from plane.utils.access_control import is_granted
 from plane.utils.cache import invalidate_cache, invalidate_cache_directly
 from plane.utils.host import base_host
+from plane.utils.workspace_roles import can_invite_members
 from .. import BaseViewSet
 
 
@@ -57,11 +59,23 @@ class WorkspaceInvitationsViewset(BaseViewSet):
 
         # check for role level of the requesting user
         requesting_user = WorkspaceMember.objects.get(workspace__slug=slug, member=request.user, is_active=True)
+        # Admins and Sub Admins invite people; Members and Clients do not
+        if not can_invite_members(request.user, slug) and not is_granted(request):
+            return Response(
+                {"error": "Only workspace admins and sub admins can invite people."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # Check if any invited user has an higher role
         if len([email for email in emails if int(email.get("role", 5)) > requesting_user.role]):
             return Response(
                 {"error": "You cannot invite a user with higher role"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # A Sub Admin is a Member — only an Admin makes someone a Sub Admin
+        if requesting_user.role != ROLE.ADMIN.value and any(email.get("is_sub_admin") for email in emails):
+            return Response(
+                {"error": "Only workspace admins can invite a sub admin."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -110,6 +124,7 @@ class WorkspaceInvitationsViewset(BaseViewSet):
                         ),
                         role=email.get("role", 5),
                         designation=str(email.get("designation") or "").strip(),
+                        is_sub_admin=bool(email.get("is_sub_admin")) and int(email.get("role", 5)) == ROLE.MEMBER.value,
                         created_by=request.user,
                     )
                 )
@@ -141,11 +156,10 @@ class WorkspaceInvitationsViewset(BaseViewSet):
 
     def resend(self, request, slug, pk):
         """Emails a pending invitation again — e.g. when the first email never arrived."""
-        if not WorkspaceMember.objects.filter(
-            workspace__slug=slug, member=request.user, role=ROLE.ADMIN.value, is_active=True
-        ).exists():
+        if not can_invite_members(request.user, slug) and not is_granted(request):
             return Response(
-                {"error": "Only workspace admins can resend invitations."}, status=status.HTTP_403_FORBIDDEN
+                {"error": "Only workspace admins and sub admins can resend invitations."},
+                status=status.HTTP_403_FORBIDDEN,
             )
         invitation = (
             WorkspaceMemberInvite.objects.filter(pk=pk, workspace__slug=slug).select_related("workspace").first()
@@ -173,6 +187,11 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         )
 
     def destroy(self, request, slug, pk):
+        if not can_invite_members(request.user, slug) and not is_granted(request):
+            return Response(
+                {"error": "Only workspace admins and sub admins can remove invitations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         workspace_member_invite = WorkspaceMemberInvite.objects.get(pk=pk, workspace__slug=slug)
         workspace_member_invite.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -237,6 +256,7 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                     if workspace_member is not None:
                         workspace_member.is_active = True
                         workspace_member.role = workspace_invite.role
+                        workspace_member.is_sub_admin = workspace_invite.is_sub_admin
                         if workspace_invite.designation:
                             workspace_member.company_role = workspace_invite.designation
                         workspace_member.save()
@@ -246,6 +266,7 @@ class WorkspaceJoinEndpoint(BaseAPIView):
                             workspace=workspace_invite.workspace,
                             member=user,
                             role=workspace_invite.role,
+                            is_sub_admin=workspace_invite.is_sub_admin,
                             # the job given in the invite is the default project role of the member
                             company_role=workspace_invite.designation,
                         )
@@ -309,7 +330,7 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
             )
             # Update the WorkspaceMember for this specific invitation
             WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).update(
-                is_active=True, role=invitation.role
+                is_active=True, role=invitation.role, is_sub_admin=invitation.is_sub_admin
             )
             if invitation.designation:
                 WorkspaceMember.objects.filter(workspace_id=invitation.workspace_id, member=request.user).update(
@@ -323,6 +344,7 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
                     workspace=invitation.workspace,
                     member=request.user,
                     role=invitation.role,
+                    is_sub_admin=invitation.is_sub_admin,
                     company_role=invitation.designation,
                     created_by=request.user,
                 )

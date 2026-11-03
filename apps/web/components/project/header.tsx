@@ -7,7 +7,6 @@
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 // i18n
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // ui
 import { Button } from "@makeplane/propel/components/button";
@@ -18,7 +17,7 @@ import { Header } from "@plane/blocks/layout";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // plane web constants
 // components
 import HeaderFilters from "./filters";
@@ -29,14 +28,11 @@ export const ProjectsBaseHeader = observer(function ProjectsBaseHeader() {
   const { t } = useTranslation();
   // store hooks
   const { toggleCreateProjectModal } = useCommandPalette();
-  const { allowPermissions } = useUserPermissions();
 
   const pathname = usePathname();
   // auth
-  const isAuthorizedUser = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // Admins and Sub Admins create projects
+  const { canCreateProjects: isAuthorizedUser } = useWorkspaceRoleAccess();
   const isArchived = pathname.includes("/archives");
 
   return (

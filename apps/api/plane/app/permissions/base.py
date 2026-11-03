@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 from plane.db.models import WorkspaceMember, ProjectMember
+from plane.utils.access_control import is_granted
 from functools import wraps
 from rest_framework.response import Response
 from rest_framework import status
@@ -20,6 +21,9 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(instance, request, *args, **kwargs):
+            # Settings → Roles & access allows it for this person, beyond their role (members only, see `decide`)
+            if is_granted(request):
+                return view_func(instance, request, *args, **kwargs)
             # Check for creator if required
             if creator and model:
                 # check if the user is part of the workspace or not

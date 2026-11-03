@@ -50,11 +50,13 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         workspace_members = self.get_queryset()
         if workspace_member.role > 5:
             serializer = WorkspaceMemberAdminSerializer(
-                workspace_members, fields=("id", "member", "role", "company_role", "invite_sent_at"), many=True
+                workspace_members,
+                fields=("id", "member", "role", "is_sub_admin", "company_role", "invite_sent_at"),
+                many=True,
             )
         else:
             serializer = WorkSpaceMemberSerializer(
-                workspace_members, fields=("id", "member", "role", "company_role"), many=True
+                workspace_members, fields=("id", "member", "role", "is_sub_admin", "company_role"), many=True
             )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -72,9 +74,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         if workspace_member.role > ROLE.GUEST.value:
-            serializer = WorkspaceMemberAdminSerializer(member, fields=("id", "member", "role"))
+            serializer = WorkspaceMemberAdminSerializer(member, fields=("id", "member", "role", "is_sub_admin"))
         else:
-            serializer = WorkSpaceMemberSerializer(member, fields=("id", "member", "role"))
+            serializer = WorkSpaceMemberSerializer(member, fields=("id", "member", "role", "is_sub_admin"))
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
@@ -95,7 +97,12 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         serializer = WorkSpaceMemberSerializer(workspace_member, data=request.data, partial=True)
 
         if serializer.is_valid():
-            serializer.save()
+            member = serializer.save()
+            # Sub Admin is a kind of Member — any other role drops it
+            if member.role != ROLE.MEMBER.value and member.is_sub_admin:
+                member.is_sub_admin = False
+                member.save(update_fields=["is_sub_admin", "updated_at"])
+                serializer = WorkSpaceMemberSerializer(member)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

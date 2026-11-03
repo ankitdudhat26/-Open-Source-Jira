@@ -490,6 +490,9 @@
       },
       "jira_import": {
         "title": "Jira import"
+      },
+      "access": {
+        "title": "Roles & access"
       }
     },
     "empty_state": {

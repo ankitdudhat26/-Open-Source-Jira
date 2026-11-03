@@ -20,6 +20,7 @@ import { joinUrlPath } from "@plane/utils";
 import { SettingsSidebarItem } from "@/components/settings/sidebar/item";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // local imports
 import { WORKSPACE_SETTINGS_ICONS } from "./item-icon";
 
@@ -29,6 +30,7 @@ export const WorkspaceSettingsSidebarItemCategories = observer(function Workspac
   const pathname = usePathname();
   // store hooks
   const { allowPermissions } = useUserPermissions();
+  const { canInviteMembers } = useWorkspaceRoleAccess();
   // translation
   const { t } = useTranslation();
 
@@ -36,8 +38,10 @@ export const WorkspaceSettingsSidebarItemCategories = observer(function Workspac
     <div className="mt-3 flex flex-col divide-y divide-subtle px-3">
       {WORKSPACE_SETTINGS_CATEGORIES.map((category) => {
         const categoryItems = GROUPED_WORKSPACE_SETTINGS[category];
-        const accessibleItems = categoryItems.filter((item) =>
-          allowPermissions(item.access, EUserPermissionsLevel.WORKSPACE, workspaceSlug)
+        const accessibleItems = categoryItems.filter(
+          (item) =>
+            allowPermissions(item.access, EUserPermissionsLevel.WORKSPACE, workspaceSlug) ||
+            (canInviteMembers && item.subAdminAccess)
         );
 
         if (accessibleItems.length === 0) return null;

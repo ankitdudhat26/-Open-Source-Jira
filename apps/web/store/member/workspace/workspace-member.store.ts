@@ -34,6 +34,8 @@ export interface IWorkspaceMembership {
   /** job ("Developer", "Graphic Designer", ...), the default project role */
   company_role?: string | null;
   invite_sent_at?: string | null;
+  /** Sub Admin: a Member who can also create projects and invite people as Member or Client */
+  is_sub_admin?: boolean;
 }
 
 export interface IWorkspaceMemberStore {
@@ -60,7 +62,7 @@ export interface IWorkspaceMemberStore {
   updateMember: (
     workspaceSlug: string,
     userId: string,
-    data: { role?: EUserPermissions; company_role?: string }
+    data: { role?: EUserPermissions; company_role?: string; is_sub_admin?: boolean }
   ) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   sendMemberInvite: (workspaceSlug: string, userId: string, email?: string) => Promise<void>;
@@ -227,6 +229,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       is_active: workspaceMember.is_active,
       company_role: workspaceMember.company_role,
       invite_sent_at: workspaceMember.invite_sent_at,
+      is_sub_admin: workspaceMember.is_sub_admin,
     };
     return memberDetails;
   });
@@ -262,6 +265,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             is_active: member.is_active,
             company_role: member.company_role,
             invite_sent_at: member.invite_sent_at,
+            is_sub_admin: member.is_sub_admin,
           });
         });
       });
@@ -277,7 +281,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
   updateMember = async (
     workspaceSlug: string,
     userId: string,
-    data: { role?: EUserPermissions; company_role?: string }
+    data: { role?: EUserPermissions; company_role?: string; is_sub_admin?: boolean }
   ) => {
     const memberDetails = this.getWorkspaceMemberDetails(userId);
     if (!memberDetails) throw new Error("Member not found");
@@ -288,6 +292,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
         if (data.role !== undefined) set(this.workspaceMemberMap, [workspaceSlug, userId, "role"], data.role);
         if (data.company_role !== undefined)
           set(this.workspaceMemberMap, [workspaceSlug, userId, "company_role"], data.company_role);
+        if (data.is_sub_admin !== undefined)
+          set(this.workspaceMemberMap, [workspaceSlug, userId, "is_sub_admin"], data.is_sub_admin);
       });
       await this.workspaceService.updateWorkspaceMember(workspaceSlug, memberDetails.id, data);
     } catch (error) {

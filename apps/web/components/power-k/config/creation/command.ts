@@ -13,7 +13,7 @@ import {
   WorkItemsOutline,
 } from "@makeplane/propel/icons";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { EUserPermissionsLevel } from "@plane/constants";
 // components
 import { EUserProjectRoles } from "@plane/types";
 import type { TPowerKCommandConfig, TPowerKContext } from "@/components/power-k/core/types";
@@ -22,6 +22,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser } from "@/hooks/store/user";
 import { useInstance } from "@/hooks/store/use-instance";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 export type TPowerKCreationCommandKeys =
   | "create_work_item"
@@ -53,10 +54,8 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
   } = useCommandPalette();
   // derived values
   const canCreateWorkItem = canPerformAnyCreateAction && workspaceProjectIds && workspaceProjectIds.length > 0;
-  const canCreateProject = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // Admins and Sub Admins create projects
+  const { canCreateProjects: canCreateProject } = useWorkspaceRoleAccess();
   const hasProjectMemberLevelPermissions = (ctx: TPowerKContext) =>
     allowPermissions(
       [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],

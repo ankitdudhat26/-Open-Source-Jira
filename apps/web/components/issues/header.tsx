@@ -33,6 +33,7 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const IssuesHeader = observer(function IssuesHeader() {
   // router
@@ -61,10 +62,13 @@ export const IssuesHeader = observer(function IssuesHeader() {
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  // clients (project guests) only view work items
-  const canUserCreateIssue = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // clients (project guests) only view work items — unless Settings → Roles & access says otherwise
+  const { can } = useFeatureAccess();
+  const canUserCreateIssue = can(
+    "work_items",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   return (

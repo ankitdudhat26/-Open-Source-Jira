@@ -26,6 +26,7 @@ import { SendWorkspaceInvitationModal } from "@/components/workspace/members";
 import { useMember } from "@/hooks/store/use-member";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // local imports
 import type { Route } from "./+types/page";
 import { MembersWorkspaceSettingsHeader } from "./header";
@@ -46,6 +47,8 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
 
   // derived values
   const canPerformWorkspaceAdminActions = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  // Sub Admins open this page too: they invite people as Member or Client
+  const { canInviteMembers } = useWorkspaceRoleAccess(workspaceSlug);
   const canPerformWorkspaceMemberActions = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.WORKSPACE
@@ -94,8 +97,8 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
   const appliedRoleFilters = filtersStore.filters?.roles || [];
 
   // if user is not authorized to view this page
-  // the members of the workspace are listed to its admins only
-  if (workspaceUserInfo && !canPerformWorkspaceAdminActions) {
+  // the members of the workspace are listed to its admins and sub admins only
+  if (workspaceUserInfo && !canPerformWorkspaceAdminActions && !canInviteMembers) {
     return <NotAuthorizedView section="settings" className="h-auto" />;
   }
 
@@ -136,7 +139,7 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
               handleUpdate={handleRoleFilterUpdate}
               memberType="workspace"
             />
-            {canPerformWorkspaceAdminActions && (
+            {canInviteMembers && (
               <Button
                 variant="primary"
                 size="md"
@@ -147,7 +150,11 @@ const WorkspaceMembersSettingsPage = observer(function WorkspaceMembersSettingsP
             )}
           </div>
         </div>
-        <WorkspaceMembersList searchQuery={searchQuery} isAdmin={canPerformWorkspaceAdminActions} />
+        <WorkspaceMembersList
+          searchQuery={searchQuery}
+          isAdmin={canPerformWorkspaceAdminActions}
+          canInvite={canInviteMembers}
+        />
       </section>
     </SettingsContentWrapper>
   );

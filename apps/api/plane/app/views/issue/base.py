@@ -61,6 +61,7 @@ from plane.db.models import (
     ProjectMember,
     UserRecentVisit,
 )
+from plane.utils.access_control import is_granted
 from plane.utils.filters import ComplexFilterBackend, IssueFilterSet
 from plane.utils.global_paginator import paginate
 from plane.utils.project_membership import is_project_client
@@ -643,7 +644,7 @@ class IssueViewSet(BaseViewSet):
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER], creator=True, model=Issue)
     def partial_update(self, request, slug, project_id, pk=None):
         # clients only view work items, even the ones they created earlier
-        if is_project_client(request.user, slug, project_id):
+        if is_project_client(request.user, slug, project_id) and not is_granted(request):
             return Response({"error": "Clients can only view work items."}, status=status.HTTP_403_FORBIDDEN)
         queryset = self.get_queryset()
         queryset = self.apply_annotations(queryset)

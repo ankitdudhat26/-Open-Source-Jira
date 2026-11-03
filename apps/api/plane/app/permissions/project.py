@@ -7,11 +7,14 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 # Module import
 from plane.db.models import ProjectMember, WorkspaceMember
+from plane.utils.access_control import is_granted
 from plane.db.models.project import ROLE
 
 
 class ProjectBasePermission(BasePermission):
     def has_permission(self, request, view):
+        if is_granted(request):
+            return True
         if request.user.is_anonymous:
             return False
 
@@ -55,6 +58,8 @@ class ProjectBasePermission(BasePermission):
 
 class ProjectMemberPermission(BasePermission):
     def has_permission(self, request, view):
+        if is_granted(request):
+            return True
         if request.user.is_anonymous:
             return False
 
@@ -87,6 +92,8 @@ class ProjectMemberPermission(BasePermission):
 
 class ProjectEntityPermission(BasePermission):
     def has_permission(self, request, view):
+        if is_granted(request):
+            return True
         if request.user.is_anonymous:
             return False
 
@@ -121,6 +128,8 @@ class ProjectEntityPermission(BasePermission):
 
 class ProjectAdminPermission(BasePermission):
     def has_permission(self, request, view):
+        if is_granted(request):
+            return True
         if request.user.is_anonymous:
             return False
 
@@ -135,6 +144,8 @@ class ProjectAdminPermission(BasePermission):
 
 class ProjectLitePermission(BasePermission):
     def has_permission(self, request, view):
+        if is_granted(request):
+            return True
         if request.user.is_anonymous:
             return False
 

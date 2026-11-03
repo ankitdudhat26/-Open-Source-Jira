@@ -213,6 +213,11 @@ class WorkspaceMember(BaseModel):
     explored_features = models.JSONField(default=dict)
     # when an admin last emailed this member the link to set a password and sign in
     invite_sent_at = models.DateTimeField(null=True, blank=True)
+    # Sub Admin: a Member who can also create projects (with full access to them) and invite people as Member or
+    # Client. Only with role Member; no other workspace settings and no All Projects.
+    is_sub_admin = models.BooleanField(default=False)
+    # custom access for this person, over their role's: {feature: {action: true (allow) | false (deny)}}
+    custom_access = models.JSONField(default=dict, blank=True)
 
     class Meta:
         unique_together = ["workspace", "member", "deleted_at"]
@@ -243,6 +248,8 @@ class WorkspaceMemberInvite(BaseModel):
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=5)
     # job title given when inviting (e.g. "Developer"); becomes the member's company_role
     designation = models.CharField(max_length=255, blank=True, default="")
+    # invited as Sub Admin (with role Member) — becomes the member's is_sub_admin
+    is_sub_admin = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ["email", "workspace", "deleted_at"]
@@ -457,3 +464,19 @@ class WorkspaceUserPreference(BaseModel):
         verbose_name_plural = "Workspace User Preferences"
         db_table = "workspace_user_preferences"
         ordering = ("-created_at",)
+
+
+class WorkspaceAccessPolicy(BaseModel):
+    """What each role may do in the workspace's features, where an admin changed it from the built-in rules:
+    {role: {feature: {action: true (allow) | false (deny)}}}. A cell not set keeps the built-in rule."""
+
+    workspace = models.OneToOneField("db.Workspace", on_delete=models.CASCADE, related_name="access_policy")
+    rules = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Workspace Access Policy"
+        verbose_name_plural = "Workspace Access Policies"
+        db_table = "workspace_access_policies"
+
+    def __str__(self):
+        return f"Access policy <{self.workspace.name}>"

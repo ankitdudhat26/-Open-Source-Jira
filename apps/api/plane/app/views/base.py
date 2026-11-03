@@ -17,7 +17,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 # Third part imports
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,6 +26,7 @@ from rest_framework.viewsets import ModelViewSet
 
 # Module imports
 from plane.authentication.session import BaseSessionAuthentication
+from plane.utils.access_control import is_denied
 from plane.utils.exception_logger import log_exception
 from plane.utils.paginator import BasePaginator
 from plane.utils.core.mixins import ReadReplicaControlMixin
@@ -43,6 +44,9 @@ class TimezoneMixin:
             timezone.activate(zoneinfo.ZoneInfo(request.user.user_timezone))
         else:
             timezone.deactivate()
+        # Settings → Roles & access: an action denied to the person's role (or to them) is refused everywhere
+        if is_denied(request):
+            raise PermissionDenied("Your access in this workspace does not include this. Ask a workspace admin.")
 
 
 class BaseViewSet(TimezoneMixin, ReadReplicaControlMixin, ModelViewSet, BasePaginator):

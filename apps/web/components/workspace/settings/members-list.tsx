@@ -26,8 +26,10 @@ const PAGE_SIZES = [25, 50, 100];
 export const WorkspaceMembersList = observer(function WorkspaceMembersList(props: {
   searchQuery: string;
   isAdmin: boolean;
+  /** Admins and Sub Admins see and manage the pending invites */
+  canInvite?: boolean;
 }) {
-  const { searchQuery, isAdmin } = props;
+  const { searchQuery, isAdmin, canInvite = isAdmin } = props;
   const [showPendingInvites, setShowPendingInvites] = useState<boolean>(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -106,7 +108,7 @@ export const WorkspaceMembersList = observer(function WorkspaceMembersList(props
           />
         </div>
       )}
-      {isAdmin && searchedInvitationsIds && searchedInvitationsIds.length > 0 && (
+      {canInvite && searchedInvitationsIds && searchedInvitationsIds.length > 0 && (
         <div className="pt-4">
           <Collapsible
             open={showPendingInvites}

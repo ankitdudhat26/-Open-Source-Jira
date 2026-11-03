@@ -30,6 +30,7 @@ import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { NAV_ITEM_FEATURES, useFeatureAccess } from "@/hooks/use-feature-access";
 
 export type TNavigationItem = {
   name: string;
@@ -56,6 +57,7 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
   const { isExtendedProjectSidebarOpened, toggleExtendedProjectSidebar, toggleSidebar } = useAppTheme();
   const { getPartialProjectById } = useProject();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess();
   const {
     issue: { getIssueIdByIdentifier, getIssueById },
   } = useIssueDetail();
@@ -211,7 +213,13 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
       {navigationItemsMemo.map((item) => {
         if (!item.shouldRender) return;
 
-        const hasAccess = allowPermissions(item.access, EUserPermissionsLevel.PROJECT, workspaceSlug, project.id);
+        // Settings → Roles & access hides a section denied to the person, or shows one allowed beyond their role
+        const hasAccess = can(
+          NAV_ITEM_FEATURES[item.key] ?? "",
+          "view",
+          allowPermissions(item.access, EUserPermissionsLevel.PROJECT, workspaceSlug, project.id),
+          project.id
+        );
         if (!hasAccess) return null;
 
         const shouldShowCount = item.key === "intake" && (project.intake_count ?? 0) > 0;

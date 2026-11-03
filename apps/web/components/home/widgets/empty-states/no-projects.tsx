@@ -20,6 +20,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // plane web constants
 
 export const NoProjectsEmptyState = observer(function NoProjectsEmptyState() {
@@ -40,10 +41,8 @@ export const NoProjectsEmptyState = observer(function NoProjectsEmptyState() {
   });
   const { t } = useTranslation();
   // derived values
-  const canCreateProject = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // Admins and Sub Admins create projects
+  const { canCreateProjects: canCreateProject } = useWorkspaceRoleAccess();
   const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
 
   const EMPTY_STATE_DATA = [

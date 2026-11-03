@@ -12,7 +12,6 @@ import { useParams, usePathname } from "next/navigation";
 import { Collapsible } from "@makeplane/propel/components/collapsible";
 import { AddOutline, MoreHorizontalOutline } from "@makeplane/propel/icons";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Icon } from "@makeplane/propel/components/icon";
@@ -27,8 +26,8 @@ import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // plane web imports
 import type { TProject } from "@plane/types";
 // local imports
@@ -44,7 +43,6 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
   // store hooks
   const { t } = useTranslation();
   const { toggleCreateProjectModal } = useCommandPalette();
-  const { allowPermissions } = useUserPermissions();
   const { preferences: projectPreferences } = useProjectNavigationPreferences();
   const { isExtendedProjectSidebarOpened, toggleExtendedProjectSidebar } = useAppTheme();
 
@@ -54,10 +52,8 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
   const pathname = usePathname();
 
   // auth
-  const isAuthorizedUser = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // Admins and Sub Admins create projects
+  const { canCreateProjects: isAuthorizedUser } = useWorkspaceRoleAccess();
 
   // Compute limited projects for main sidebar
   const displayedProjects = projectPreferences.showLimitedProjects

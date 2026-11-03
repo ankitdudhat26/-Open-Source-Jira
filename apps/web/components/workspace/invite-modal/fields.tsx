@@ -10,17 +10,17 @@ import { Controller } from "react-hook-form";
 // plane imports
 import { Field } from "@makeplane/propel/components/field";
 import { Input, InputGroup } from "@makeplane/propel/components/input";
-import { ROLE } from "@plane/constants";
+import { EUserPermissions, ROLE } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { CloseOutline } from "@makeplane/propel/icons";
 import { Select } from "@plane/blocks/select";
 import { cn } from "@plane/utils";
 // hooks
 import { ProjectRoleInput } from "@/components/members/project-role-input";
+import type { TWorkspaceRoleOption } from "@/components/workspace/role-options";
+import { invitableRoleOptions, workspaceRoleOption } from "@/components/workspace/role-options";
 import { useUserPermissions } from "@/hooks/store/user";
 import type { InvitationFormValues } from "@/hooks/use-workspace-invitation";
-
-type TRoleOption = { key: number; label: string };
 
 type TInvitationFieldsProps = {
   workspaceSlug: string;
@@ -45,11 +45,12 @@ export const InvitationFields = observer(function InvitationFields(props: TInvit
   // store hooks
   const { workspaceInfoBySlug } = useUserPermissions();
   // derived values
-  const currentWorkspaceRole = workspaceInfoBySlug(workspaceSlug.toString())?.role;
-  // A member can only invite at or below their own role.
-  const roleOptions: TRoleOption[] = Object.entries(ROLE)
-    .map(([key, label]) => ({ key: parseInt(key), label }))
-    .filter((role) => !!currentWorkspaceRole && currentWorkspaceRole >= role.key);
+  const currentMembership = workspaceInfoBySlug(workspaceSlug.toString());
+  // An Admin gives any role; a Sub Admin invites people as Member or Client
+  const roleOptions = invitableRoleOptions(
+    currentMembership?.role as EUserPermissions | undefined,
+    currentMembership?.is_sub_admin
+  );
 
   return (
     <div className={cn("mb-3 space-y-4", className)}>
@@ -121,22 +122,24 @@ export const InvitationFields = observer(function InvitationFields(props: TInvit
             <div className="flex flex-col gap-1">
               <Controller
                 control={control}
-                name={`emails.${index}.role`}
-                rules={{ required: true }}
+                name={`emails.${index}`}
                 render={({ field: { value, onChange } }) => (
-                  <div className="w-24 grow">
-                    <Select<TRoleOption>
-                      value={roleOptions.find((role) => role.key === value) ?? null}
-                      onChange={(val) => onChange(Number(val))}
+                  <div className="w-28 grow">
+                    <Select<TWorkspaceRoleOption>
+                      value={workspaceRoleOption(value.role, value.is_sub_admin) ?? null}
+                      onChange={(val) => {
+                        const option = roleOptions.find((role) => role.key === val);
+                        if (option) onChange({ ...value, role: option.role, is_sub_admin: option.isSubAdmin });
+                      }}
                       getValues={() => roleOptions}
-                      getOptionValue={(role) => String(role.key)}
+                      getOptionValue={(role) => role.key}
                       getOptionLabel={(role) => role.label}
                       showSearch={false}
                       pinSelected={false}
                     >
-                      <Select.Trigger<TRoleOption> variant="select-2xl">
+                      <Select.Trigger<TWorkspaceRoleOption> variant="select-2xl">
                         <span className="min-w-0 flex-1 truncate text-left text-caption-sm-regular sm:text-body-xs-regular">
-                          {ROLE[value]}
+                          {workspaceRoleOption(value.role, value.is_sub_admin)?.label ?? ROLE[value.role]}
                         </span>
                       </Select.Trigger>
                     </Select>

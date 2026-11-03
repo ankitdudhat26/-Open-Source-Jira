@@ -16,6 +16,8 @@ type EmailRole = {
   role: EUserPermissions;
   /** job of the person, e.g. "Developer" or "Graphic Designer" (compulsory) */
   designation: string;
+  /** invited as Sub Admin (with role Member) */
+  is_sub_admin?: boolean;
 };
 
 export type InvitationFormValues = {

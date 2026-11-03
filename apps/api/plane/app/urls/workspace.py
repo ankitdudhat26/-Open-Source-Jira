@@ -13,6 +13,12 @@ from plane.app.views.workspace.jira import (
     WorkspaceHistoryEndpoint,
 )
 from plane.app.views.workspace.user_migration import UserMigrationSheetEndpoint
+from plane.app.views.workspace.access import (
+    MyWorkspaceAccessEndpoint,
+    WorkspaceAccessEndpoint,
+    WorkspaceAccessPeopleEndpoint,
+    WorkspaceMemberAccessEndpoint,
+)
 
 from plane.app.views.workspace.member_invite import (
     WorkspaceMemberDetailsEndpoint,
@@ -64,6 +70,19 @@ from plane.app.views import (
 
 
 urlpatterns = [
+    # Settings → Roles & access
+    path("workspaces/<str:slug>/access/", WorkspaceAccessEndpoint.as_view(), name="workspace-access"),
+    path("workspaces/<str:slug>/access/me/", MyWorkspaceAccessEndpoint.as_view(), name="workspace-access-me"),
+    path(
+        "workspaces/<str:slug>/access/people/",
+        WorkspaceAccessPeopleEndpoint.as_view(),
+        name="workspace-access-people",
+    ),
+    path(
+        "workspaces/<str:slug>/access/people/<uuid:member_id>/",
+        WorkspaceMemberAccessEndpoint.as_view(),
+        name="workspace-access-person",
+    ),
     path(
         "workspace-slug-check/",
         WorkSpaceAvailabilityCheckEndpoint.as_view(),

@@ -298,6 +298,10 @@ export const coreRoutes: RouteConfigEntry[] = [
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/members/page.tsx"
           ),
           route(
+            ":workspaceSlug/settings/access",
+            "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/access/page.tsx"
+          ),
+          route(
             ":workspaceSlug/settings/jira-import",
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/jira-import/page.tsx"
           ),

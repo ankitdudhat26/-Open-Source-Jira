@@ -12,12 +12,13 @@ import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view
 import { getWorkspaceActivePath, pathnameToAccessKey } from "@/components/settings/helper";
 import { SettingsMobileNav } from "@/components/settings/mobile/nav";
 // plane imports
-import { WORKSPACE_SETTINGS_ACCESS } from "@plane/constants";
+import { WORKSPACE_SETTINGS_ACCESS, WORKSPACE_SETTINGS_SUB_ADMIN_HREFS } from "@plane/constants";
 import type { EUserWorkspaceRoles } from "@plane/types";
 // components
 import { WorkspaceSettingsSidebarRoot } from "@/components/settings/workspace/sidebar";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 import type { Route } from "./+types/layout";
 
@@ -31,10 +32,13 @@ const WorkspaceSettingLayout = observer(function WorkspaceSettingLayout({ params
   // derived values
   const { accessKey } = pathnameToAccessKey(pathname);
   const userWorkspaceRole = getWorkspaceRoleByWorkspaceSlug(workspaceSlug);
+  const { canInviteMembers } = useWorkspaceRoleAccess(workspaceSlug);
 
   let isAuthorized: boolean | string = false;
   if (pathname && workspaceSlug && userWorkspaceRole) {
-    isAuthorized = WORKSPACE_SETTINGS_ACCESS[accessKey]?.includes(userWorkspaceRole as EUserWorkspaceRoles);
+    isAuthorized =
+      WORKSPACE_SETTINGS_ACCESS[accessKey]?.includes(userWorkspaceRole as EUserWorkspaceRoles) ||
+      (canInviteMembers && WORKSPACE_SETTINGS_SUB_ADMIN_HREFS.includes(accessKey));
   }
 
   return (

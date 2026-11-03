@@ -27,6 +27,8 @@ import { getFileURL, renderFormattedDate } from "@plane/utils";
 import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import type { TWorkspaceRoleOption } from "@/components/workspace/role-options";
+import { WORKSPACE_ROLE_OPTIONS, workspaceRoleOption } from "@/components/workspace/role-options";
 import { EditMemberDetailsModal } from "./edit-member-details-modal";
 
 export interface RowData {
@@ -35,6 +37,8 @@ export interface RowData {
   is_active: boolean;
   /** job ("Developer", "Graphic Designer", ...), the default project role */
   company_role?: string | null;
+  /** Sub Admin: a Member who can also create projects and invite people as Member or Client */
+  is_sub_admin?: boolean;
 }
 
 type NameProps = {
@@ -45,12 +49,8 @@ type NameProps = {
   setRemoveMemberModal: (rowData: RowData) => void;
 };
 
-type TRoleOption = { key: EUserPermissions; label: string };
-
-const ROLE_OPTIONS: TRoleOption[] = Object.entries(ROLE).map(([key, label]) => ({
-  key: Number(key) as EUserPermissions,
-  label,
-}));
+type TRoleOption = TWorkspaceRoleOption;
+const ROLE_OPTIONS = WORKSPACE_ROLE_OPTIONS;
 
 type AccountTypeProps = {
   rowData: RowData;
@@ -176,7 +176,7 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         </div>
       ) : isRoleNonEditable ? (
         <div className="flex w-32">
-          <span>{ROLE[rowData.role]}</span>
+          <span>{workspaceRoleOption(rowData.role, rowData.is_sub_admin)?.label ?? ROLE[rowData.role]}</span>
         </div>
       ) : (
         <Controller
@@ -186,11 +186,13 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
           render={() => (
             <div className="w-32">
               <Select<TRoleOption>
-                value={ROLE_OPTIONS.find((role) => role.key === rowData.role) ?? null}
+                value={workspaceRoleOption(rowData.role, rowData.is_sub_admin) ?? null}
                 onChange={(val) => {
-                  if (!workspaceSlug) return;
+                  const option = ROLE_OPTIONS.find((role) => role.key === val);
+                  if (!workspaceSlug || !option) return;
                   updateMember(workspaceSlug.toString(), rowData.member.id, {
-                    role: Number(val) as EUserPermissions,
+                    role: option.role,
+                    is_sub_admin: option.isSubAdmin,
                   }).catch((err: unknown) => {
                     const error = err as { error?: string | string[] };
                     const errorString = Array.isArray(error?.error) ? error.error[0] : error?.error;
@@ -203,13 +205,15 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
                   });
                 }}
                 getValues={() => ROLE_OPTIONS}
-                getOptionValue={(role) => String(role.key)}
+                getOptionValue={(role) => role.key}
                 getOptionLabel={(role) => role.label}
                 showSearch={false}
                 pinSelected={false}
               >
                 <Select.Trigger<TRoleOption> variant="select-ghost-md">
-                  <span className="min-w-0 flex-1 truncate text-left">{ROLE[rowData.role]}</span>
+                  <span className="min-w-0 flex-1 truncate text-left">
+                    {workspaceRoleOption(rowData.role, rowData.is_sub_admin)?.label ?? ROLE[rowData.role]}
+                  </span>
                 </Select.Trigger>
               </Select>
             </div>

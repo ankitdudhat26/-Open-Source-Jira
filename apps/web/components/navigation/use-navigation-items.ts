@@ -19,6 +19,7 @@ import {
 } from "@makeplane/propel/icons";
 import type { EUserProjectRoles, IPartialProject } from "@plane/types";
 import type { TNavigationItem } from "@/components/navigation/tab-navigation-root";
+import { NAV_ITEM_FEATURES, useFeatureAccess } from "@/hooks/use-feature-access";
 
 type UseNavigationItemsProps = {
   workspaceSlug: string;
@@ -38,6 +39,8 @@ export const useNavigationItems = ({
   project,
   allowPermissions,
 }: UseNavigationItemsProps): TNavigationItem[] => {
+  // Settings → Roles & access hides a section denied to the person, or shows one allowed beyond their role
+  const { can } = useFeatureAccess(workspaceSlug);
   // Base navigation items
   const baseNavigation = useCallback(
     // oxlint-disable-next-line no-shadow
@@ -136,13 +139,13 @@ export const useNavigationItems = ({
     const filteredItems = navItems.filter((item) => {
       if (!item.shouldRender) return false;
       const hasAccess = allowPermissions(item.access, EUserPermissionsLevel.PROJECT, workspaceSlug, project?.id ?? "");
-      return hasAccess;
+      return can(NAV_ITEM_FEATURES[item.key] ?? "", "view", hasAccess, project?.id);
     });
 
     // Sort by sortOrder
     // oxlint-disable-next-line unicorn/no-array-sort
     return filteredItems.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  }, [workspaceSlug, projectId, baseNavigation, allowPermissions, project?.id]);
+  }, [workspaceSlug, projectId, baseNavigation, allowPermissions, project?.id, can]);
 
   return navigationItems;
 };
