@@ -5,7 +5,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useOutsideClickDetector } from "@plane/hooks";
 
 type UseExpandableSearchOptions = {
   onClose?: () => void;
@@ -42,8 +41,23 @@ export const useExpandableSearch = (options?: UseExpandableSearchOptions) => {
     }
   }, [isOpen, handleClose]);
 
-  // Outside click detection
-  useOutsideClickDetector(containerRef, handleOutsideClick);
+  // Outside click detection. Not `useOutsideClickDetector`: it skips clicks inside a `data-prevent-outside-click`
+  // container (the sidebar, the page content) that the search is not in, so the panel stayed open there.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const container = containerRef.current;
+      const path = event.composedPath();
+      if (!container || path.includes(container)) return;
+      // a popup opened from the panel renders in a portal on <body> — a press there is not outside
+      if (path.some((node) => node instanceof Element && node.hasAttribute("data-base-ui-portal"))) return;
+      handleOutsideClick();
+    };
+    // `pointerdown` in the capture phase: draggable list rows cancel the press before any `mousedown` fires, and a
+    // press there must close the panel too
+    document.addEventListener("pointerdown", handlePointerDownOutside, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDownOutside, true);
+  }, [isOpen, handleOutsideClick]);
 
   // Track keyboard shortcuts that trigger focus (Cmd+F / Ctrl+F)
   useEffect(() => {
