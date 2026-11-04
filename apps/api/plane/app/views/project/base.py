@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from plane.app.permissions import ROLE, ProjectMemberPermission, allow_permission
 from plane.utils.access_control import is_granted, workspace_access
 from plane.utils.workspace_roles import can_create_projects
+from plane.utils.workflow import apply_default_workflow
 from plane.app.serializers import (
     DeployBoardSerializer,
     ProjectListSerializer,
@@ -324,6 +325,8 @@ class ProjectViewSet(BaseViewSet):
                     for state in DEFAULT_STATES
                 ]
             )
+            # every project starts with the default workflow; it can be changed in the project's settings
+            apply_default_workflow(serializer.instance, request.user.id)
 
             for index, milestone in enumerate(milestone_serializer.validated_data):
                 milestone.pop("module_ids", None)

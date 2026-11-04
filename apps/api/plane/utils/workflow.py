@@ -18,7 +18,33 @@ from plane.utils.uuid import is_valid_uuid
 
 ADMIN_ROLE = 20
 
+DEFAULT_TEMPLATE = "default"
+
 WORKFLOW_TEMPLATES = {
+    # every project starts with it (new projects and, once, the existing ones); change it in a project's settings
+    DEFAULT_TEMPLATE: {
+        "name": "Default",
+        "description": (
+            "To Do → In Progress → In QA → Waiting for Demo → Done; QA and the demo can send work back, and Done "
+            "can be Reopened."
+        ),
+        "states": [
+            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
+            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
+            {"name": "In QA", "group": "started", "color": "#0EA5E9"},
+            {"name": "Waiting for Demo", "group": "started", "color": "#8B5CF6"},
+            {"name": "Done", "group": "completed", "color": "#16A34A"},
+            {"name": "Reopened", "group": "started", "color": "#EF4444"},
+        ],
+        "transitions": {
+            "To Do": ["In Progress"],
+            "In Progress": ["In QA"],
+            "In QA": ["Waiting for Demo", "In Progress", "To Do"],
+            "Waiting for Demo": ["Done", "In Progress", "To Do"],
+            "Done": ["Reopened"],
+            "Reopened": ["In Progress"],
+        },
+    },
     "software": {
         "name": "Software development",
         "description": "Backlog → To Do → In Progress → In Review → QA → Done, with Cancelled from any state.",
@@ -200,19 +226,33 @@ def save_workflow(project, is_enabled, transitions, user_id):
     return serialize_workflow(project.id)
 
 
+def state_key(name):
+    """A state name for matching: "Todo", "To Do" and "TO-DO" are one state, so are "IN QA" and "In QA"."""
+    return "".join(character for character in name.lower() if character.isalnum())
+
+
+def apply_default_workflow(project, user_id=None):
+    """The default workflow for a project that has none yet (a new project, an imported one)."""
+    if ProjectWorkflow.objects.filter(project=project).exists():
+        return None
+    return apply_template(project, DEFAULT_TEMPLATE, user_id)
+
+
 def apply_template(project, template_key, user_id):
     """Create the template's missing states (matched by name) and use its transitions. Existing states are kept."""
     template = WORKFLOW_TEMPLATES.get(template_key)
     if template is None:
         raise WorkflowError("Unknown workflow template.")
     with transaction.atomic():
-        states = {state.name.strip().lower(): state for state in State.objects.filter(project=project)}
+        states = {}
+        for state in State.objects.filter(project=project).order_by("sequence"):
+            states.setdefault(state_key(state.name), state)
         last_sequence = max([state.sequence for state in states.values()], default=0)
         for config in template["states"]:
-            if config["name"].lower() in states:
+            if state_key(config["name"]) in states:
                 continue
             last_sequence += 15000
-            states[config["name"].lower()] = State.objects.create(
+            states[state_key(config["name"])] = State.objects.create(
                 project=project,
                 workspace_id=project.workspace_id,
                 name=config["name"],
@@ -223,7 +263,7 @@ def apply_template(project, template_key, user_id):
                 updated_by_id=user_id,
             )
         transitions = [
-            {"from_state": states[source.lower()].id, "to_state": states[target.lower()].id, "reviewer_ids": []}
+            {"from_state": states[state_key(source)].id, "to_state": states[state_key(target)].id, "reviewer_ids": []}
             for source, targets in template["transitions"].items()
             for target in targets
         ]

@@ -27,13 +27,14 @@ DEFAULT_STATES = [
         "color": "#60646C",
         "sequence": 15000,
         "group": StateGroup.BACKLOG.value,
-        "default": True,
     },
+    # new work items start in To Do, the first step of the default workflow (plane.utils.workflow)
     {
-        "name": "Todo",
+        "name": "To Do",
         "color": "#60646C",
         "sequence": 25000,
         "group": StateGroup.UNSTARTED.value,
+        "default": True,
     },
     {
         "name": "In Progress",

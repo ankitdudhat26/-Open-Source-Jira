@@ -16,6 +16,7 @@ from plane.db.models import (
     IssueComment,
     Project,
     ProjectMember,
+    ProjectWorkflow,
     QueueItem,
     State,
     User,
@@ -41,7 +42,10 @@ def project(session_client, workspace):
         f"/api/workspaces/{workspace.slug}/projects/", {"name": "Shop", "identifier": "SHOP"}, format="json"
     )
     assert response.status_code == status.HTTP_201_CREATED, response.data
-    return Project.objects.get(pk=response.data["id"])
+    project = Project.objects.get(pk=response.data["id"])
+    # the queue flow closes items straight from To Do; the workflow is tested in test_project_workflow
+    ProjectWorkflow.objects.filter(project=project).update(is_enabled=False)
+    return project
 
 
 def workspace_user(workspace, role=MEMBER):

@@ -8,7 +8,7 @@ import pytest
 from django.utils import timezone
 from rest_framework import status
 
-from plane.db.models import Cycle, CycleIssue, Issue, Project, State
+from plane.db.models import Cycle, CycleIssue, Issue, Project, ProjectWorkflow, State
 from plane.utils.work_item_automation import run_work_item_automation
 
 
@@ -44,7 +44,10 @@ def _issue_url(workspace, project, issue=None):
 
 @pytest.fixture
 def project(session_client, workspace):
-    return _create_project(session_client, workspace)
+    project = _create_project(session_client, workspace)
+    # these tests jump between states (Done back to To Do…); the workflow is tested in test_project_workflow
+    ProjectWorkflow.objects.filter(project=project).update(is_enabled=False)
+    return project
 
 
 @pytest.mark.contract

@@ -45,12 +45,38 @@ def member(workspace, project, role=15):
 @pytest.mark.contract
 class TestProjectWorkflow:
     @pytest.mark.django_db
-    def test_workflow_is_off_by_default_and_anything_goes(self, session_client, workspace, project):
+    def test_a_new_project_starts_with_the_default_workflow(self, session_client, workspace, project):
         data = session_client.get(url(workspace, project, "workflow/")).data
-        assert data["is_enabled"] is False
-        assert data["transitions"] == []
-        assert {template["key"] for template in data["templates"]} == {"software", "release", "simple"}
+        names = {str(s.id): s.name for s in State.objects.filter(project=project)}
+        moves = {(names[t["from_state"]], names[t["to_state"]]) for t in data["transitions"]}
 
+        assert data["is_enabled"] is True
+        assert {template["key"] for template in data["templates"]} == {"default", "software", "release", "simple"}
+        assert moves == {
+            ("To Do", "In Progress"),
+            ("In Progress", "In QA"),
+            ("In QA", "Waiting for Demo"),
+            ("In QA", "In Progress"),
+            ("In QA", "To Do"),
+            ("Waiting for Demo", "Done"),
+            ("Waiting for Demo", "In Progress"),
+            ("Waiting for Demo", "To Do"),
+            ("Done", "Reopened"),
+            ("Reopened", "In Progress"),
+        }
+        # new work items start in To Do, and skipping steps is refused
+        assert State.objects.get(project=project, default=True).name == "To Do"
+        issue = Issue.objects.create(name="Login", project=project, workspace=workspace, state=state(project, "To Do"))
+        response = session_client.patch(
+            url(workspace, project, f"issues/{issue.id}/"), {"state_id": str(state(project, "Done").id)}, format="json"
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.django_db
+    def test_a_project_can_turn_the_workflow_off(self, session_client, workspace, project):
+        session_client.put(
+            url(workspace, project, "workflow/"), {"is_enabled": False, "transitions": []}, format="json"
+        )
         issue = Issue.objects.create(name="Login", project=project, workspace=workspace)
         done = State.objects.filter(project=project, group="completed").first()
         response = session_client.patch(
@@ -94,7 +120,7 @@ class TestProjectWorkflow:
 
     @pytest.mark.django_db
     def test_state_without_rules_is_not_restricted(self, session_client, workspace, project):
-        todo, done = state(project, "Todo"), State.objects.filter(project=project, group="completed").first()
+        todo, done = state(project, "To Do"), State.objects.filter(project=project, group="completed").first()
         in_progress = State.objects.filter(project=project, group="started").first()
         session_client.put(
             url(workspace, project, "workflow/"),
@@ -151,7 +177,7 @@ class TestProjectWorkflow:
     def test_invalid_transitions_are_rejected(self, session_client, workspace, project):
         other = Project.objects.create(name="Other", identifier="OTH", workspace=workspace)
         foreign_state = State.objects.create(name="Foreign", project=other, workspace=workspace, group="started")
-        todo = state(project, "Todo")
+        todo = state(project, "To Do")
 
         response = session_client.put(
             url(workspace, project, "workflow/"),
@@ -201,9 +227,10 @@ class TestReleaseWorkflowTemplate:
             if rule["from_state"] == str(state(project, "Testing / QA").id)
         }
         assert qa_targets == {str(state(project, "Ready for Deployment").id), str(state(project, "Re-open").id)}
-        # the other project keeps its own states and has no workflow
+        # the other project keeps its own states and the default workflow
         assert set(State.objects.filter(project=other_project).values_list("name", flat=True)) == other_states
-        assert session_client.get(url(workspace, other_project, "workflow/")).data["is_enabled"] is False
+        other_rules = session_client.get(url(workspace, other_project, "workflow/")).data["transitions"]
+        assert len(other_rules) == 10
 
         # a move the flow does not allow is refused in this project
         issue = Issue.objects.create(

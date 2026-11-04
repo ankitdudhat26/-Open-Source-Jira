@@ -69,6 +69,7 @@ from plane.utils.asset_paths import asset_storage_key
 from plane.utils.jira.adf import adf_to_html
 from plane.utils.jira.client import JiraError
 from plane.utils.work_item_types import ensure_project_work_item_types
+from plane.utils.workflow import apply_default_workflow
 
 logger = logging.getLogger("plane.worker")
 
@@ -1049,6 +1050,9 @@ class JiraImporter:
                 (s for s in states.values() if s.group in ("unstarted", "backlog")), next(iter(states.values()))
             )
             State.objects.filter(pk=default.pk).update(default=True)
+        # an imported project starts with the default workflow too (once: a project's own workflow is kept)
+        if states:
+            apply_default_workflow(project, self.actor.id if self.actor else None)
         return states
 
     # ---- sprints and components ------------------------------------------------------------------------------------

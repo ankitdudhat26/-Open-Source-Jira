@@ -42,6 +42,7 @@ from plane.bgtasks.webhook_task import model_activity, webhook_activity
 from plane.utils.exception_logger import log_exception
 from .base import BaseAPIView
 from plane.utils.host import base_host
+from plane.utils.workflow import apply_default_workflow
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.api.serializers import (
     ProjectSerializer,
@@ -269,6 +270,8 @@ class ProjectListCreateAPIEndpoint(BaseAPIView):
                             for state in DEFAULT_STATES
                         ]
                     )
+                    # every project starts with the default workflow; it can be changed in the project's settings
+                    apply_default_workflow(serializer.instance, request.user.id)
 
                     project = self.get_queryset().filter(pk=serializer.instance.id).first()
 

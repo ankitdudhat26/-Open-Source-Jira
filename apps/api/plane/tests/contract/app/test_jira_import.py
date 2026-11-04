@@ -326,6 +326,10 @@ class TestJiraImport:
             "Code Review": "started",
             "Done": "completed",
             "Won't Do": "cancelled",
+            # added by the default workflow; Jira's own To Do / In Progress / Done are reused
+            "In QA": "started",
+            "Waiting for Demo": "started",
+            "Reopened": "started",
         }
         issues = {issue.external_id: issue for issue in Issue.objects.filter(project=project)}
         epic, card, bug = issues["1"], issues["2"], issues["3"]
