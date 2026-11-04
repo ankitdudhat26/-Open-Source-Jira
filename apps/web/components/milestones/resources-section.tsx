@@ -13,7 +13,6 @@ import { Button } from "@makeplane/propel/components/button";
 import { Dialog, DialogContent } from "@makeplane/propel/components/dialog";
 import { Field } from "@makeplane/propel/components/field";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { Input, InputGroup } from "@makeplane/propel/components/input";
 import { Select, SelectContent, SelectItem, SelectList, SelectTrigger } from "@makeplane/propel/components/select";
 import { TextArea, TextAreaGroup } from "@makeplane/propel/components/text-area";
 import { AddOutline, DeleteOutline } from "@makeplane/propel/icons";
@@ -23,6 +22,7 @@ import type { TProjectResource } from "@plane/types";
 import { cn } from "@plane/utils";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
+import { PROJECT_ROLE_SUGGESTIONS } from "@/components/members/project-role-input";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { PROJECT_RESOURCES, projectMilestoneService, useProjectResources } from "@/hooks/use-project-milestones";
@@ -105,6 +105,41 @@ const RESOURCE_ROLES = [
 ];
 const RESOURCE_ROLE_ITEMS = RESOURCE_ROLES.map((role) => ({ value: role, label: role }));
 
+/** What kind of resource fills a role: the job, in the order the Resource type dropdown lists them */
+const RESOURCE_TYPES = ["Admin", ...PROJECT_ROLE_SUGGESTIONS];
+const RESOURCE_TYPE_ITEMS = RESOURCE_TYPES.map((type) => ({ value: type, label: type }));
+
+/** The resource type a role usually needs — picked for you when you choose the role, and you can change it */
+const resourceTypeForRole = (role: string) => {
+  const name = role.toLowerCase();
+  if (name.includes("+")) return "Full Stack Developer";
+  if (["admin"].includes(name)) return "Admin";
+  if (name === "client") return "Client";
+  if (["project management", "partner development manager", "kt"].includes(name)) return "Project Manager";
+  if (["ba", "business consultant", "discovery phase"].includes(name)) return "Business Analyst";
+  if (["testing", "selenium"].includes(name)) return "QA Engineer";
+  if (["design", "web designer"].includes(name)) return "UI/UX Designer";
+  if (["3d artist", "video editor"].includes(name)) return "Graphic Designer";
+  if (["devops", "system admin", "system admin + devops"].includes(name)) return "DevOps Engineer";
+  if (["android", "ios", "flutter", "react native", "ionic"].includes(name)) return "Mobile Developer";
+  if (["react js", "angular js", "next js", "extjs", "website", "wordpress website"].includes(name))
+    return "Frontend Developer";
+  if (
+    [
+      "backend",
+      "ci backend",
+      "laravel backend",
+      ".net backend",
+      "node js",
+      "python",
+      "java",
+      "api development",
+    ].includes(name)
+  )
+    return "Backend Developer";
+  return "Developer";
+};
+
 const ResourceFormModal = observer(function ResourceFormModal(props: {
   isOpen: boolean;
   onClose: () => void;
@@ -116,13 +151,19 @@ const ResourceFormModal = observer(function ResourceFormModal(props: {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TResourceForm>({ defaultValues: DEFAULT_RESOURCE });
+  // the resource type follows the role until it is picked by hand
+  const [isTypePicked, setIsTypePicked] = useState(false);
   const {
     project: { fetchProjectMembers },
   } = useMember();
   useEffect(() => {
-    if (isOpen) reset(DEFAULT_RESOURCE);
+    if (isOpen) {
+      reset(DEFAULT_RESOURCE);
+      setIsTypePicked(false);
+    }
   }, [isOpen, reset]);
 
   const onSubmit = async (formData: TResourceForm) => {
@@ -168,7 +209,9 @@ const ResourceFormModal = observer(function ResourceFormModal(props: {
                       items={RESOURCE_ROLE_ITEMS}
                       value={value || null}
                       onValueChange={(role) => {
-                        if (role) onChange(role);
+                        if (!role) return;
+                        onChange(role);
+                        if (!isTypePicked) setValue("resource_type", resourceTypeForRole(role));
                       }}
                     >
                       <SelectTrigger size="md" placeholder="Select role" aria-label="Role" />
@@ -190,15 +233,24 @@ const ResourceFormModal = observer(function ResourceFormModal(props: {
               name="resource_type"
               render={({ field: { value, onChange } }) => (
                 <Field name="resource_type">
-                  <InputGroup size="lg">
-                    <Input
-                      size="lg"
-                      type="text"
-                      value={value}
-                      onChange={onChange}
-                      placeholder="Resource type, e.g. QA"
-                    />
-                  </InputGroup>
+                  <Select<string>
+                    items={RESOURCE_TYPE_ITEMS}
+                    value={value || null}
+                    onValueChange={(type) => {
+                      if (!type) return;
+                      onChange(type);
+                      setIsTypePicked(true);
+                    }}
+                  >
+                    <SelectTrigger size="md" placeholder="Select resource type" aria-label="Resource type" />
+                    <SelectContent side="bottom" align="start">
+                      <SelectList>
+                        {RESOURCE_TYPE_ITEMS.map((option) => (
+                          <SelectItem key={option.value} value={option.value} size="md" label={option.label} />
+                        ))}
+                      </SelectList>
+                    </SelectContent>
+                  </Select>
                 </Field>
               )}
             />
@@ -272,6 +324,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
   const { resources } = useProjectResources(workspaceSlug, projectId);
   const {
     project: { fetchProjectMembers },
+    getUserDetails,
   } = useMember();
 
   const handleMemberChange = async (resource: TProjectResource, memberId: string | null) => {
@@ -351,7 +404,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
               No resources yet. Add them with Add resource, or import a SOW on a Fixed Cost project.
             </div>
           ) : (
-            resources.map((resource) => {
+            resources.map((resource, index) => {
               const progress = resource.task_count ? Math.round((resource.done_count / resource.task_count) * 100) : 0;
               return (
                 <div
@@ -362,7 +415,8 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
                     "border-b border-subtle py-1.5 pl-page-x text-body-xs-regular hover:bg-layer-transparent-hover"
                   )}
                 >
-                  <span className="text-caption-md-medium text-secondary">{resource.code || "—"}</span>
+                  {/* the ID from the SOW (e.g. R03); a resource added here has none, so it shows its row number */}
+                  <span className="text-caption-md-medium text-secondary">{resource.code || index + 1}</span>
                   <span className="truncate pr-3 text-primary" title={resource.role}>
                     {resource.role}
                   </span>
@@ -383,6 +437,12 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
                       placeholder="Map member"
                       disabled={!isAdmin || updatingId === resource.id}
                     />
+                    {/* the login email of the person filling the role */}
+                    {resource.member_id && getUserDetails(resource.member_id)?.email && (
+                      <span className="block truncate px-2 text-caption-sm-regular text-tertiary">
+                        {getUserDetails(resource.member_id)?.email}
+                      </span>
+                    )}
                   </span>
                   <span className="flex items-center gap-2 pr-3">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-layer-3">

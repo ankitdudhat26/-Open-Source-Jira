@@ -5,7 +5,7 @@
  */
 
 import { observer } from "mobx-react";
-import { HomeOutline, WidgetOutline } from "@makeplane/propel/icons";
+import { AddOutline, HomeOutline, WidgetOutline } from "@makeplane/propel/icons";
 // plane imports
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@makeplane/propel/components/button";
@@ -16,13 +16,18 @@ import { Header } from "@plane/blocks/layout";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 // hooks
+import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useHome } from "@/hooks/store/use-home";
+import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 export const WorkspaceDashboardHeader = observer(function WorkspaceDashboardHeader() {
   // plane hooks
   const { t } = useTranslation();
   // hooks
   const { toggleWidgetSettings } = useHome();
+  const { toggleCreateProjectModal } = useCommandPalette();
+  // Admins and Sub Admins (and whoever Roles & access allows) create projects
+  const { canCreateProjects } = useWorkspaceRoleAccess();
 
   return (
     <>
@@ -39,6 +44,29 @@ export const WorkspaceDashboardHeader = observer(function WorkspaceDashboardHead
           </div>
         </Header.LeftItem>
         <Header.RightItem>
+          {canCreateProjects && (
+            <>
+              <div className="my-auto mb-0 md:hidden">
+                <IconButton
+                  variant="primary"
+                  size="md"
+                  onClick={() => toggleCreateProjectModal(true)}
+                  icon={<Icon icon={AddOutline} />}
+                  aria-label="Create new project"
+                />
+              </div>
+              <div className="my-auto mb-0 hidden md:block">
+                <Button
+                  variant="primary"
+                  size="md"
+                  stretch="auto"
+                  onClick={() => toggleCreateProjectModal(true)}
+                  icon={<Icon icon={AddOutline} />}
+                  label="Create new project"
+                />
+              </div>
+            </>
+          )}
           <div className="my-auto mb-0 md:hidden">
             <IconButton
               variant="secondary"

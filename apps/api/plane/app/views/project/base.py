@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.app.permissions import ROLE, ProjectMemberPermission, allow_permission
-from plane.utils.access_control import is_granted
+from plane.utils.access_control import is_granted, workspace_access
 from plane.utils.workspace_roles import can_create_projects
 from plane.app.serializers import (
     DeployBoardSerializer,
@@ -43,10 +43,15 @@ from plane.db.models import (
 )
 from plane.db.models.intake import IntakeIssueStatus
 from plane.app.serializers.milestone import MilestoneSerializer
-from plane.db.models import Deliverable, Milestone
+from plane.db.models import Deliverable, Milestone, ProjectResource
 from plane.utils.work_item_types import ensure_project_work_item_types
+from plane.utils.sow_import import attach_resource_label
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
+
+
+# the role of the resource the creator of a project fills
+CREATOR_RESOURCE_ROLE = "Project Admin"
 
 
 class ProjectViewSet(BaseViewSet):
@@ -107,12 +112,17 @@ class ProjectViewSet(BaseViewSet):
     def list_detail(self, request, slug):
         fields = [field for field in request.GET.get("fields", "").split(",") if field]
         projects = self.get_queryset().order_by("sort_order", "name")
-        if WorkspaceMember.objects.filter(
-            member=request.user,
-            workspace__slug=slug,
-            is_active=True,
-            role=ROLE.GUEST.value,
-        ).exists():
+        # Settings → Roles & access can show someone every project of the workspace (the All Projects page)
+        sees_all_projects = workspace_access(request.user, slug, "all_projects", "view") is True
+        if (
+            not sees_all_projects
+            and WorkspaceMember.objects.filter(
+                member=request.user,
+                workspace__slug=slug,
+                is_active=True,
+                role=ROLE.GUEST.value,
+            ).exists()
+        ):
             projects = projects.filter(
                 project_projectmember__member=self.request.user,
                 project_projectmember__is_active=True,
@@ -121,7 +131,7 @@ class ProjectViewSet(BaseViewSet):
         membership = WorkspaceMember.objects.filter(
             member=request.user, workspace__slug=slug, is_active=True, role=ROLE.MEMBER.value
         ).first()
-        if membership:
+        if membership and not sees_all_projects:
             joined = Q(project_projectmember__member=self.request.user, project_projectmember__is_active=True)
             # a Sub Admin sees only the projects they created or were added to — not the workspace's public ones
             projects = projects.filter(joined if membership.is_sub_admin else joined | Q(network=2))
@@ -197,12 +207,17 @@ class ProjectViewSet(BaseViewSet):
             "updated_by",
         )
 
-        if WorkspaceMember.objects.filter(
-            member=request.user,
-            workspace__slug=slug,
-            is_active=True,
-            role=ROLE.GUEST.value,
-        ).exists():
+        # Settings → Roles & access can show someone every project of the workspace (the All Projects page)
+        sees_all_projects = workspace_access(request.user, slug, "all_projects", "view") is True
+        if (
+            not sees_all_projects
+            and WorkspaceMember.objects.filter(
+                member=request.user,
+                workspace__slug=slug,
+                is_active=True,
+                role=ROLE.GUEST.value,
+            ).exists()
+        ):
             projects = projects.filter(
                 project_projectmember__member=self.request.user,
                 project_projectmember__is_active=True,
@@ -211,7 +226,7 @@ class ProjectViewSet(BaseViewSet):
         membership = WorkspaceMember.objects.filter(
             member=request.user, workspace__slug=slug, is_active=True, role=ROLE.MEMBER.value
         ).first()
-        if membership:
+        if membership and not sees_all_projects:
             joined = Q(project_projectmember__member=self.request.user, project_projectmember__is_active=True)
             # a Sub Admin sees only the projects they created or were added to — not the workspace's public ones
             projects = projects.filter(joined if membership.is_sub_admin else joined | Q(network=2))
@@ -322,6 +337,18 @@ class ProjectViewSet(BaseViewSet):
 
             # Feature / Task / Bug work item types
             ensure_project_work_item_types(serializer.instance)
+
+            # Resources: whoever creates the project fills its first role, as the project's admin
+            attach_resource_label(
+                serializer.instance,
+                ProjectResource.objects.create(
+                    project=serializer.instance,
+                    role=CREATOR_RESOURCE_ROLE,
+                    resource_type="Admin",
+                    responsibilities="Created the project and manages it: its members, settings and work.",
+                    member=request.user,
+                ),
+            )
 
             project = self.get_queryset().filter(pk=serializer.data["id"]).first()
 

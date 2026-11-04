@@ -26,7 +26,14 @@ CUSTOM_VALUES = {"allow": True, "deny": False}
 
 
 def _features():
-    return [{key: feature[key] for key in ("key", "label", "description", "scope", "actions")} for feature in FEATURES]
+    return [
+        {
+            **{key: feature[key] for key in ("key", "label", "description", "scope", "actions", "action_labels")},
+            # viewing it is not settable: everyone in the project or workspace sees it
+            "always_visible": "view" not in feature["actions"] and feature["key"] not in ("exports", "all_projects"),
+        }
+        for feature in FEATURES
+    ]
 
 
 def _valid_cell(feature, action):
@@ -75,7 +82,13 @@ class WorkspaceAccessEndpoint(BaseAPIView):
         if role not in ROLES or not _valid_cell(feature, action) or not isinstance(allowed, bool):
             return Response({"error": "Choose a role, a feature and an action."}, status=status.HTTP_400_BAD_REQUEST)
         workspace = Workspace.objects.get(slug=slug)
-        policy, _ = WorkspaceAccessPolicy.objects.get_or_create(workspace=workspace)
+        # one per workspace, also counting a deleted one: bring it back rather than adding another
+        policy = WorkspaceAccessPolicy.all_objects.filter(workspace=workspace).first()
+        if policy is None:
+            policy = WorkspaceAccessPolicy.objects.create(workspace=workspace)
+        elif policy.deleted_at:
+            policy.deleted_at = None
+            policy.rules = {}
         rules = policy.rules or {}
         cells = rules.setdefault(role, {}).setdefault(feature, {})
         # the same as the built-in rule: nothing to keep, so the code keeps deciding it

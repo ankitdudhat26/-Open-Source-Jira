@@ -19,7 +19,8 @@ export const getProjectFormValues = (): Partial<IProject> => ({
   },
   identifier: "",
   name: "",
-  network: 2,
+  // new projects are private: only the people added to them see them
+  network: 0,
   project_lead: null,
   empro_id: "",
   project_type: "fixed_cost",

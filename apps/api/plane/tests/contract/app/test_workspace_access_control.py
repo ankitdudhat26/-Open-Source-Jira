@@ -198,3 +198,34 @@ class TestWorkspaceAccessControl:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.django_db
+    def test_all_projects_shows_every_project_when_allowed(self, session_client, workspace, project):
+        # a private project they are not in: only workspace admins see it
+        project.network = 0
+        project.save(update_fields=["network"])
+        member, member_api = _person(workspace)
+        url = f"/api/workspaces/{workspace.slug}/projects/"
+
+        before = {item["identifier"] for item in member_api.get(url).data}
+        _custom(session_client, workspace, member, "all_projects", "view", "allow")
+        after = {item["identifier"] for item in member_api.get(url).data}
+        features = {
+            item["key"]: item for item in session_client.get(ACCESS_URL.format(slug=workspace.slug)).data["features"]
+        }
+
+        assert "SHOP" not in before
+        assert "SHOP" in after
+        assert features["all_projects"]["action_labels"]["view"].startswith("See the All Projects page")
+        assert features["project_settings"]["always_visible"] is True
+
+    @pytest.mark.django_db
+    def test_rules_save_again_after_they_were_deleted(self, session_client, workspace):
+        from plane.db.models import WorkspaceAccessPolicy
+
+        _set(session_client, workspace, "member", "pages", "delete", False)
+        WorkspaceAccessPolicy.objects.get(workspace=workspace).delete()
+
+        rules = _set(session_client, workspace, "member", "all_projects", "view", True)
+
+        assert rules == {"member": {"all_projects": {"view": True}}}

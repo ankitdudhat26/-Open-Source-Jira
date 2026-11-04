@@ -15,16 +15,18 @@ import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 /** "All projects" in the sidebar: every project of the workspace in one table (like Jira's Spaces list). Workspace
- * admins only. */
+ * admins, and whoever Settings → Roles & access shows it to. */
 export const AllProjectsSidebarItem = observer(function AllProjectsSidebarItem() {
   const { workspaceSlug } = useParams();
   const pathname = usePathname();
   const { toggleSidebar, isExtendedSidebarOpened, toggleExtendedSidebar } = useAppTheme();
   const { workspaceInfoBySlug } = useUserPermissions();
   const slug = workspaceSlug?.toString() ?? "";
-  if (!slug || workspaceInfoBySlug(slug)?.role !== EUserPermissions.ADMIN) return null;
+  const { can } = useFeatureAccess(slug);
+  if (!slug || !can("all_projects", "view", workspaceInfoBySlug(slug)?.role === EUserPermissions.ADMIN)) return null;
 
   return (
     <Link

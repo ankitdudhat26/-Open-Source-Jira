@@ -20,6 +20,10 @@ export type TAccessFeature = {
   description: string;
   scope: "project" | "workspace";
   actions: TAccessAction[];
+  /** what each action does, in a sentence */
+  action_labels: Partial<Record<TAccessAction, string>>;
+  /** viewing it is not settable: everyone in the project or workspace sees it */
+  always_visible: boolean;
 };
 
 /** Everything Settings → Roles & access shows */

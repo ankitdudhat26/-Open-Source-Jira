@@ -41,6 +41,12 @@ FEATURES = [
             "deleted-issues",
             "work-item-tree",
         ),
+        "action_labels": {
+            "view": "See work items and open them",
+            "create": "Add new work items",
+            "edit": "Change work items: title, state, assignees, dates…",
+            "delete": "Delete work items",
+        },
     },
     {
         "key": "comments",
@@ -49,6 +55,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("comments",),
+        "action_labels": {
+            "view": "Read comments on work items",
+            "create": "Write comments and react",
+            "edit": "Edit comments",
+            "delete": "Delete comments",
+        },
     },
     {
         "key": "sprints",
@@ -57,6 +69,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("cycles", "archived-cycles"),
+        "action_labels": {
+            "view": "See Sprints in the project sidebar",
+            "create": "Create sprints",
+            "edit": "Change sprints and add work items to them",
+            "delete": "Delete sprints",
+        },
     },
     {
         "key": "modules",
@@ -65,6 +83,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("modules", "archived-modules"),
+        "action_labels": {
+            "view": "See Modules in the project sidebar",
+            "create": "Create modules",
+            "edit": "Change modules and add work items to them",
+            "delete": "Delete modules",
+        },
     },
     {
         "key": "views",
@@ -73,6 +97,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("views", "project-views"),
+        "action_labels": {
+            "view": "See Views in the project sidebar",
+            "create": "Save new views",
+            "edit": "Change saved views",
+            "delete": "Delete saved views",
+        },
     },
     {
         "key": "pages",
@@ -81,6 +111,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("pages", "pages-summary"),
+        "action_labels": {
+            "view": "See Pages in the project sidebar",
+            "create": "Create pages",
+            "edit": "Edit pages",
+            "delete": "Delete pages",
+        },
     },
     {
         "key": "intake",
@@ -97,6 +133,12 @@ FEATURES = [
             "intake-state",
             "intake-form",
         ),
+        "action_labels": {
+            "view": "See Intake in the project sidebar",
+            "create": "Add requests to Intake",
+            "edit": "Accept, decline or snooze requests",
+            "delete": "Delete requests",
+        },
     },
     {
         "key": "milestones",
@@ -105,6 +147,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("milestones", "sow-import"),
+        "action_labels": {
+            "view": "See Milestones in the project sidebar",
+            "create": "Add milestones or import a SOW",
+            "edit": "Change milestones and payments",
+            "delete": "Delete milestones",
+        },
     },
     {
         "key": "resources",
@@ -113,6 +161,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("resources",),
+        "action_labels": {
+            "view": "See Resources in the project sidebar",
+            "create": "Add resources",
+            "edit": "Change resources and who fills them",
+            "delete": "Delete resources",
+        },
     },
     {
         "key": "deliverables",
@@ -121,6 +175,12 @@ FEATURES = [
         "scope": "project",
         "actions": ACTIONS,
         "segments": ("deliverables",),
+        "action_labels": {
+            "view": "See deliverables",
+            "create": "Add deliverables",
+            "edit": "Change deliverables",
+            "delete": "Delete deliverables",
+        },
     },
     {
         "key": "project_settings",
@@ -139,6 +199,11 @@ FEATURES = [
             "work-item-types",
             "project-deploy-boards",
         ),
+        "action_labels": {
+            "create": "Add states, labels, estimates and custom fields",
+            "edit": "Change them and the workflow",
+            "delete": "Delete them",
+        },
     },
     {
         "key": "project_members",
@@ -147,6 +212,11 @@ FEATURES = [
         "scope": "project",
         "actions": ("create", "edit", "delete"),
         "segments": ("members", "project-members", "invitations"),
+        "action_labels": {
+            "create": "Add people to a project",
+            "edit": "Change someone’s project role",
+            "delete": "Remove people from a project",
+        },
     },
     {
         "key": "projects",
@@ -155,6 +225,11 @@ FEATURES = [
         "scope": "workspace",
         "actions": ("create", "edit", "delete"),
         "segments": (),
+        "action_labels": {
+            "create": "Create new projects",
+            "edit": "Change project details and archive projects",
+            "delete": "Delete projects",
+        },
     },
     {
         "key": "workspace_members",
@@ -163,6 +238,20 @@ FEATURES = [
         "scope": "workspace",
         "actions": ("create", "edit", "delete"),
         "segments": ("members", "invitations", "workspace-members"),
+        "action_labels": {
+            "create": "Invite people to the workspace",
+            "edit": "Change someone’s workspace role",
+            "delete": "Remove people from the workspace",
+        },
+    },
+    {
+        "key": "all_projects",
+        "label": "All Projects",
+        "description": "The All Projects page in the sidebar: every project, also ones they are not in",
+        "scope": "workspace",
+        "actions": ("view",),
+        "segments": (),
+        "action_labels": {"view": "See the All Projects page with every project of the workspace"},
     },
     {
         "key": "analytics",
@@ -180,6 +269,7 @@ FEATURES = [
             "default-analytics",
             "project-stats",
         ),
+        "action_labels": {"view": "See Analytics"},
     },
     {
         "key": "exports",
@@ -188,6 +278,7 @@ FEATURES = [
         "scope": "workspace",
         "actions": ("create",),
         "segments": ("export-issues", "export-analytics"),
+        "action_labels": {"create": "Export work items and analytics"},
     },
 ]
 FEATURE_KEYS = {feature["key"] for feature in FEATURES}
@@ -236,6 +327,8 @@ def _defaults():
         "workspace_members": _NONE,
         "analytics": _VIEW_ONLY,
         "exports": {**_NONE, "create": True},
+        # only workspace admins see every project, until allowed here
+        "all_projects": _NONE,
     }
     sub_admin = {**member, "projects": {**_NONE, "create": True}, "workspace_members": {**_NONE, "create": True}}
     client = {
@@ -340,6 +433,15 @@ def _decide(user, slug, project_id, feature, action):
     role = role_key(membership.role, membership.is_sub_admin, project_role)
     if role == "admin":
         return None
+    return explicit_access(policy_rules(membership.workspace_id), membership.custom_access, role, feature, action)
+
+
+def workspace_access(user, slug, feature, action):
+    """What an admin set for the person's workspace role (or for them) — True, False or None (built-in rule)."""
+    membership = WorkspaceMember.objects.filter(workspace__slug=slug, member=user, is_active=True).first()
+    if not membership or membership.role == ADMIN:
+        return None
+    role = role_key(membership.role, membership.is_sub_admin)
     return explicit_access(policy_rules(membership.workspace_id), membership.custom_access, role, feature, action)
 
 

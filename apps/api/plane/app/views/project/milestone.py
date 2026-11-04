@@ -31,7 +31,7 @@ from plane.utils.grouper import issue_queryset_grouper
 from plane.utils.host import base_host
 from plane.utils.project_membership import add_members_to_project
 from plane.utils.project_resources import sync_resource_assignees
-from plane.utils.sow_import import GROUP_COLORS, RESOURCE_GROUP, ensure_label
+from plane.utils.sow_import import attach_resource_label
 from plane.utils.sow_import import build_summary, import_sow
 from plane.utils.sow_parser import SOWParseError, parse_sow
 from plane.utils.work_item_types import ensure_project_work_item_types, serialize_work_item_types
@@ -152,9 +152,7 @@ class MilestoneEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN])
     def patch(self, request, slug, project_id, pk):
         milestone = Milestone.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
-        serializer = MilestoneSerializer(
-            milestone, data=request.data, partial=True, context={"project_id": project_id}
-        )
+        serializer = MilestoneSerializer(milestone, data=request.data, partial=True, context={"project_id": project_id})
         serializer.is_valid(raise_exception=True)
         module_ids = serializer.validated_data.pop("module_ids", None)
         with transaction.atomic():
@@ -280,9 +278,7 @@ def serialize_resources(resources):
         .values("label_id")
         .annotate(
             task_count=Count("issue_id", distinct=True),
-            done_count=Count(
-                "issue_id", distinct=True, filter=Q(issue__state__group__in=DONE_STATE_GROUPS)
-            ),
+            done_count=Count("issue_id", distinct=True, filter=Q(issue__state__group__in=DONE_STATE_GROUPS)),
         )
     }
     return [
@@ -324,16 +320,7 @@ class ProjectResourceEndpoint(BaseAPIView):
         with transaction.atomic():
             resource = serializer.save(project_id=project_id)
             # Tasks are linked to a resource through its label in the "Resource" label group
-            group = ensure_label(project, RESOURCE_GROUP, color=GROUP_COLORS[RESOURCE_GROUP])
-            name = f"{resource.code} · {resource.role}" if resource.code else resource.role
-            resource.label = ensure_label(
-                project,
-                name[:255],
-                parent=group,
-                description=" — ".join(filter(None, [resource.resource_type, resource.responsibilities])),
-                color=GROUP_COLORS[RESOURCE_GROUP],
-            )
-            resource.save(update_fields=["label", "updated_at"])
+            attach_resource_label(project, resource)
         bring_resource_members_in(project, [resource], request)
         if resource.member_id:
             sync_resource_assignees(resource)

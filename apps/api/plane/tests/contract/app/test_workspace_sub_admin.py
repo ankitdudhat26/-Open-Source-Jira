@@ -12,7 +12,7 @@ import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from plane.db.models import Project, ProjectMember, User, WorkspaceMember, WorkspaceMemberInvite
+from plane.db.models import Project, ProjectMember, ProjectResource, User, WorkspaceMember, WorkspaceMemberInvite
 
 
 def _person(workspace, role=15, is_sub_admin=False):
@@ -57,6 +57,13 @@ class TestWorkspaceSubAdmin:
         assert response.status_code == status.HTTP_201_CREATED, response.data
         project = Project.objects.get(identifier="CPORT")
         assert ProjectMember.objects.get(project=project, member=sub_admin).role == 20
+        # they fill the project's first resource, as its admin
+        resource = ProjectResource.objects.get(project=project)
+        assert (resource.role, resource.member_id, resource.label.name) == (
+            "Project Admin",
+            sub_admin.id,
+            "Project Admin",
+        )
 
     @pytest.mark.django_db
     def test_sub_admin_invites_members_and_clients_only(self, workspace):

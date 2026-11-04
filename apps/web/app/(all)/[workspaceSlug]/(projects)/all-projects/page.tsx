@@ -13,22 +13,26 @@ import { PageHead } from "@/components/core/page-title";
 import { AllProjectsRoot } from "@/components/project/all-projects/root";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
-/** Every project of the workspace: only workspace admins can open it (others use the Projects page). */
+/** Every project of the workspace: workspace admins, and whoever Settings → Roles & access shows it to (others use
+ * the Projects page). */
 function AllProjectsPage() {
   const { workspaceSlug } = useParams();
   const { workspaceInfoBySlug } = useUserPermissions();
   const slug = workspaceSlug?.toString() ?? "";
   const role = workspaceInfoBySlug(slug)?.role;
+  const { can } = useFeatureAccess(slug);
+  const canSeeAllProjects = can("all_projects", "view", role === EUserPermissions.ADMIN);
 
   return (
     <>
       <PageHead title="All projects" />
-      {role === EUserPermissions.ADMIN ? (
+      {canSeeAllProjects ? (
         <AllProjectsRoot workspaceSlug={slug} scope="all" />
       ) : (
         <div className="grid h-full w-full place-items-center px-page-x text-body-sm-regular text-tertiary">
-          {role === undefined ? "Loading…" : "Only workspace admins can see all projects."}
+          {role === undefined ? "Loading…" : "Your access does not include all projects. Ask a workspace admin."}
         </div>
       )}
     </>

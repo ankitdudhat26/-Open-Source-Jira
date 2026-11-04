@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { FormProvider, useForm } from "react-hook-form";
 // plane imports
@@ -19,6 +19,7 @@ import ProjectCreateButtons from "@/components/project/create/project-create-but
 // hooks
 import { getCoverImageType, uploadCoverImage } from "@/helpers/cover-image.helper";
 import { useProject } from "@/hooks/store/use-project";
+import { useUser } from "@/hooks/store/user";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web types
 import type { TProject } from "@plane/types";
@@ -40,14 +41,21 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
   // store
   const { t } = useTranslation();
   const { addProjectToFavorites, createProject, updateProject } = useProject();
+  const { data: currentUser } = useUser();
   // states
   const [shouldAutoSyncIdentifier, setShouldAutoSyncIdentifier] = useState(true);
   // form info
+  // whoever creates the project leads it, until they pick someone else
+  const getDefaultValues = () => ({ ...getProjectFormValues(), project_lead: currentUser?.id ?? null, ...data });
   const methods = useForm<TProject>({
-    defaultValues: { ...getProjectFormValues(), ...data },
+    defaultValues: getDefaultValues(),
     reValidateMode: "onChange",
   });
-  const { handleSubmit, reset, setValue } = methods;
+  const { handleSubmit, reset, setValue, getValues } = methods;
+  // the user can load after the form: fill the lead in then, unless one was picked already
+  useEffect(() => {
+    if (currentUser?.id && !getValues("project_lead") && !data?.project_lead) setValue("project_lead", currentUser.id);
+  }, [currentUser?.id, data?.project_lead, getValues, setValue]);
   const { isMobile } = usePlatformOS();
   const handleAddToFavorites = (projectId: string) => {
     if (!workspaceSlug) return;
@@ -169,7 +177,7 @@ export const CreateProjectForm = observer(function CreateProjectForm(props: TCre
     onClose();
     setShouldAutoSyncIdentifier(true);
     setTimeout(() => {
-      reset();
+      reset(getDefaultValues());
     }, 300);
   };
 

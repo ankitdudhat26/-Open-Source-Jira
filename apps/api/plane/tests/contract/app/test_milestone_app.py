@@ -337,7 +337,9 @@ class TestProjectResources:
         assert response.status_code == status.HTTP_200_OK
 
         resources = {r["code"]: r for r in session_client.get(_url(workspace, project, "resources/")).data}
-        assert set(resources) == {"R01", "R02"}
+        # the SOW's roles, besides the creator's own resource (no SOW code) added with the project
+        assert set(resources) == {"", "R01", "R02"}
+        assert resources[""]["role"] == "Project Admin"
         assert resources["R02"]["member_id"] == create_user.id
         assert resources["R02"]["task_count"] == 2
         assert resources["R01"]["member_id"] is None

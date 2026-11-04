@@ -28,11 +28,11 @@ import type {
 } from "@/services/workspace-access.service";
 import { workspaceAccessService } from "@/services/workspace-access.service";
 
-const ACTIONS: { key: TAccessAction; label: string }[] = [
-  { key: "view", label: "View" },
-  { key: "create", label: "Create" },
-  { key: "edit", label: "Edit" },
-  { key: "delete", label: "Delete" },
+const ACTIONS: { key: TAccessAction; label: string; hint: string }[] = [
+  { key: "view", label: "View", hint: "Visible in the app" },
+  { key: "create", label: "Create", hint: "Add new" },
+  { key: "edit", label: "Edit", hint: "Change" },
+  { key: "delete", label: "Delete", hint: "Remove" },
 ];
 const SCOPES: { key: TAccessFeature["scope"]; label: string }[] = [
   { key: "project", label: "In projects" },
@@ -61,77 +61,132 @@ const roleValue = (access: TWorkspaceAccess, role: TAccessRole, feature: string,
 
 type TGridProps = {
   features: TAccessFeature[];
+  /** whose access it is, for the hover text: "Members", "Riya Shah" */
+  subject: string;
   cell: (feature: TAccessFeature, action: TAccessAction) => TCell;
   onToggle: (feature: TAccessFeature, action: TAccessAction, allowed: boolean) => void;
   changedLabel: string;
 };
 
-/** Features × View / Create / Edit / Delete, a switch per cell; a dot marks what differs from the base */
+/** "Visible" / "Hidden" for seeing a feature, "Allowed" / "Blocked" for the rest */
+const stateLabel = (action: TAccessAction, allowed: boolean) =>
+  action === "view" ? (allowed ? "Visible" : "Hidden") : allowed ? "Allowed" : "Blocked";
+
+/** Features × View / Create / Edit / Delete: a switch per cell, saying what it does; a dot marks a change */
 function AccessGrid(props: TGridProps) {
-  const { features, cell, onToggle, changedLabel } = props;
+  const { features, subject, cell, onToggle, changedLabel } = props;
   return (
-    <div className="overflow-x-auto rounded-lg border border-subtle">
-      <table className="w-full min-w-[640px] text-left">
-        <thead>
-          <tr className="border-b border-subtle bg-layer-1">
-            <th className="px-4 py-2.5 text-caption-md-medium text-tertiary">Feature</th>
-            {ACTIONS.map((action) => (
-              <th key={action.key} className="w-24 px-2 py-2.5 text-center text-caption-md-medium text-tertiary">
-                {action.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        {SCOPES.map((scope) => {
-          const rows = features.filter((feature) => feature.scope === scope.key);
-          if (!rows.length) return null;
-          return (
-            <tbody key={scope.key} className="divide-y divide-subtle">
-              <tr className="bg-layer-1/50">
-                <td
-                  colSpan={ACTIONS.length + 1}
-                  className="px-4 py-1.5 text-caption-sm-medium text-placeholder uppercase"
-                >
-                  {scope.label}
-                </td>
-              </tr>
-              {rows.map((feature) => (
-                <tr key={feature.key}>
-                  <td className="px-4 py-2.5">
-                    <p className="text-body-xs-medium text-primary">{feature.label}</p>
-                    <p className="text-caption-sm-regular text-tertiary">{feature.description}</p>
-                  </td>
-                  {ACTIONS.map((action) => {
-                    if (!feature.actions.includes(action.key))
-                      return (
-                        <td key={action.key} className="px-2 py-2.5 text-center text-placeholder">
-                          —
-                        </td>
-                      );
-                    const value = cell(feature, action.key);
-                    return (
-                      <td key={action.key} className="px-2 py-2.5">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Switch
-                            size="sm"
-                            checked={value.allowed}
-                            onCheckedChange={(checked) => onToggle(feature, action.key, checked)}
-                            aria-label={`${action.label} ${feature.label}`}
-                          />
-                          <span
-                            title={value.changed ? `${changedLabel} (${value.base ? "allowed" : "not allowed"})` : ""}
-                            className={cn("size-1.5 shrink-0 rounded-full", value.changed ? "bg-accent-primary" : "")}
-                          />
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption-sm-regular text-tertiary">
+        <span>
+          <span className="font-medium text-secondary">View</span> — the feature shows in the sidebar and can be opened
+        </span>
+        <span>
+          <span className="font-medium text-secondary">Create / Edit / Delete</span> — what they can do in it
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="size-1.5 rounded-full bg-accent-primary" /> {changedLabel}
+        </span>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-subtle">
+        <table className="w-full min-w-[720px] text-left">
+          <thead>
+            <tr className="border-b border-subtle bg-layer-1">
+              <th className="px-4 py-2.5 text-caption-md-medium text-tertiary">Feature</th>
+              {ACTIONS.map((action) => (
+                <th key={action.key} className="w-28 px-2 py-2 text-center">
+                  <span className="block text-caption-md-medium text-secondary">{action.label}</span>
+                  <span className="block text-caption-sm-regular text-placeholder">{action.hint}</span>
+                </th>
               ))}
-            </tbody>
-          );
-        })}
-      </table>
+            </tr>
+          </thead>
+          {SCOPES.map((scope) => {
+            const rows = features.filter((feature) => feature.scope === scope.key);
+            if (!rows.length) return null;
+            return (
+              <tbody key={scope.key} className="divide-y divide-subtle">
+                <tr className="bg-layer-1/50">
+                  <td
+                    colSpan={ACTIONS.length + 1}
+                    className="px-4 py-1.5 text-caption-sm-medium text-placeholder uppercase"
+                  >
+                    {scope.label}
+                  </td>
+                </tr>
+                {rows.map((feature) => {
+                  const view = feature.actions.includes("view") ? cell(feature, "view") : undefined;
+                  return (
+                    <tr key={feature.key}>
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-body-xs-medium text-primary">{feature.label}</p>
+                          {(feature.always_visible || view) && (
+                            <span
+                              className={cn(
+                                "rounded-sm px-1.5 py-0.5 text-caption-sm-medium",
+                                feature.always_visible || view?.allowed
+                                  ? "bg-success-subtle text-success-primary"
+                                  : "bg-layer-3 text-tertiary"
+                              )}
+                            >
+                              {feature.always_visible ? "Always visible" : view?.allowed ? "Visible" : "Hidden"}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-caption-sm-regular text-tertiary">{feature.description}</p>
+                      </td>
+                      {ACTIONS.map((action) => {
+                        if (!feature.actions.includes(action.key))
+                          return (
+                            <td key={action.key} className="px-2 py-2.5 text-center">
+                              <span className="text-caption-sm-regular text-placeholder">
+                                {action.key === "view" && feature.always_visible ? "Always" : "—"}
+                              </span>
+                            </td>
+                          );
+                        const value = cell(feature, action.key);
+                        const what = feature.action_labels[action.key] ?? `${action.label} ${feature.label}`;
+                        const title = `${subject}: ${what} — ${value.allowed ? "yes" : "no"}${
+                          value.changed ? ` (${changedLabel.toLowerCase()}, was ${value.base ? "yes" : "no"})` : ""
+                        }`;
+                        return (
+                          <td key={action.key} className="px-2 py-2.5" title={title}>
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="flex items-center gap-1.5">
+                                <Switch
+                                  size="sm"
+                                  checked={value.allowed}
+                                  onCheckedChange={(checked) => onToggle(feature, action.key, checked)}
+                                  aria-label={what}
+                                />
+                                <span
+                                  className={cn(
+                                    "size-1.5 shrink-0 rounded-full",
+                                    value.changed ? "bg-accent-primary" : ""
+                                  )}
+                                />
+                              </div>
+                              <span
+                                className={cn(
+                                  "text-caption-sm-regular",
+                                  value.allowed ? "text-secondary" : "text-placeholder"
+                                )}
+                              >
+                                {stateLabel(action.key, value.allowed)}
+                              </span>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            );
+          })}
+        </table>
+      </div>
     </div>
   );
 }
@@ -191,11 +246,12 @@ function RolesTab(props: TRolesProps) {
         />
       </div>
       <p className="text-caption-md-regular text-tertiary">
-        {ROLE_DESCRIPTIONS[role]} Turn an action off to block it everywhere, or on to allow it beyond the role. A dot
-        marks a change from the built-in rules. Project admins keep full access to their own projects.
+        {ROLE_DESCRIPTIONS[role]} Turn an action off to block it everywhere, or on to allow it beyond the role. Hover a
+        switch to see what it does. Project admins keep full access to their own projects.
       </p>
       <AccessGrid
         features={access.features}
+        subject={`${access.roles.find((item) => item.key === role)?.label ?? ""}s`}
         changedLabel="Changed from the built-in rule"
         cell={(feature, action) => {
           const base = access.defaults[role][feature.key][action];
@@ -322,6 +378,7 @@ const PeopleTab = observer(function PeopleTab(props: TPeopleProps) {
           </p>
           <AccessGrid
             features={access.features}
+            subject={person.full_name || person.display_name}
             changedLabel="Changed from their role"
             cell={(feature, action) => {
               const base = roleValue(access, person.role as TAccessRole, feature.key, action);

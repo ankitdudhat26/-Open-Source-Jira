@@ -423,3 +423,17 @@ def _add_labels(issue, labels):
         ],
         ignore_conflicts=True,
     )
+
+def attach_resource_label(project, resource):
+    """Give a resource its label in the project's "Resource" label group — tasks are linked to it through the label."""
+    group = ensure_label(project, RESOURCE_GROUP, color=GROUP_COLORS[RESOURCE_GROUP])
+    name = f"{resource.code} · {resource.role}" if resource.code else resource.role
+    resource.label = ensure_label(
+        project,
+        name[:255],
+        parent=group,
+        description=" — ".join(filter(None, [resource.resource_type, resource.responsibilities])),
+        color=GROUP_COLORS[RESOURCE_GROUP],
+    )
+    resource.save(update_fields=["label", "updated_at"])
+    return resource
