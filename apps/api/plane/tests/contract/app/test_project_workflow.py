@@ -49,7 +49,7 @@ class TestProjectWorkflow:
         data = session_client.get(url(workspace, project, "workflow/")).data
         assert data["is_enabled"] is False
         assert data["transitions"] == []
-        assert {template["key"] for template in data["templates"]} == {"software", "simple"}
+        assert {template["key"] for template in data["templates"]} == {"software", "release", "simple"}
 
         issue = Issue.objects.create(name="Login", project=project, workspace=workspace)
         done = State.objects.filter(project=project, group="completed").first()
@@ -175,3 +175,49 @@ class TestProjectWorkflow:
 
         feature.refresh_from_db()
         assert feature.state.group == "completed"
+
+
+@pytest.mark.contract
+class TestReleaseWorkflowTemplate:
+    @pytest.mark.django_db
+    def test_release_flow_changes_only_its_own_project(self, session_client, workspace, project):
+        other = session_client.post(
+            f"/api/workspaces/{workspace.slug}/projects/", {"name": "Other", "identifier": "OTHR"}, format="json"
+        )
+        assert other.status_code == status.HTTP_201_CREATED, other.data
+        other_project = Project.objects.get(pk=other.data["id"])
+        other_states = set(State.objects.filter(project=other_project).values_list("name", flat=True))
+
+        response = session_client.post(url(workspace, project, "workflow/apply-template/"), {"template": "release"})
+        assert response.status_code == status.HTTP_200_OK, response.data
+
+        names = set(State.objects.filter(project=project).values_list("name", flat=True))
+        assert {"To Do", "In Progress", "Dev/Design Done", "Re-open", "Testing / QA", "Ready for Deployment"} <= names
+        assert state(project, "Ready for Deployment").group == "completed"
+        # QA can pass the work on or send it back, nothing else
+        qa_targets = {
+            rule["to_state"]
+            for rule in response.data["transitions"]
+            if rule["from_state"] == str(state(project, "Testing / QA").id)
+        }
+        assert qa_targets == {str(state(project, "Ready for Deployment").id), str(state(project, "Re-open").id)}
+        # the other project keeps its own states and has no workflow
+        assert set(State.objects.filter(project=other_project).values_list("name", flat=True)) == other_states
+        assert session_client.get(url(workspace, other_project, "workflow/")).data["is_enabled"] is False
+
+        # a move the flow does not allow is refused in this project
+        issue = Issue.objects.create(
+            name="Checkout", project=project, workspace=workspace, state=state(project, "To Do")
+        )
+        refused = session_client.patch(
+            url(workspace, project, f"issues/{issue.id}/"),
+            {"state_id": str(state(project, "Ready for Deployment").id)},
+            format="json",
+        )
+        allowed = session_client.patch(
+            url(workspace, project, f"issues/{issue.id}/"),
+            {"state_id": str(state(project, "In Progress").id)},
+            format="json",
+        )
+        assert refused.status_code == status.HTTP_400_BAD_REQUEST
+        assert allowed.status_code == status.HTTP_204_NO_CONTENT

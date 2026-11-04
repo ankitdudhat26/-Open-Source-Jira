@@ -41,6 +41,29 @@ WORKFLOW_TEMPLATES = {
             "Cancelled": ["Backlog"],
         },
     },
+    "release": {
+        "name": "Development & release",
+        "description": (
+            "To Do → In Progress → Dev/Design Done → Testing / QA → Ready for Deployment; a failed check goes to "
+            "Re-open and back to In Progress."
+        ),
+        "states": [
+            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
+            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
+            {"name": "Dev/Design Done", "group": "started", "color": "#8B5CF6"},
+            {"name": "Re-open", "group": "started", "color": "#EF4444"},
+            {"name": "Testing / QA", "group": "started", "color": "#0EA5E9"},
+            {"name": "Ready for Deployment", "group": "completed", "color": "#16A34A"},
+        ],
+        "transitions": {
+            "To Do": ["In Progress"],
+            "In Progress": ["Dev/Design Done", "To Do"],
+            "Dev/Design Done": ["Testing / QA", "Re-open"],
+            "Re-open": ["In Progress"],
+            "Testing / QA": ["Ready for Deployment", "Re-open"],
+            "Ready for Deployment": ["Re-open"],
+        },
+    },
     "simple": {
         "name": "Simple",
         "description": "To Do → In Progress → Done.",
