@@ -112,6 +112,8 @@ export const ProjectSettingLabelGroup = observer(function ProjectSettingLabelGro
                     handleLabelDelete={handleLabelDelete}
                     isLabelGroup
                     dragHandleRef={dragHandleRef}
+                    // no edit / delete menu for those Settings → Roles & access does not let change labels
+                    disabled={!isEditable}
                   />
                 )}
 

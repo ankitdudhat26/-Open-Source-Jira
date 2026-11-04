@@ -49,12 +49,16 @@ import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const ModuleIssuesHeader = observer(function ModuleIssuesHeader() {
   // refs
   const parentRef = useRef<HTMLDivElement>(null);
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const { can: canAccess } = useFeatureAccess();
+  const canSeeAnalytics = canAccess("analytics", "view", true);
   // router
   const router = useAppRouter();
   const { workspaceSlug, projectId, moduleId: routerModuleId } = useParams();
@@ -221,24 +225,28 @@ export const ModuleIssuesHeader = observer(function ModuleIssuesHeader() {
           {canUserCreateIssue ? (
             <>
               <div className="hidden md:block">
-                <span className="hidden @4xl:flex">
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    stretch="auto"
-                    label="Analytics"
-                    onClick={() => setAnalyticsModal(true)}
-                  />
-                </span>
-                <span className="@4xl:hidden">
-                  <IconButton
-                    variant="secondary"
-                    size="md"
-                    icon={<Icon icon={BarOutline} />}
-                    aria-label="Analytics"
-                    onClick={() => setAnalyticsModal(true)}
-                  />
-                </span>
+                {canSeeAnalytics && (
+                  <>
+                    <span className="hidden @4xl:flex">
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        stretch="auto"
+                        label="Analytics"
+                        onClick={() => setAnalyticsModal(true)}
+                      />
+                    </span>
+                    <span className="@4xl:hidden">
+                      <IconButton
+                        variant="secondary"
+                        size="md"
+                        icon={<Icon icon={BarOutline} />}
+                        aria-label="Analytics"
+                        onClick={() => setAnalyticsModal(true)}
+                      />
+                    </span>
+                  </>
+                )}
               </div>
               <div className="hidden sm:flex">
                 <Button

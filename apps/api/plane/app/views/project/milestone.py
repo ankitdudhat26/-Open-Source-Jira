@@ -138,7 +138,7 @@ class MilestoneEndpoint(BaseAPIView):
             return Response(serialize_milestone(milestones.get(pk=pk)), status=status.HTTP_200_OK)
         return Response([serialize_milestone(milestone) for milestone in milestones], status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id):
         serializer = MilestoneSerializer(data=request.data, context={"project_id": project_id})
         serializer.is_valid(raise_exception=True)
@@ -149,7 +149,7 @@ class MilestoneEndpoint(BaseAPIView):
                 set_milestone_modules(milestone, module_ids)
         return Response(serialize_milestone(milestone), status=status.HTTP_201_CREATED)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def patch(self, request, slug, project_id, pk):
         milestone = Milestone.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         serializer = MilestoneSerializer(milestone, data=request.data, partial=True, context={"project_id": project_id})
@@ -161,7 +161,7 @@ class MilestoneEndpoint(BaseAPIView):
                 set_milestone_modules(milestone, module_ids)
         return Response(serialize_milestone(milestone), status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def delete(self, request, slug, project_id, pk):
         milestone = Milestone.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         with transaction.atomic():
@@ -179,14 +179,14 @@ class DeliverableEndpoint(BaseAPIView):
         deliverables = Deliverable.objects.filter(workspace__slug=slug, project_id=project_id)
         return Response(DeliverableSerializer(deliverables, many=True).data, status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id):
         serializer = DeliverableSerializer(data=request.data, context={"project_id": project_id})
         serializer.is_valid(raise_exception=True)
         serializer.save(project_id=project_id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def patch(self, request, slug, project_id, pk):
         deliverable = Deliverable.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         serializer = DeliverableSerializer(
@@ -196,7 +196,7 @@ class DeliverableEndpoint(BaseAPIView):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def delete(self, request, slug, project_id, pk):
         deliverable = Deliverable.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         deliverable.delete(soft=False)
@@ -216,7 +216,7 @@ class SOWImportEndpoint(BaseAPIView):
 
     parser_classes = (MultiPartParser, FormParser)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id):
         project = Project.objects.get(workspace__slug=slug, pk=project_id)
         upload = request.FILES.get("file")
@@ -305,14 +305,15 @@ def bring_resource_members_in(project, resources, request):
 
 
 class ProjectResourceEndpoint(BaseAPIView):
-    """Roles of the project (from the SOW or added manually) and the members mapped to them."""
+    """Roles of the project (from the SOW or added manually) and the members mapped to them. Project members manage
+    them like in every project; Settings → Roles & access can deny it to a role or a person."""
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def get(self, request, slug, project_id):
         resources = list(ProjectResource.objects.filter(workspace__slug=slug, project_id=project_id))
         return Response(serialize_resources(resources), status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def post(self, request, slug, project_id):
         project = Project.objects.get(workspace__slug=slug, pk=project_id)
         serializer = ProjectResourceSerializer(data=request.data, context={"project_id": project_id})
@@ -326,7 +327,7 @@ class ProjectResourceEndpoint(BaseAPIView):
             sync_resource_assignees(resource)
         return Response(serialize_resources([resource])[0], status=status.HTTP_201_CREATED)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def patch(self, request, slug, project_id, pk):
         resource = ProjectResource.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         previous_member_id = resource.member_id
@@ -341,7 +342,7 @@ class ProjectResourceEndpoint(BaseAPIView):
             sync_resource_assignees(resource, previous_member_id=previous_member_id)
         return Response(serialize_resources([resource])[0], status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN])
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def delete(self, request, slug, project_id, pk):
         resource = ProjectResource.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
         # Keeps the label and the assignments on the work items

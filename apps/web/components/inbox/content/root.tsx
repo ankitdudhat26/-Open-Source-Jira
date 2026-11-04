@@ -14,6 +14,7 @@ import { ContentWrapper } from "@plane/blocks/layout";
 // hooks
 import { useProjectInbox } from "@/hooks/store/use-project-inbox";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { InboxIssueActionsHeader } from "./inbox-issue-header";
@@ -48,6 +49,7 @@ export const InboxContentRoot = observer(function InboxContentRoot(props: TInbox
   const { currentTab, fetchInboxIssueById, getIssueInboxByIssueId, getIsIssueAvailable } = useProjectInbox();
   const inboxIssue = getIssueInboxByIssueId(inboxIssueId);
   const { allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug);
 
   // derived values
   const isIssueAvailable = getIsIssueAvailable(inboxIssueId?.toString() || "");
@@ -72,9 +74,14 @@ export const InboxContentRoot = observer(function InboxContentRoot(props: TInbox
     }
   );
 
-  const isEditable =
+  // Settings → Roles & access: Intake → Edit
+  const isEditable = can(
+    "intake",
+    "edit",
     allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId) ||
-    inboxIssue?.issue.created_by === currentUser?.id;
+      inboxIssue?.issue.created_by === currentUser?.id,
+    projectId
+  );
 
   const isGuest = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId) === EUserPermissions.GUEST;
   const isOwner = inboxIssue?.issue.created_by === currentUser?.id;

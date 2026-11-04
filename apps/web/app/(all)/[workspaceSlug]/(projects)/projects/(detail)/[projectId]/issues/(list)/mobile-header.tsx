@@ -23,11 +23,15 @@ import {
 // hooks
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const ProjectIssuesMobileHeader = observer(function ProjectIssuesMobileHeader() {
   // i18n
   const { t } = useTranslation();
   const [analyticsModal, setAnalyticsModal] = useState(false);
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const { can: canAccess } = useFeatureAccess();
+  const canSeeAnalytics = canAccess("analytics", "view", true);
   const { workspaceSlug, projectId } = useParams();
   const { currentProjectDetails } = useProject();
 
@@ -98,12 +102,14 @@ export const ProjectIssuesMobileHeader = observer(function ProjectIssuesMobileHe
           </FiltersDropdown>
         </div>
 
-        <button
-          onClick={() => setAnalyticsModal(true)}
-          className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
-        >
-          {t("common.analytics")}
-        </button>
+        {canSeeAnalytics && (
+          <button
+            onClick={() => setAnalyticsModal(true)}
+            className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
+          >
+            {t("common.analytics")}
+          </button>
+        )}
       </div>
     </>
   );

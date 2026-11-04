@@ -106,9 +106,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
   get canCurrentUserEditPage() {
     const highestRole = this.getHighestRoleAcrossProjects();
     const isPagePublic = this.access === EPageAccess.PUBLIC;
+    // Settings → Roles & access: Pages → Edit, in every project
     return (
-      (isPagePublic && !!highestRole && highestRole >= EUserPermissions.MEMBER) ||
-      (!isPagePublic && this.isCurrentUserOwner)
+      this.rootStore.projectPages.featureAccess.edit &&
+      ((isPagePublic && !!highestRole && highestRole >= EUserPermissions.MEMBER) ||
+        (!isPagePublic && this.isCurrentUserOwner))
     );
   }
 
@@ -117,7 +119,8 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserDuplicatePage() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return !!highestRole && highestRole >= EUserPermissions.MEMBER;
+    // Settings → Roles & access: Pages → Create, in every project
+    return this.rootStore.projectPages.featureAccess.create && !!highestRole && highestRole >= EUserPermissions.MEMBER;
   }
 
   /**
@@ -125,7 +128,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserLockPage() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN;
+    // Settings → Roles & access: Pages → Edit, in every project
+    return (
+      this.rootStore.projectPages.featureAccess.edit &&
+      (this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN)
+    );
   }
 
   /**
@@ -133,7 +140,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserChangeAccess() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN;
+    // Settings → Roles & access: Pages → Edit, in every project
+    return (
+      this.rootStore.projectPages.featureAccess.edit &&
+      (this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN)
+    );
   }
 
   /**
@@ -141,7 +152,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserArchivePage() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN;
+    // Settings → Roles & access: Pages → Edit, in every project
+    return (
+      this.rootStore.projectPages.featureAccess.edit &&
+      (this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN)
+    );
   }
 
   /**
@@ -149,7 +164,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserDeletePage() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN;
+    // Settings → Roles & access: Pages → Delete, in every project
+    return (
+      this.rootStore.projectPages.featureAccess.delete &&
+      (this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN)
+    );
   }
 
   /**
@@ -165,7 +184,11 @@ export class ProjectPage extends BasePage implements TProjectPage {
    */
   get canCurrentUserMovePage() {
     const highestRole = this.getHighestRoleAcrossProjects();
-    return this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN;
+    // Settings → Roles & access: Pages → Edit, in every project
+    return (
+      this.rootStore.projectPages.featureAccess.edit &&
+      (this.isCurrentUserOwner || highestRole === EUserPermissions.ADMIN)
+    );
   }
 
   /**
@@ -178,8 +201,12 @@ export class ProjectPage extends BasePage implements TProjectPage {
     const isArchived = this.archived_at;
     const isLocked = this.is_locked;
 
+    // Settings → Roles & access: Pages → Edit, in every project
     return (
-      !isArchived && !isLocked && (isOwner || (isPublic && !!highestRole && highestRole >= EUserPermissions.MEMBER))
+      this.rootStore.projectPages.featureAccess.edit &&
+      !isArchived &&
+      !isLocked &&
+      (isOwner || (isPublic && !!highestRole && highestRole >= EUserPermissions.MEMBER))
     );
   }
 

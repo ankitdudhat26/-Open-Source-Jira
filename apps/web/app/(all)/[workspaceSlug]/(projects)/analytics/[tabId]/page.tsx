@@ -14,11 +14,13 @@ import { Tab, Tabs, TabsList, TabsPanel } from "@makeplane/propel/components/tab
 // components
 import { cn } from "@plane/utils";
 import AnalyticsFilterActions from "@/components/analytics/analytics-filter-actions";
+import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { PageHead } from "@/components/core/page-title";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useWorkspace } from "@/hooks/store/use-workspace";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 import { useAnalyticsTabs } from "@/components/analytics/use-analytics-tabs";
 import type { Route } from "./+types/page";
@@ -46,6 +48,8 @@ function AnalyticsPage({ params }: Route.ComponentProps) {
   const { canCreateProjects: canPerformEmptyStateActions } = useWorkspaceRoleAccess();
 
   const workspaceSlug = params.workspaceSlug;
+  const { can } = useFeatureAccess(workspaceSlug);
+  const canSeeAnalytics = can("analytics", "view", true);
   const ANALYTICS_TABS = useAnalyticsTabs(workspaceSlug.toString());
 
   const [selectedTab, setSelectedTab] = useState(tabId || ANALYTICS_TABS[0]?.key);
@@ -61,6 +65,9 @@ function AnalyticsPage({ params }: Route.ComponentProps) {
     setSelectedTab(value);
     router.push(`/${currentWorkspace?.slug}/analytics/${value}`);
   };
+
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  if (!canSeeAnalytics) return <NotAuthorizedView className="h-auto" />;
 
   return (
     <>

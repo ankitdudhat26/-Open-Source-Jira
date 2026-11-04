@@ -50,6 +50,7 @@ import useLocalStorage from "@/hooks/use-local-storage";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 /** The breadcrumb switcher offers every cycle of the project, completed ones included. */
 const ALL_CYCLE_STATUSES: TCycleGroups[] = CYCLE_STATUS.map((status) => status.value);
@@ -59,6 +60,9 @@ export const CycleIssuesHeader = observer(function CycleIssuesHeader() {
   const parentRef = useRef<HTMLDivElement>(null);
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const { can: canAccess } = useFeatureAccess();
+  const canSeeAnalytics = canAccess("analytics", "view", true);
   // router
   const router = useAppRouter();
   const { workspaceSlug, projectId, cycleId } = useParams();
@@ -226,24 +230,28 @@ export const CycleIssuesHeader = observer(function CycleIssuesHeader() {
 
             {canUserCreateIssue && (
               <>
-                <span className="hidden @4xl:flex">
-                  <Button
-                    variant="secondary"
-                    size="md"
-                    stretch="auto"
-                    label="Analytics"
-                    onClick={() => setAnalyticsModal(true)}
-                  />
-                </span>
-                <span className="@4xl:hidden">
-                  <IconButton
-                    variant="secondary"
-                    size="md"
-                    icon={<Icon icon={BarOutline} />}
-                    aria-label="Analytics"
-                    onClick={() => setAnalyticsModal(true)}
-                  />
-                </span>
+                {canSeeAnalytics && (
+                  <>
+                    <span className="hidden @4xl:flex">
+                      <Button
+                        variant="secondary"
+                        size="md"
+                        stretch="auto"
+                        label="Analytics"
+                        onClick={() => setAnalyticsModal(true)}
+                      />
+                    </span>
+                    <span className="@4xl:hidden">
+                      <IconButton
+                        variant="secondary"
+                        size="md"
+                        icon={<Icon icon={BarOutline} />}
+                        aria-label="Analytics"
+                        onClick={() => setAnalyticsModal(true)}
+                      />
+                    </span>
+                  </>
+                )}
                 {!isCompletedCycle && (
                   <Button
                     variant="primary"

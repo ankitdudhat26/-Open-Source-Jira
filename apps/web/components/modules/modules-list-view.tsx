@@ -23,6 +23,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useModule } from "@/hooks/store/use-module";
 import { useModuleFilter } from "@/hooks/store/use-module-filter";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const ModulesListView = observer(function ModulesListView() {
   // router
@@ -43,6 +44,9 @@ export const ModulesListView = observer(function ModulesListView() {
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // Settings → Roles & access: Modules → Create, in every project — hidden when denied
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canCreateModule = can("modules", "create", true, projectId?.toString());
 
   if (loader || !projectModuleIds || !filteredModuleIds)
     return (
@@ -59,14 +63,18 @@ export const ModulesListView = observer(function ModulesListView() {
         assetKey="module"
         title={t("project_empty_state.modules.title")}
         description={t("project_empty_state.modules.description")}
-        actions={[
-          {
-            label: t("project_empty_state.modules.cta_primary"),
-            onClick: () => toggleCreateModuleModal(true),
-            disabled: !canPerformEmptyStateActions,
-            variant: "primary",
-          },
-        ]}
+        actions={
+          canCreateModule
+            ? [
+                {
+                  label: t("project_empty_state.modules.cta_primary"),
+                  onClick: () => toggleCreateModuleModal(true),
+                  disabled: !canPerformEmptyStateActions,
+                  variant: "primary",
+                },
+              ]
+            : []
+        }
       />
     );
 

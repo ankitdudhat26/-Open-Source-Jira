@@ -22,6 +22,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 import { useGroupIssuesDragNDrop } from "@/hooks/use-group-dragndrop";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // components
 import { IssueLayoutHOC } from "../issue-layout-HOC";
 import { List } from "./default";
@@ -98,9 +99,13 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
     EUserPermissionsLevel.PROJECT
   );
   // clients (project guests) only view work items
-  const isCreatingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Work items → Create hides quick add and the group "+" buttons
+  const { can } = useFeatureAccess();
+  const isCreatingAllowed = can(
+    "work_items",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
   const { enableInlineEditing, enableQuickAdd, enableIssueCreation } = issues?.viewFlags || {};
 
@@ -111,9 +116,13 @@ export const BaseListRoot = observer(function BaseListRoot(props: IBaseListRoot)
           ? canEditPropertiesBasedOnProject(issueProjectId)
           : isEditingAllowed;
 
-      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
+      // Settings → Roles & access: Work items → Edit, per the work item's project
+      return (
+        !!enableInlineEditing &&
+        can("work_items", "edit", isEditingAllowedBasedOnProject, issueProjectId ?? projectId?.toString())
+      );
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, can, projectId]
   );
 
   const handleOnDrop = useGroupIssuesDragNDrop(storeType, orderBy, group_by);

@@ -20,6 +20,7 @@ import { useTranslation } from "@plane/i18n";
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // store hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import useLocalStorage from "@/hooks/use-local-storage";
 import {
   usePersonalNavigationPreferences,
@@ -44,6 +45,9 @@ export const SidebarMenuItems = observer(function SidebarMenuItems() {
   const { preferences: workspacePreferences } = useWorkspaceNavigationPreferences();
   // translation
   const { t } = useTranslation();
+  const { can } = useFeatureAccess();
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const canSeeAnalytics = can("analytics", "view", true);
 
   const toggleListDisclosure = (isOpen: boolean) => {
     toggleWorkspaceMenu(isOpen);
@@ -84,15 +88,17 @@ export const SidebarMenuItems = observer(function SidebarMenuItems() {
 
   const sortedNavigationItems = useMemo(
     () =>
-      // oxlint-disable-next-line oxc/no-map-spread
-      WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS.map((item) => {
-        const preference = workspacePreferences.items[item.key];
-        return {
-          ...item,
-          sort_order: preference ? preference.sort_order : 0,
-        };
-      }).sort((a, b) => a.sort_order - b.sort_order),
-    [workspacePreferences]
+      WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS.filter((item) => item.key !== "analytics" || canSeeAnalytics)
+        // oxlint-disable-next-line oxc/no-map-spread
+        .map((item) => {
+          const preference = workspacePreferences.items[item.key];
+          return {
+            ...item,
+            sort_order: preference ? preference.sort_order : 0,
+          };
+        })
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [workspacePreferences, canSeeAnalytics]
   );
 
   return (

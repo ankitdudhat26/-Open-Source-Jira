@@ -28,6 +28,7 @@ import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/bloc
 // hooks
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { DeleteIssueModal } from "../../delete-issue-modal";
 import type { IQuickActionProps } from "../list/list-view-types";
@@ -56,15 +57,26 @@ export const ArchivedIssueQuickActions = observer(function ArchivedIssueQuickAct
   const { t } = useTranslation();
   // store hooks
   const { allowPermissions } = useUserPermissions();
+  // Settings → Roles & access: Work items → Edit / Delete, in the work item's project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
 
   const { issuesFilter } = useIssues(EIssuesStoreType.ARCHIVED);
   // derived values
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
   // auth
-  const isEditingAllowed =
+  const isMemberEditingAllowed =
     allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) && !readOnly;
+  const isEditingAllowed = can("work_items", "edit", isMemberEditingAllowed, issue.project_id ?? undefined);
+  const isDeletingAllowed = can("work_items", "delete", isMemberEditingAllowed, issue.project_id ?? undefined);
+  // restoring changes the work item: Work items → Edit
   const isRestoringAllowed =
-    handleRestore && allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT);
+    handleRestore &&
+    can(
+      "work_items",
+      "edit",
+      allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+      issue.project_id ?? undefined
+    );
 
   // Menu items and modals using helper
   const menuItemProps: MenuItemFactoryProps = {
@@ -72,7 +84,7 @@ export const ArchivedIssueQuickActions = observer(function ArchivedIssueQuickAct
     workspaceSlug: workspaceSlug?.toString(),
     activeLayout,
     isEditingAllowed,
-    isDeletingAllowed: isEditingAllowed,
+    isDeletingAllowed,
     isRestoringAllowed: !!isRestoringAllowed,
     setIssueToEdit: () => {},
     setCreateUpdateIssueModal: () => {},

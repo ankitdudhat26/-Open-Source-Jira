@@ -24,7 +24,7 @@ import { getFileURL } from "@plane/utils";
 // hooks
 import { ProjectRoleInput } from "@/components/members/project-role-input";
 import { useMember } from "@/hooks/store/use-member";
-import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useUser } from "@/hooks/store/user";
 
 export interface RowData extends Pick<TProjectMembership, "original_role" | "designation"> {
   member: IWorkspaceMember;
@@ -48,6 +48,8 @@ type AccountTypeProps = {
   currentProjectRole: EUserPermissions | undefined;
   workspaceSlug: string;
   projectId: string;
+  /** Settings → Roles & access: Project members → Edit (a project admin by default) */
+  canChangeMembers: boolean;
 };
 
 export function NameColumn(props: NameProps) {
@@ -110,7 +112,7 @@ export function NameColumn(props: NameProps) {
 }
 
 export const AccountTypeColumn = observer(function AccountTypeColumn(props: AccountTypeProps) {
-  const { rowData, projectId, workspaceSlug } = props;
+  const { rowData, projectId, workspaceSlug, canChangeMembers } = props;
   // plane hooks
   const { t } = useTranslation();
   // store hooks
@@ -119,7 +121,6 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
     workspace: { getWorkspaceMemberDetails },
   } = useMember();
   const { data: currentUser } = useUser();
-  const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   // form info
   const {
     control,
@@ -136,18 +137,12 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         Number(getWorkspaceMemberDetails(currentUser.id)?.role) ?? EUserPermissions.GUEST
       )
     : false;
-  const currentProjectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
-
-  const isCurrentUserProjectAdmin = currentProjectRole
-    ? ![EUserPermissions.MEMBER, EUserPermissions.GUEST].includes(Number(currentProjectRole) ?? EUserPermissions.GUEST)
-    : false;
-
   // logic
   // Workspace admin can change his own role
-  // Project admin can change any role except his own and workspace admin's role
+  // Whoever Settings → Roles & access lets change project members (a project admin by default) can change any role
+  // except their own and a workspace admin's
   const isRoleEditable =
-    (isCurrentUserWorkspaceAdmin && isCurrentUser) ||
-    (isCurrentUserProjectAdmin && !isRowDataWorkspaceAdmin && !isCurrentUser);
+    (isCurrentUserWorkspaceAdmin && isCurrentUser) || (canChangeMembers && !isRowDataWorkspaceAdmin && !isCurrentUser);
   const checkCurrentOptionWorkspaceRole = (value: string) => {
     const currentMemberWorkspaceRole = getWorkspaceMemberDetails(value)?.role as EUserPermissions | undefined;
     if (!value || !currentMemberWorkspaceRole) return ROLE;

@@ -30,11 +30,18 @@ import { ModuleStatusDropdown } from "@/components/modules/module-status-dropdow
 import { useMember } from "@/hooks/store/use-member";
 import { useModule } from "@/hooks/store/use-module";
 import { useUserPermissions, useUserProfile } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 
 type Props = {
   moduleId: string;
+};
+
+/** keeps clicks on the card's controls from opening the module */
+const handleEventPropagation = (e: SyntheticEvent<HTMLDivElement>) => {
+  e.stopPropagation();
+  e.preventDefault();
 };
 
 export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
@@ -59,7 +66,10 @@ export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  const isDisabled = !isEditingAllowed || !!moduleDetails?.archived_at;
+  // Settings → Roles & access: Modules → Edit, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canEditModule = can("modules", "edit", isEditingAllowed, projectId?.toString());
+  const isDisabled = !canEditModule || !!moduleDetails?.archived_at;
   const renderIcon = Boolean(moduleDetails?.start_date) || Boolean(moduleDetails?.target_date);
 
   const { isMobile } = usePlatformOS();
@@ -71,6 +81,7 @@ export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
     const addToFavoritePromise = addModuleToFavorites(workspaceSlug.toString(), projectId.toString(), moduleId).then(
       () => {
         if (!storedValue) toggleFavoriteMenu(true);
+        return undefined;
       }
     );
 
@@ -111,11 +122,6 @@ export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
     });
   };
 
-  const handleEventPropagation = (e: SyntheticEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
   const handleModuleDetailsChange = async (payload: Partial<IModule>) => {
     if (!workspaceSlug || !projectId) return;
 
@@ -126,6 +132,7 @@ export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
           title: "Success!",
           message: "Module updated successfully.",
         });
+        return undefined;
       })
       .catch((err) => {
         setToast({

@@ -8,7 +8,6 @@ import { observer } from "mobx-react";
 // plane imports
 import { useTranslation } from "@plane/i18n";
 // components
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { PageHead } from "@/components/core/page-title";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
@@ -18,6 +17,7 @@ import { IntakeFormSettings } from "@/components/settings/project/content/intake
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import type { Route } from "./+types/page";
 import { FeaturesIntakeProjectSettingsHeader } from "./header";
@@ -25,7 +25,7 @@ import { FeaturesIntakeProjectSettingsHeader } from "./header";
 function FeaturesIntakeSettingsPage({ params }: Route.ComponentProps) {
   const { workspaceSlug, projectId } = params;
   // store hooks
-  const { workspaceUserInfo, allowPermissions } = useUserPermissions();
+  const { workspaceUserInfo } = useUserPermissions();
   const { currentProjectDetails } = useProject();
   // translation
   const { t } = useTranslation();
@@ -33,7 +33,8 @@ function FeaturesIntakeSettingsPage({ params }: Route.ComponentProps) {
   const pageTitle = currentProjectDetails?.name
     ? `${currentProjectDetails?.name} settings - ${t("project_settings.features.intake.short_title")}`
     : undefined;
-  const canPerformProjectAdminActions = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Projects → Edit, the same in every project
+  const { canEditProject: canPerformProjectAdminActions, canEditSettings } = useProjectAccess(workspaceSlug, projectId);
 
   if (workspaceUserInfo && !canPerformProjectAdminActions) {
     return <NotAuthorizedView section="settings" isProjectView className="h-auto" />;
@@ -57,13 +58,16 @@ function FeaturesIntakeSettingsPage({ params }: Route.ComponentProps) {
             workspaceSlug={workspaceSlug}
           />
         </div>
-        <div className="mt-4">
-          <IntakeFormSettings
-            workspaceSlug={workspaceSlug}
-            projectId={projectId}
-            isIntakeEnabled={!!currentProjectDetails?.inbox_view}
-          />
-        </div>
+        {/* the intake form (its link and invites) is Project settings in Settings → Roles & access */}
+        {canEditSettings && (
+          <div className="mt-4">
+            <IntakeFormSettings
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              isIntakeEnabled={!!currentProjectDetails?.inbox_view}
+            />
+          </div>
+        )}
       </section>
     </SettingsContentWrapper>
   );

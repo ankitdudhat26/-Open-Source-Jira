@@ -23,6 +23,7 @@ import { PagesListView } from "@/components/pages/pages-list-view";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // plane web hooks
 import { EPageStoreType } from "@/hooks/store";
@@ -50,7 +51,14 @@ function ProjectPagesPage({ params }: Route.ComponentProps) {
   // derived values
   const project = getProjectById(projectId);
   const pageTitle = project?.name ? `${project?.name} - Pages` : undefined;
-  const canPerformEmptyStateActions = allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT);
+  const { can } = useFeatureAccess(workspaceSlug);
+  // turning the feature on is Settings → Roles & access: Projects → Edit; hidden without it
+  const canPerformEmptyStateActions = can(
+    "projects",
+    "edit",
+    allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT),
+    projectId
+  );
   const resolvedPath = resolvedTheme === "light" ? lightPagesAsset : darkPagesAsset;
   const pageType = getPageType(type);
 
@@ -62,13 +70,16 @@ function ProjectPagesPage({ params }: Route.ComponentProps) {
           title={t("disabled_project.empty_state.page.title")}
           description={t("disabled_project.empty_state.page.description")}
           assetPath={resolvedPath}
-          primaryButton={{
-            text: t("disabled_project.empty_state.page.primary_button.text"),
-            onClick: () => {
-              router.push(`/${workspaceSlug}/settings/projects/${projectId}/features`);
-            },
-            disabled: !canPerformEmptyStateActions,
-          }}
+          primaryButton={
+            canPerformEmptyStateActions
+              ? {
+                  text: t("disabled_project.empty_state.page.primary_button.text"),
+                  onClick: () => {
+                    router.push(`/${workspaceSlug}/settings/projects/${projectId}/features`);
+                  },
+                }
+              : undefined
+          }
         />
       </div>
     );

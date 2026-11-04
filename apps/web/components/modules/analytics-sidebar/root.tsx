@@ -38,6 +38,7 @@ import { CreateUpdateModuleLinkModal, ModuleAnalyticsProgress, ModuleLinksList }
 import { useProjectEstimates } from "@/hooks/store/estimates";
 import { useModule } from "@/hooks/store/use-module";
 import { useUserPermissions, useUserProfile } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // plane web constants
 type ModuleStatusOption = (typeof MODULE_STATUS)[number];
 
@@ -149,6 +150,7 @@ export const ModuleAnalyticsSidebar = observer(function ModuleAnalyticsSidebar(p
   // store hooks
   const { t } = useTranslation();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   const { data: userProfile } = useUserProfile();
 
   const { getModuleById, updateModuleDetails, createModuleLink, updateModuleLink, deleteModuleLink } = useModule();
@@ -158,7 +160,7 @@ export const ModuleAnalyticsSidebar = observer(function ModuleAnalyticsSidebar(p
   const moduleDetails = getModuleById(moduleId);
   const areEstimateEnabled = projectId && areEstimateEnabledByProjectId(projectId.toString());
   const estimateType = areEstimateEnabled && currentActiveEstimateId && estimateById(currentActiveEstimateId);
-  const isEstimatePointValid = estimateType && estimateType?.type == EEstimateSystem.POINTS ? true : false;
+  const isEstimatePointValid = Boolean(estimateType && estimateType?.type == EEstimateSystem.POINTS);
 
   const { reset, control } = useForm({
     defaultValues,
@@ -253,9 +255,12 @@ export const ModuleAnalyticsSidebar = observer(function ModuleAnalyticsSidebar(p
       ? "0 work items"
       : `${moduleDetails.completed_estimate_points}/${moduleDetails.total_estimate_points}`;
 
-  const isEditingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Modules → Edit (details, links), in every project
+  const isEditingAllowed = can(
+    "modules",
+    "edit",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   return (

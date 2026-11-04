@@ -31,6 +31,7 @@ import {
   LayoutSelection,
   MobileLayoutSelection,
 } from "./issue-layouts/filters";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 type Props = {
   currentProjectDetails: TProject | undefined;
@@ -59,6 +60,9 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
   const { t } = useTranslation();
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const { can: canAccess } = useFeatureAccess();
+  const canSeeAnalytics = canAccess("analytics", "view", true);
   // store hooks
   const {
     issuesFilter: { issueFilters, updateFilters },
@@ -141,7 +145,7 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
           />
         </FiltersDropdown>
       )}
-      {canUserCreateIssue ? (
+      {canUserCreateIssue && canSeeAnalytics ? (
         <div className="hidden md:flex">
           <Button
             type="button"

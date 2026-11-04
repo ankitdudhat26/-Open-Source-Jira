@@ -12,14 +12,14 @@ import { pointerOutsideOfPreview } from "@atlaskit/pragmatic-drag-and-drop/eleme
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { attachInstruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 import { createRoot } from "react-dom/client";
 // types
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { IIssueLabel, InstructionType } from "@plane/types";
 // ui
 import { DropIndicator } from "@plane/blocks/common";
 // components
-import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 import { LabelName } from "./label-block/label-name";
 import type { TargetData } from "./label-utils";
 import { getCanDrop, getInstructionFromPayload } from "./label-utils";
@@ -66,8 +66,12 @@ export const LabelDndHOC = observer(function LabelDndHOC(props: Props) {
   const labelRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLButtonElement | null>(null);
 
-  const { allowPermissions } = useUserPermissions();
-  const isEditable = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  const { workspaceSlug, projectId } = useParams();
+  // Settings → Roles & access: Project settings → Edit (else a project admin) — reordering labels changes them
+  const { canEditSettings: isEditable } = useProjectAccess(
+    workspaceSlug?.toString() ?? "",
+    projectId?.toString() ?? ""
+  );
 
   useEffect(() => {
     const element = labelRef.current;

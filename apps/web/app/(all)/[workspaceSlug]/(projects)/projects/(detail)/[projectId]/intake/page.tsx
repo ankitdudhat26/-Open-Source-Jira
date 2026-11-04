@@ -22,6 +22,7 @@ import { InboxIssueRoot } from "@/components/inbox";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import type { Route } from "./+types/page";
 
@@ -41,9 +42,13 @@ function ProjectInboxPage({ params }: Route.ComponentProps) {
   const { workspaceUserInfo, allowPermissions } = useUserPermissions();
   // derived values
   // clients (project guests) do not see Intake — invited clients send requests through its link instead
-  const canViewIntake = allowPermissions(
-    [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // and Settings → Roles & access can hide it (Intake → View)
+  const { can } = useFeatureAccess(workspaceSlug);
+  const canViewIntake = can(
+    "intake",
+    "view",
+    allowPermissions([EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId
   );
   const canPerformEmptyStateActions = allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT);
   const resolvedPath = resolvedTheme === "light" ? lightIntakeAsset : darkIntakeAsset;

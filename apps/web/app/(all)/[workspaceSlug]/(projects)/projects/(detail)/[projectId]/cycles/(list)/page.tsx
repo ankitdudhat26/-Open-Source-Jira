@@ -31,6 +31,7 @@ import { useCycle } from "@/hooks/store/use-cycle";
 import { useCycleFilter } from "@/hooks/store/use-cycle-filter";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import type { Route } from "./+types/page";
 
@@ -50,15 +51,19 @@ function ProjectCyclesPage({ params }: Route.ComponentProps) {
   // cycle filters hook
   const { clearAllFilters, currentProjectFilters, updateFilters } = useCycleFilter();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug);
   // derived values
   const resolvedEmptyState = resolvedTheme === "light" ? lightEmptyState : darkEmptyState;
   const totalCycles = currentProjectCycleIds?.length ?? 0;
   const project = getProjectById(projectId);
   const pageTitle = project?.name ? `${project?.name} - ${t("common.cycles", { count: 2 })}` : undefined;
   const hasAdminLevelPermission = allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT);
-  const hasMemberLevelPermission = allowPermissions(
-    [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Sprints → Create, in every project
+  const hasMemberLevelPermission = can(
+    "sprints",
+    "create",
+    allowPermissions([EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId
   );
 
   const handleRemoveFilter = (key: keyof TCycleFilters, value: string | null) => {
@@ -107,14 +112,18 @@ function ProjectCyclesPage({ params }: Route.ComponentProps) {
               assetKey="cycle"
               title={t("project_empty_state.cycles.title")}
               description={t("project_empty_state.cycles.description")}
-              actions={[
-                {
-                  label: t("project_empty_state.cycles.cta_primary"),
-                  onClick: () => setCreateModal(true),
-                  variant: "primary",
-                  disabled: !hasMemberLevelPermission,
-                },
-              ]}
+              actions={
+                hasMemberLevelPermission
+                  ? [
+                      {
+                        label: t("project_empty_state.cycles.cta_primary"),
+                        onClick: () => setCreateModal(true),
+                        variant: "primary",
+                        disabled: !hasMemberLevelPermission,
+                      },
+                    ]
+                  : []
+              }
             />
           </div>
         ) : (

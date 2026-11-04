@@ -36,6 +36,7 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectView } from "@/hooks/store/use-project-view";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
@@ -57,6 +58,7 @@ export const ProjectViewIssuesHeader = observer(function ProjectViewIssuesHeader
   } = useIssues(EIssuesStoreType.PROJECT_VIEW);
   const { toggleCreateIssueModal } = useCommandPalette();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
 
   const { currentProjectDetails, loader } = useProject();
   const { projectViewIds, getViewById } = useProjectView();
@@ -107,9 +109,12 @@ export const ProjectViewIssuesHeader = observer(function ProjectViewIssuesHeader
 
   const viewDetails = viewId ? getViewById(viewId.toString()) : null;
 
-  const canUserCreateIssue = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Work items → Create, in this project
+  const canUserCreateIssue = can(
+    "work_items",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   if (!viewDetails) return;

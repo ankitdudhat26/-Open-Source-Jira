@@ -35,6 +35,7 @@ import { MergedDateDisplay } from "@/components/dropdowns/merged-date";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useMember } from "@/hooks/store/use-member";
 import { useUserPermissions, useUserProfile } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 import { useTimeZoneConverter } from "@/hooks/use-timezone-converter";
@@ -98,7 +99,13 @@ export const CycleListItemAction = observer(function CycleListItemAction(props: 
     ? cycleDetails.total_issues - (cycleDetails.cancelled_issues + cycleDetails.completed_issues)
     : 0;
 
-  const showTransferIssues = routerProjectId && transferableIssuesCount > 0 && cycleStatus === "completed";
+  // Settings → Roles & access: moving work items out of a sprint is editing it
+  const { can } = useFeatureAccess(workspaceSlug);
+  const showTransferIssues =
+    routerProjectId &&
+    transferableIssuesCount > 0 &&
+    cycleStatus === "completed" &&
+    can("sprints", "edit", true, projectId);
 
   const projectUTCOffset = getProjectUTCOffset();
 

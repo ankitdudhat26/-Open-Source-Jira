@@ -13,6 +13,7 @@ import type { EUserWorkspaceRoles } from "@plane/types";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkspaceNavigationPreferences } from "@/hooks/use-navigation-preferences";
 // components
 import { ExtendedSidebarItem } from "@/components/workspace/sidebar/extended-sidebar-item";
@@ -26,6 +27,8 @@ export const ExtendedAppSidebar = observer(function ExtendedAppSidebar() {
   // store hooks
   const { isExtendedSidebarOpened, toggleExtendedSidebar } = useAppTheme();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canSeeAnalytics = can("analytics", "view", true);
   const { preferences: workspacePreferences, updateWorkspaceItemSortOrder } = useWorkspaceNavigationPreferences();
 
   // derived values
@@ -38,6 +41,8 @@ export const ExtendedAppSidebar = observer(function ExtendedAppSidebar() {
       WORKSPACE_SIDEBAR_DYNAMIC_NAVIGATION_ITEMS_LINKS.filter((item) => {
         // Permission check
         const hasPermission = allowPermissions(item.access, EUserPermissionsLevel.WORKSPACE, slug);
+        // Settings → Roles & access can hide Analytics (Analytics → View)
+        if (item.key === "analytics" && !canSeeAnalytics) return false;
 
         return hasPermission;
       })
@@ -60,7 +65,7 @@ export const ExtendedAppSidebar = observer(function ExtendedAppSidebar() {
           return a.sort_order - b.sort_order;
         })
     );
-  }, [workspaceSlug, currentWorkspaceNavigationPreferences, allowPermissions]);
+  }, [workspaceSlug, currentWorkspaceNavigationPreferences, allowPermissions, canSeeAnalytics]);
 
   const sortedNavigationItemsKeys = sortedNavigationItems.map((item) => item.key);
 

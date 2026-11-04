@@ -45,6 +45,7 @@ import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // local imports
@@ -125,10 +126,12 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
     [projectId, toggleProjectListOpen]
   );
   // auth
-  const isAdmin = allowPermissions(
-    [EUserPermissions.ADMIN],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug.toString(),
+  const { can } = useFeatureAccess(workspaceSlug.toString());
+  // publishing the project changes it: Settings → Roles & access, Projects → Edit
+  const isAdmin = can(
+    "projects",
+    "edit",
+    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug.toString(), project?.id),
     project?.id
   );
   const isAuthorized = allowPermissions(

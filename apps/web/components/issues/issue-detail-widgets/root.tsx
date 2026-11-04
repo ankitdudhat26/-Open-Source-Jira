@@ -11,6 +11,7 @@ import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TIssueServiceType, TWorkItemWidgets } from "@plane/types";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { IssueDetailWidgetActionButtons } from "./action-buttons";
 import { IssueDetailWidgetCollapsibles } from "./issue-detail-widget-collapsibles";
@@ -46,12 +47,15 @@ export const IssueDetailWidgets = observer(function IssueDetailWidgets(props: Pr
     workspaceSlug,
     projectId
   );
-  const disabled = isEditingDisabled || !isMemberOrAdmin;
+  // Settings → Roles & access: Work items → Edit hides the add buttons (sub-work items, relations, links, attachments)
+  const { can } = useFeatureAccess(workspaceSlug);
+  const canEditWorkItem = can("work_items", "edit", isMemberOrAdmin, projectId);
+  const disabled = isEditingDisabled || !canEditWorkItem;
 
   return (
     <>
       <div className="flex flex-col space-y-4">
-        {isMemberOrAdmin && (
+        {canEditWorkItem && (
           <IssueDetailWidgetActionButtons
             workspaceSlug={workspaceSlug}
             projectId={projectId}

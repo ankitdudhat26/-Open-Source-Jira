@@ -18,6 +18,7 @@ import type { TPowerKCommandConfig } from "@/components/power-k/core/types";
 // hooks
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useUser } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const usePowerKCycleContextBasedActions = (): TPowerKCommandConfig[] => {
   // navigation
@@ -31,9 +32,15 @@ export const usePowerKCycleContextBasedActions = (): TPowerKCommandConfig[] => {
   const cycleDetails = cycleId ? getCycleById(cycleId.toString()) : null;
   const isFavorite = !!cycleDetails?.is_favorite;
   // permission
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  // Settings → Roles & access: Sprints → Edit, in the sprint's project
   const isEditingAllowed =
-    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) &&
-    !cycleDetails?.archived_at;
+    can(
+      "sprints",
+      "edit",
+      allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+      cycleDetails?.project_id
+    ) && !cycleDetails?.archived_at;
   // translation
   const { t } = useTranslation();
 
@@ -53,12 +60,12 @@ export const usePowerKCycleContextBasedActions = (): TPowerKCommandConfig[] => {
   const copyCycleUrlToClipboard = useCallback(() => {
     const url = new URL(window.location.href);
     copyTextToClipboard(url.href)
-      .then(() => {
+      .then(() =>
         setToast({
           type: "success",
           title: t("power_k.contextual_actions.cycle.copy_url_toast_success"),
-        });
-      })
+        })
+      )
       .catch(() => {
         setToast({
           type: "error",

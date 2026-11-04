@@ -6,7 +6,10 @@
 
 Every feature has actions (view, create, edit, delete). For each role — Sub Admin, Member, Client — an admin can allow
 or deny an action, and override that for one person (custom access). A cell left alone keeps the built-in rule of the
-code. Workspace admins always have full access, and so do project admins in their own projects.
+code. The rules of a person's workspace role apply in every project — new or cloned from Jira — whatever their project
+role: being a project admin does not lift them. Workspace admins always have full access, and so do Sub Admins in the
+projects they created. A project role can only lower the rules (a Member who is a client in a project gets the client
+rules there). For clients only what an admin set applies; the code keeps their read-only rules.
 
 A request is matched to a feature by its URL and to an action by its method: a denied action is refused for every
 endpoint of the feature (`enforce`), and an allowed one passes the role checks that would refuse it (`is_granted`)."""
@@ -121,7 +124,7 @@ FEATURES = [
     {
         "key": "intake",
         "label": "Intake",
-        "description": "Requests in Intake: accept, decline, snooze, and the request form",
+        "description": "Requests in Intake: accept, decline and snooze them",
         "scope": "project",
         "actions": ACTIONS,
         "segments": (
@@ -131,7 +134,6 @@ FEATURES = [
             "inboxes",
             "intake-work-items",
             "intake-state",
-            "intake-form",
         ),
         "action_labels": {
             "view": "See Intake in the project sidebar",
@@ -185,7 +187,7 @@ FEATURES = [
     {
         "key": "project_settings",
         "label": "Project settings",
-        "description": "States, labels, estimates, custom fields, work item types and workflow",
+        "description": "States, labels, estimates, custom fields, work item types, workflow and the intake form",
         "scope": "project",
         "actions": ("create", "edit", "delete"),
         "segments": (
@@ -198,6 +200,7 @@ FEATURES = [
             "workflow",
             "work-item-types",
             "project-deploy-boards",
+            "intake-form",
         ),
         "action_labels": {
             "create": "Add states, labels, estimates and custom fields",
@@ -318,9 +321,11 @@ def _defaults():
         "views": _FULL,
         "pages": _FULL,
         "intake": _FULL,
-        "milestones": _FULL,
-        "resources": _FULL,
-        "deliverables": _FULL,
+        # payments, the SOW and who fills each role (adding a resource adds the person to the project) are for
+        # admins: members see them, an admin can allow more in Settings → Roles & access
+        "milestones": _VIEW_ONLY,
+        "resources": _VIEW_ONLY,
+        "deliverables": _VIEW_ONLY,
         "project_settings": _NONE,
         "project_members": _NONE,
         "projects": _NONE,
@@ -357,6 +362,9 @@ def _action(method, segments):
     return "create"
 
 
+_SELF_SEGMENTS = {"me", "leave", "join"}
+
+
 def resolve(request):
     """(workspace slug, project id or None, feature, action) of an app API request, or None when no feature has it."""
     match = _PATH.match(request.path)
@@ -364,6 +372,9 @@ def resolve(request):
         return None
     slug = match.group("slug")
     segments = [segment for segment in match.group("rest").split("/") if segment]
+    # what people do about themselves: leaving, their own membership, joining by invitation
+    if _SELF_SEGMENTS.intersection(segments):
+        return None
     method = request.method.upper()
     if len(segments) >= 2 and segments[0] == "projects" and _UUID.match(segments[1]):
         project_id, inner = segments[1], segments[2:]
@@ -379,8 +390,9 @@ def resolve(request):
 
 
 def role_key(workspace_role, is_sub_admin=False, project_role=None):
-    """The role whose rules apply: in a project, the project role (a workspace Sub Admin stays one there)."""
-    role = project_role if project_role is not None else workspace_role
+    """The role whose rules apply: the workspace role, lowered in a project where they have a lower project role (a
+    project admin keeps their workspace role's rules)."""
+    role = workspace_role if project_role is None else min(workspace_role, project_role)
     if role == ADMIN:
         return "admin"
     if role == MEMBER:
@@ -422,18 +434,25 @@ def _decide(user, slug, project_id, feature, action):
         return None
     project_role = None
     if project_id:
-        project_role = (
+        project_member = (
             ProjectMember.objects.filter(project_id=project_id, member=user, is_active=True)
-            .values_list("role", flat=True)
+            .values("role", "project__created_by_id")
             .first()
         )
-        # not in the project: the built-in rules refuse it; a project admin has full access to the project
-        if project_role is None or project_role == ADMIN:
+        # not in the project: the built-in rules refuse it
+        if project_member is None:
             return None
+        # a Sub Admin has full access to the projects they created
+        if membership.is_sub_admin and project_member["project__created_by_id"] == user.id:
+            return None
+        project_role = project_member["role"]
     role = role_key(membership.role, membership.is_sub_admin, project_role)
-    if role == "admin":
-        return None
-    return explicit_access(policy_rules(membership.workspace_id), membership.custom_access, role, feature, action)
+    value = explicit_access(policy_rules(membership.workspace_id), membership.custom_access, role, feature, action)
+    if value is None and role in ("sub_admin", "member") and not DEFAULTS[role][feature][action]:
+        # what the built-in rules deny is denied in every project, whatever their project role; what they allow is
+        # left to the endpoint's own checks (e.g. only the author edits a comment)
+        return False
+    return value
 
 
 def workspace_access(user, slug, feature, action):

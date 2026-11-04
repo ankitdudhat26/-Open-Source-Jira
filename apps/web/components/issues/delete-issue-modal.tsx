@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@plane/blocks/dialog";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 type Props = {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export const DeleteIssueModal = observer(function DeleteIssueModal(props: Props)
   const { issueMap } = useIssues();
   const { getProjectById } = useProject();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   const { t } = useTranslation();
 
   const { data: currentUser } = useUser();
@@ -60,7 +62,13 @@ export const DeleteIssueModal = observer(function DeleteIssueModal(props: Props)
     projectDetails?.id
   );
 
-  const authorized = isIssueCreator || canPerformProjectAdminActions;
+  // Settings → Roles & access: Work items → Delete, in the work item's project
+  const authorized = can(
+    "work_items",
+    "delete",
+    isIssueCreator || canPerformProjectAdminActions,
+    issue?.project_id ?? undefined
+  );
 
   const onClose = () => {
     setIsDeleting(false);

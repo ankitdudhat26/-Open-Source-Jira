@@ -18,6 +18,7 @@ import { getDate, renderFormattedPayloadDate } from "@plane/utils";
 // hooks
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useUserPermissions, useUserProfile } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useTimeZoneConverter } from "@/hooks/use-timezone-converter";
 // services
 import { CycleService } from "@/services/cycle.service";
@@ -113,9 +114,13 @@ export const CycleSidebarHeader = observer(function CycleSidebarHeader(props: Pr
     return isDateValid;
   };
 
-  const isEditingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Sprints → Edit, in every project
+  const { can } = useFeatureAccess(workspaceSlug);
+  const isEditingAllowed = can(
+    "sprints",
+    "edit",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId
   );
 
   return (

@@ -14,6 +14,7 @@ import { EIssuesStoreType, EUserWorkspaceRoles } from "@plane/types";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
@@ -28,6 +29,8 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
     [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
     EUserPermissionsLevel.WORKSPACE
   );
+  const { can } = useFeatureAccess();
+  const canCreateWorkItems = can("work_items", "create", hasMemberLevelPermission);
 
   // Admins and Sub Admins create projects
   const { canCreateProjects } = useWorkspaceRoleAccess();
@@ -59,16 +62,21 @@ export const GlobalViewEmptyState = observer(function GlobalViewEmptyState() {
       description={t(`workspace_empty_state.views.description`)}
       assetKey="project"
       assetClassName="size-40"
-      actions={[
-        {
-          label: t(`workspace_empty_state.views.cta_primary`),
-          onClick: () => {
-            toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
-          },
-          disabled: !hasMemberLevelPermission,
-          variant: "primary",
-        },
-      ]}
+      // hidden without Settings → Roles & access: Work items → Create
+      actions={
+        canCreateWorkItems
+          ? [
+              {
+                label: t(`workspace_empty_state.views.cta_primary`),
+                onClick: () => {
+                  toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
+                },
+                disabled: !hasMemberLevelPermission,
+                variant: "primary",
+              },
+            ]
+          : []
+      }
     />
   );
 });

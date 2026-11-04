@@ -21,6 +21,7 @@ import type { TPowerKCommandConfig } from "@/components/power-k/core/types";
 // hooks
 import { useModule } from "@/hooks/store/use-module";
 import { useUser } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const usePowerKModuleContextBasedActions = (): TPowerKCommandConfig[] => {
   // navigation
@@ -37,6 +38,9 @@ export const usePowerKModuleContextBasedActions = (): TPowerKCommandConfig[] => 
   const isEditingAllowed =
     allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) &&
     !moduleDetails?.archived_at;
+  // Settings → Roles & access: Modules → Edit (members, status), in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canEditModule = can("modules", "edit", isEditingAllowed, projectId?.toString());
   // translation
   const { t } = useTranslation();
 
@@ -90,6 +94,7 @@ export const usePowerKModuleContextBasedActions = (): TPowerKCommandConfig[] => 
           type: "success",
           title: t("power_k.contextual_actions.module.copy_url_toast_success"),
         });
+        return undefined;
       })
       .catch(() => {
         setToast({
@@ -114,8 +119,8 @@ export const usePowerKModuleContextBasedActions = (): TPowerKCommandConfig[] => 
         handleUpdateMember(memberId);
       },
       shortcut: "m",
-      isEnabled: () => isEditingAllowed,
-      isVisible: () => isEditingAllowed,
+      isEnabled: () => canEditModule,
+      isVisible: () => canEditModule,
       closeOnSelect: false,
     },
     {
@@ -131,8 +136,8 @@ export const usePowerKModuleContextBasedActions = (): TPowerKCommandConfig[] => 
         handleUpdateModule({ status });
       },
       shortcut: "s",
-      isEnabled: () => isEditingAllowed,
-      isVisible: () => isEditingAllowed,
+      isEnabled: () => canEditModule,
+      isVisible: () => canEditModule,
       closeOnSelect: true,
     },
     {

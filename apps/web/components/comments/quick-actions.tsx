@@ -25,6 +25,7 @@ import type { TContextMenuItem } from "@plane/blocks/context-menu";
 import { resolveItemVariant } from "@plane/blocks/context-menu";
 // hooks
 import { useUser } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 type TCommentCard = {
   activityOperations: TCommentsOperations;
@@ -38,10 +39,11 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
   const { activityOperations, comment, setEditMode, showAccessSpecifier, showCopyLinkOption } = props;
   // store hooks
   const { data: currentUser } = useUser();
-  // derived values
+  const { can } = useFeatureAccess();
+  // derived values: the author edits and deletes their comment, unless Settings → Roles & access denies it
   const isAuthor = currentUser?.id === comment.actor;
-  const canEdit = isAuthor;
-  const canDelete = isAuthor;
+  const canEdit = can("comments", "edit", isAuthor, comment.project);
+  const canDelete = can("comments", "delete", isAuthor, comment.project);
   // translation
   const { t } = useTranslation();
 

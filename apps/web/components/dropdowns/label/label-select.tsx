@@ -18,6 +18,7 @@ import { EUserPermissions } from "@plane/types";
 // hooks
 import { useLabel } from "@/hooks/store/use-label";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 type LabelSelectWebProps = {
   /** Project whose labels are offered. */
@@ -56,6 +57,7 @@ export const LabelSelect = observer(function LabelSelect(props: LabelSelectWebPr
   // store hooks
   const { getProjectLabels, getLabelById, fetchProjectLabels, createLabel } = useLabel();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   // translation
   const { t } = useTranslation();
   const resolvedTooltip = useMemo<SelectTooltipOverride | undefined>(() => {
@@ -67,10 +69,16 @@ export const LabelSelect = observer(function LabelSelect(props: LabelSelectWebPr
     };
   }, [tooltip, t]);
 
+  // Settings → Roles & access: Project settings → Create (labels), in this project
   const canCreateLabel =
     !!workspaceSlug &&
     !!projectId &&
-    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug.toString(), projectId);
+    can(
+      "project_settings",
+      "create",
+      allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug.toString(), projectId),
+      projectId
+    );
 
   const getValues = useCallback(
     async ({ search }: SelectPaginationParams): Promise<TPaginatedResponse<LabelOption[]>> => {

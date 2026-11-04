@@ -7,7 +7,6 @@
 import { useState } from "react";
 import { observer } from "mobx-react";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@makeplane/propel/components/button";
 import { SearchOutline } from "@makeplane/propel/icons";
@@ -15,7 +14,7 @@ import { SearchOutline } from "@makeplane/propel/icons";
 import { MembersSettingsLoader } from "@/components/ui/loader/settings/members";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import { MemberListFiltersDropdown } from "./dropdowns/filters/member-list";
 import { ProjectMemberListItem } from "./member-list-item";
@@ -34,8 +33,6 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
   const {
     project: { projectMemberIds, getFilteredProjectMemberDetails, filters },
   } = useMember();
-  const { allowPermissions } = useUserPermissions();
-
   const { t } = useTranslation();
 
   const searchedProjectMembers = (projectMemberIds ?? []).filter((userId) => {
@@ -53,7 +50,8 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
     projectId ? getFilteredProjectMemberDetails(memberId, projectId.toString()) : null
   );
 
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Project members → Create, the same in every project
+  const { canAddMembers } = useProjectAccess(workspaceSlug?.toString() ?? "", projectId?.toString() ?? "");
 
   // Handler for role filter updates
   const handleRoleFilterUpdate = (role: string) => {
@@ -90,7 +88,6 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
               className="w-full max-w-[234px] border-none bg-transparent text-13 placeholder:text-placeholder focus:outline-none"
               placeholder="Search"
               value={searchQuery}
-              autoFocus
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
@@ -99,7 +96,7 @@ export const ProjectMemberList = observer(function ProjectMemberList(props: TPro
             handleUpdate={handleRoleFilterUpdate}
             memberType="project"
           />
-          {isAdmin && (
+          {canAddMembers && (
             <Button
               variant="primary"
               size="sm"

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { EUserPermissions } from "@plane/constants";
 import type { IWorkspaceMember, TProjectMembership } from "@plane/types";
 import { renderFormattedDate } from "@plane/utils";
 // components
@@ -15,6 +15,7 @@ import { AccountTypeColumn, NameColumn, ProjectRoleColumn } from "@/components/p
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 import type { IMemberFilters } from "@/store/member/utils";
 
 export interface RowData extends Pick<TProjectMembership, "original_role" | "designation"> {
@@ -33,19 +34,15 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
 
   // store hooks
   const { data: currentUser } = useUser();
-  const { allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
+  const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   const {
     project: {
       filters: { getFilters, updateFilters },
     },
   } = useMember();
   // derived values
-  const isAdmin = allowPermissions(
-    [EUserPermissions.ADMIN],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug.toString(),
-    projectId.toString()
-  );
+  // Settings → Roles & access: Project members → Edit / Delete, the same in every project
+  const { canChangeMembers, canRemoveMembers } = useProjectAccess(workspaceSlug.toString(), projectId.toString());
   const currentProjectRole =
     getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug.toString(), projectId.toString()) ?? EUserPermissions.GUEST;
 
@@ -72,7 +69,7 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
         <NameColumn
           rowData={rowData}
           workspaceSlug={workspaceSlug}
-          isAdmin={isAdmin}
+          isAdmin={canRemoveMembers}
           currentUser={currentUser}
           setRemoveMemberModal={setRemoveMemberModal}
         />
@@ -107,7 +104,12 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
       content: "Project role",
       thRender: () => <span className="text-left">Project role</span>,
       tdRender: (rowData: RowData) => (
-        <ProjectRoleColumn rowData={rowData} workspaceSlug={workspaceSlug} projectId={projectId} isEditable={isAdmin} />
+        <ProjectRoleColumn
+          rowData={rowData}
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          isEditable={canChangeMembers}
+        />
       ),
     },
     {
@@ -124,6 +126,7 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
         <AccountTypeColumn
           rowData={rowData}
           currentProjectRole={currentProjectRole}
+          canChangeMembers={canChangeMembers}
           projectId={projectId}
           workspaceSlug={workspaceSlug}
         />

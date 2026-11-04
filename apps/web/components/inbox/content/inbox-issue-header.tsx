@@ -40,6 +40,7 @@ import { NameDescriptionUpdateStatus } from "@/components/issues/issue-update-st
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectInbox } from "@/hooks/store/use-project-inbox";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // store
 import type { IInboxIssueStore } from "@/store/inbox/inbox-issue.store";
@@ -92,19 +93,30 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
 
   const issue = inboxIssue?.issue;
   // derived values
-  const isAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
+  const { can } = useFeatureAccess(workspaceSlug);
+  // Settings → Roles & access: accepting, declining, snoozing and marking duplicates is Intake → Edit
+  const isAllowed = can(
+    "intake",
+    "edit",
+    allowPermissions(
+      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+      EUserPermissionsLevel.PROJECT,
+      workspaceSlug,
+      projectId
+    ),
     projectId
   );
   const canMarkAsDuplicate = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
   const canMarkAsAccepted = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
   const canMarkAsDeclined = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
   // can delete only if admin or is creator of the issue
-  const canDelete =
+  const canDelete = can(
+    "intake",
+    "delete",
     allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId) ||
-    issue?.created_by === currentUser?.id;
+      issue?.created_by === currentUser?.id,
+    projectId
+  );
   const isProjectAdmin = allowPermissions(
     [EUserPermissions.ADMIN],
     EUserPermissionsLevel.PROJECT,

@@ -8,12 +8,15 @@
 import { Outlet } from "react-router";
 import { AppHeader } from "@/components/core/app-header";
 import { ContentWrapper } from "@/components/core/content-wrapper";
+import { PagesAccessSync } from "@/components/pages/pages-access-sync";
 // local components
 import { PagesListHeader } from "./header";
 
 export default function ProjectPagesListLayout() {
   return (
     <>
+      {/* Settings → Roles & access for the pages screens */}
+      <PagesAccessSync />
       <AppHeader header={<PagesListHeader />} />
       <ContentWrapper>
         <Outlet />

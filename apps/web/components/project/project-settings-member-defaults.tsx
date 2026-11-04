@@ -10,7 +10,6 @@ import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR from "swr";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { setToast } from "@plane/blocks/toast";
 import type { IProject, IUserLite, IWorkspace } from "@plane/types";
@@ -20,7 +19,7 @@ import { Loader } from "@plane/blocks/skeleton";
 import { PROJECT_DETAILS } from "@plane/constants";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // components
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 
@@ -59,16 +58,10 @@ export const ProjectSettingsMemberDefaults = observer(function ProjectSettingsMe
   // plane hooks
   const { t } = useTranslation();
   // store hooks
-  const { allowPermissions } = useUserPermissions();
-
   const { currentProjectDetails, fetchProjectDetails, updateProject } = useProject();
   // derived values
-  const isAdmin = allowPermissions(
-    [EUserPermissions.ADMIN],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
-    currentProjectDetails?.id
-  );
+  // Settings → Roles & access: Projects → Edit (lead, default assignee, guest access), the same in every project
+  const { canEditProject: isAdmin } = useProjectAccess(workspaceSlug, projectId);
   // form info
   const { reset, control } = useForm<IProject>({ defaultValues });
   // fetching user members
@@ -108,13 +101,13 @@ export const ProjectSettingsMemberDefaults = observer(function ProjectSettingsMe
       project_lead:
         formData.project_lead === "none" ? null : (formData.project_lead ?? currentProjectDetails?.project_lead),
     })
-      .then(() => {
+      .then(() =>
         setToast({
           title: `${t("success")}!`,
           type: "success",
           message: t("project_settings.general.toast.success"),
-        });
-      })
+        })
+      )
       .catch((err) => {
         console.error(err);
       });
@@ -126,13 +119,13 @@ export const ProjectSettingsMemberDefaults = observer(function ProjectSettingsMe
     updateProject(workspaceSlug, projectId, {
       guest_view_all_features: value,
     })
-      .then(() => {
+      .then(() =>
         setToast({
           title: `${t("success")}!`,
           type: "success",
           message: t("project_settings.general.toast.success"),
-        });
-      })
+        })
+      )
       .catch((err) => {
         console.error(err);
       });

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // plane constants
 import type { TSupportedFilterTypeForUpdate } from "@plane/constants";
 // types
@@ -30,6 +31,7 @@ import { MONTHS_LIST } from "@plane/constants";
 import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssues } from "@/hooks/store/use-issues";
 import useSize from "@/hooks/use-window-size";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // store
 import type { ICycleIssuesFilter } from "@/store/issue/cycle";
 import type { ICalendarStore } from "@/store/issue/issue_calendar_view.store";
@@ -105,6 +107,10 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
   const [windowWidth] = useSize();
 
   const { enableIssueCreation, enableQuickAdd } = viewFlags || {};
+  // Settings → Roles & access: Work items → Create hides quick add on the days
+  const { projectId } = useParams();
+  const { can } = useFeatureAccess();
+  const canCreateWorkItems = can("work_items", "create", true, projectId?.toString());
 
   const calendarPayload = issueCalendarView.calendarPayload;
 
@@ -170,7 +176,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
                         getPaginationData={getPaginationData}
                         getGroupIssueCount={getGroupIssueCount}
                         enableQuickIssueCreate={enableQuickAdd}
-                        disableIssueCreation={!enableIssueCreation}
+                        disableIssueCreation={!enableIssueCreation || !canCreateWorkItems}
                         quickActions={quickActions}
                         quickAddCallback={quickAddCallback}
                         addIssuesToView={addIssuesToView}
@@ -194,7 +200,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
                   getPaginationData={getPaginationData}
                   getGroupIssueCount={getGroupIssueCount}
                   enableQuickIssueCreate={enableQuickAdd}
-                  disableIssueCreation={!enableIssueCreation}
+                  disableIssueCreation={!enableIssueCreation || !canCreateWorkItems}
                   quickActions={quickActions}
                   quickAddCallback={quickAddCallback}
                   addIssuesToView={addIssuesToView}
@@ -220,7 +226,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
                 getGroupIssueCount={getGroupIssueCount}
                 quickActions={quickActions}
                 enableQuickIssueCreate={enableQuickAdd}
-                disableIssueCreation={!enableIssueCreation}
+                disableIssueCreation={!enableIssueCreation || !canCreateWorkItems}
                 quickAddCallback={quickAddCallback}
                 addIssuesToView={addIssuesToView}
                 readOnly={readOnly}
@@ -248,7 +254,7 @@ export const CalendarChart = observer(function CalendarChart(props: Props) {
             getPaginationData={getPaginationData}
             getGroupIssueCount={getGroupIssueCount}
             enableQuickIssueCreate={enableQuickAdd}
-            disableIssueCreation={!enableIssueCreation}
+            disableIssueCreation={!enableIssueCreation || !canCreateWorkItems}
             quickAddCallback={quickAddCallback}
             addIssuesToView={addIssuesToView}
             readOnly={readOnly}

@@ -24,6 +24,7 @@ import { ModuleAppliedFiltersList, ModulesListView } from "@/components/modules"
 import { useModuleFilter } from "@/hooks/store/use-module-filter";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import type { Route } from "./+types/page";
 
@@ -48,7 +49,14 @@ function ProjectModulesPage({ params }: Route.ComponentProps) {
   // derived values
   const project = getProjectById(projectId);
   const pageTitle = project?.name ? `${project?.name} - Modules` : undefined;
-  const canPerformEmptyStateActions = allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT);
+  const { can } = useFeatureAccess(workspaceSlug);
+  // turning the feature on is Settings → Roles & access: Projects → Edit; hidden without it
+  const canPerformEmptyStateActions = can(
+    "projects",
+    "edit",
+    allowPermissions([EUserProjectRoles.ADMIN], EUserPermissionsLevel.PROJECT),
+    projectId
+  );
   const resolvedPath = resolvedTheme === "light" ? lightModulesAsset : darkModulesAsset;
 
   const handleRemoveFilter = useCallback(
@@ -71,13 +79,16 @@ function ProjectModulesPage({ params }: Route.ComponentProps) {
           title={t("disabled_project.empty_state.module.title")}
           description={t("disabled_project.empty_state.module.description")}
           assetPath={resolvedPath}
-          primaryButton={{
-            text: t("disabled_project.empty_state.module.primary_button.text"),
-            onClick: () => {
-              router.push(`/${workspaceSlug}/settings/projects/${projectId}/features`);
-            },
-            disabled: !canPerformEmptyStateActions,
-          }}
+          primaryButton={
+            canPerformEmptyStateActions
+              ? {
+                  text: t("disabled_project.empty_state.module.primary_button.text"),
+                  onClick: () => {
+                    router.push(`/${workspaceSlug}/settings/projects/${projectId}/features`);
+                  },
+                }
+              : undefined
+          }
         />
       </div>
     );

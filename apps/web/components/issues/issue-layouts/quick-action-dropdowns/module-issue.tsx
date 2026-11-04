@@ -31,6 +31,7 @@ import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/bloc
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useUserPermissions } from "@/hooks/store/user";
 // helper
 import { ArchiveIssueModal } from "../../archive-issue-modal";
@@ -69,17 +70,20 @@ export const ModuleIssueQuickActions = observer(function ModuleIssueQuickActions
   // store hooks
   const { issuesFilter } = useIssues(EIssuesStoreType.MODULE);
   const { allowPermissions } = useUserPermissions();
+  // Settings → Roles & access: Work items → Edit / Delete, in the work item's project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   const { getStateById } = useProjectState();
   const { getProjectIdentifierById } = useProject();
   // derived values
   const stateDetails = getStateById(issue.state_id);
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);
   // auth
-  const isEditingAllowed =
+  const isMemberEditingAllowed =
     allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) && !readOnly;
+  const isEditingAllowed = can("work_items", "edit", isMemberEditingAllowed, issue.project_id ?? undefined);
   const isArchivingAllowed = handleArchive && isEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);
-  const isDeletingAllowed = isEditingAllowed;
+  const isDeletingAllowed = can("work_items", "delete", isMemberEditingAllowed, issue.project_id ?? undefined);
 
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
 

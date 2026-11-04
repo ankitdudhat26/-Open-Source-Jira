@@ -113,13 +113,55 @@ class TestWorkspaceAccessControl:
         assert by_admin.status_code == status.HTTP_201_CREATED, by_admin.data
 
     @pytest.mark.django_db
-    def test_project_admins_keep_full_access_to_their_project(self, session_client, workspace, project):
+    def test_a_project_admin_follows_their_workspace_role_rules(self, session_client, workspace, project):
+        # a workspace Member who is a project admin: the Member rules apply, as in every other project
         _, lead_api = _person(workspace, project=project, project_role=20)
         _set(session_client, workspace, "member", "sprints", "create", False)
 
-        response = lead_api.post(_cycles(workspace, project), {"name": "Sprint 1"}, format="json")
+        refused = lead_api.post(_cycles(workspace, project), {"name": "Sprint 1"}, format="json")
+        add_member = lead_api.post(
+            f"/api/workspaces/{workspace.slug}/projects/{project.id}/members/",
+            {"members": [{"member_id": str(uuid.uuid4()), "role": 15}]},
+            format="json",
+        )
+
+        assert refused.status_code == status.HTTP_403_FORBIDDEN
+        # Project members → Create is off for Members by default
+        assert add_member.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.django_db
+    def test_sub_admins_keep_full_access_to_projects_they_created(self, session_client, workspace):
+        sub_admin, sub_admin_api = _person(workspace, is_sub_admin=True)
+        created = sub_admin_api.post(
+            f"/api/workspaces/{workspace.slug}/projects/", {"name": "Own", "identifier": "OWN"}, format="json"
+        )
+        assert created.status_code == status.HTTP_201_CREATED, created.data
+        project_id = created.data["id"]
+        _set(session_client, workspace, "sub_admin", "sprints", "create", False)
+
+        response = sub_admin_api.post(
+            f"/api/workspaces/{workspace.slug}/projects/{project_id}/cycles/", {"name": "Sprint 1"}, format="json"
+        )
 
         assert response.status_code == status.HTTP_201_CREATED, response.data
+
+    @pytest.mark.django_db
+    def test_milestones_are_view_only_for_members_until_allowed(self, session_client, workspace, project):
+        # payments and the SOW are for admins: a project admin who is a workspace Member is refused too
+        _, member_api = _person(workspace, project=project)
+        _, lead_api = _person(workspace, project=project, project_role=20)
+        url = f"/api/workspaces/{workspace.slug}/projects/{project.id}/milestones/"
+
+        listed = member_api.get(url)
+        refused = member_api.post(url, {"name": "M1", "code": "M1"}, format="json")
+        by_lead = lead_api.post(url, {"name": "M1", "code": "M1"}, format="json")
+        _set(session_client, workspace, "member", "milestones", "create", True)
+        allowed = member_api.post(url, {"name": "M1", "code": "M1"}, format="json")
+
+        assert listed.status_code == status.HTTP_200_OK
+        assert refused.status_code == status.HTTP_403_FORBIDDEN
+        assert by_lead.status_code == status.HTTP_403_FORBIDDEN
+        assert allowed.status_code != status.HTTP_403_FORBIDDEN, allowed.data
 
     @pytest.mark.django_db
     def test_an_allowed_action_is_granted_beyond_the_role(self, session_client, workspace, project, create_user):
@@ -229,3 +271,61 @@ class TestWorkspaceAccessControl:
         rules = _set(session_client, workspace, "member", "all_projects", "view", True)
 
         assert rules == {"member": {"all_projects": {"view": True}}}
+
+    @pytest.mark.django_db
+    def test_members_add_resources_only_when_allowed(self, session_client, workspace, project):
+        # a project they were added to, not one they created (e.g. cloned from Jira)
+        member, member_api = _person(workspace, project=project, is_sub_admin=True)
+        _, client_api = _person(workspace, role=5, project=project)
+        url = f"/api/workspaces/{workspace.slug}/projects/{project.id}/resources/"
+
+        refused = member_api.post(url, {"role": "QA Engineer"}, format="json")
+        listed = member_api.get(url)
+        _custom(session_client, workspace, member, "resources", "create", "allow")
+        added = member_api.post(url, {"role": "QA Engineer"}, format="json")
+        by_client = client_api.post(url, {"role": "Designer"}, format="json")
+
+        # adding a resource brings people into the project: Sub Admins and Members only see them by default
+        assert refused.status_code == status.HTTP_403_FORBIDDEN
+        assert listed.status_code == status.HTTP_200_OK
+        assert added.status_code == status.HTTP_201_CREATED, added.data
+        assert by_client.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.django_db
+    def test_several_cells_are_saved_together(self, session_client, workspace):
+        member, _ = _person(workspace)
+        url = ACCESS_URL.format(slug=workspace.slug)
+
+        rules = session_client.patch(
+            url,
+            {
+                "role": "member",
+                "cells": [
+                    {"feature": "sprints", "action": "create", "allowed": False},
+                    {"feature": "sprints", "action": "delete", "allowed": False},
+                    # the built-in rule: not kept
+                    {"feature": "pages", "action": "view", "allowed": True},
+                ],
+            },
+            format="json",
+        ).data["rules"]
+        person = session_client.patch(
+            f"{url}people/{member.id}/",
+            {
+                "cells": [
+                    {"feature": "resources", "action": "create", "value": "allow"},
+                    {"feature": "project_members", "action": "create", "value": "allow"},
+                ]
+            },
+            format="json",
+        ).data
+        invalid = session_client.patch(
+            url,
+            {"role": "member", "cells": [{"feature": "resources", "action": "fly", "allowed": True}]},
+            format="json",
+        )
+
+        assert rules == {"member": {"sprints": {"create": False, "delete": False}}}
+        assert person["custom_access"] == {"resources": {"create": True}, "project_members": {"create": True}}
+        assert person["access"]["sprints"]["delete"] == {"allowed": False, "set": True}
+        assert invalid.status_code == status.HTTP_400_BAD_REQUEST

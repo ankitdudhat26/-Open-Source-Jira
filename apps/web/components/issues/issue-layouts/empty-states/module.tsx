@@ -20,6 +20,7 @@ import { ExistingIssuesListModal } from "@/components/core/modals/existing-issue
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkItemFilterInstance } from "@/hooks/store/work-item-filters/use-work-item-filter-instance";
 
 export const ModuleEmptyState = observer(function ModuleEmptyState() {
@@ -42,6 +43,8 @@ export const ModuleEmptyState = observer(function ModuleEmptyState() {
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  const { can } = useFeatureAccess();
+  const canCreateWorkItems = can("work_items", "create", canPerformEmptyStateActions, projectId);
 
   const handleAddIssuesToModule = async (data: ISearchIssueResponse[]) => {
     if (!workspaceSlug || !projectId || !moduleId) return;
@@ -86,7 +89,7 @@ export const ModuleEmptyState = observer(function ModuleEmptyState() {
                 label: "Clear filters",
                 onClick: moduleWorkItemFilter?.clearFilters,
                 disabled: !canPerformEmptyStateActions || !moduleWorkItemFilter,
-                variant: "secondary",
+                variant: "secondary" as const,
               },
             ]}
           />
@@ -96,19 +99,24 @@ export const ModuleEmptyState = observer(function ModuleEmptyState() {
             title={t("project_empty_state.module_work_items.title")}
             description={t("project_empty_state.module_work_items.description")}
             actions={[
-              {
-                label: t("project_empty_state.module_work_items.cta_primary"),
-                onClick: () => {
-                  toggleCreateIssueModal(true, EIssuesStoreType.MODULE);
-                },
-                disabled: !canPerformEmptyStateActions,
-                variant: "primary",
-              },
+              // hidden without Settings → Roles & access: Work items → Create
+              ...(canCreateWorkItems
+                ? [
+                    {
+                      label: t("project_empty_state.module_work_items.cta_primary"),
+                      onClick: () => {
+                        toggleCreateIssueModal(true, EIssuesStoreType.MODULE);
+                      },
+                      disabled: !canPerformEmptyStateActions,
+                      variant: "primary" as const,
+                    },
+                  ]
+                : []),
               {
                 label: t("project_empty_state.module_work_items.cta_secondary"),
                 onClick: () => setModuleIssuesListModal(true),
                 disabled: !canPerformEmptyStateActions,
-                variant: "secondary",
+                variant: "secondary" as const,
               },
             ]}
           />

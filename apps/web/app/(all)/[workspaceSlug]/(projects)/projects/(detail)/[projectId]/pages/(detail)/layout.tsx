@@ -9,6 +9,7 @@ import { Outlet } from "react-router";
 import useSWR from "swr";
 import { AppHeader } from "@/components/core/app-header";
 import { ContentWrapper } from "@/components/core/content-wrapper";
+import { PagesAccessSync } from "@/components/pages/pages-access-sync";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
 // local components
@@ -22,6 +23,8 @@ export default function ProjectPageDetailsLayout({ params }: Route.ComponentProp
   useSWR(`PROJECT_PAGES_${projectId}`, () => fetchPagesList(workspaceSlug, projectId));
   return (
     <>
+      {/* Settings → Roles & access for the pages screens */}
+      <PagesAccessSync />
       <AppHeader header={<PageDetailsHeader />} />
       <ContentWrapper>
         <Outlet />

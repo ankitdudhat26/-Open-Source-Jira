@@ -14,6 +14,7 @@ import { EIssuesStoreType, EUserProjectRoles } from "@plane/types";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkItemFilterInstance } from "@/hooks/store/work-item-filters/use-work-item-filter-instance";
 
 export const ProjectEmptyState = observer(function ProjectEmptyState() {
@@ -32,6 +33,8 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  const { can } = useFeatureAccess();
+  const canCreateWorkItems = can("work_items", "create", canPerformEmptyStateActions, projectId);
 
   return (
     <div className="relative h-full w-full overflow-y-auto">
@@ -54,16 +57,21 @@ export const ProjectEmptyState = observer(function ProjectEmptyState() {
           assetKey="work-item"
           title={t("project_empty_state.work_items.title")}
           description={t("project_empty_state.work_items.description")}
-          actions={[
-            {
-              label: t("project_empty_state.work_items.cta_primary"),
-              onClick: () => {
-                toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
-              },
-              disabled: !canPerformEmptyStateActions,
-              variant: "primary",
-            },
-          ]}
+          // hidden without Settings → Roles & access: Work items → Create
+          actions={
+            canCreateWorkItems
+              ? [
+                  {
+                    label: t("project_empty_state.work_items.cta_primary"),
+                    onClick: () => {
+                      toggleCreateIssueModal(true, EIssuesStoreType.PROJECT);
+                    },
+                    disabled: !canPerformEmptyStateActions,
+                    variant: "primary",
+                  },
+                ]
+              : []
+          }
         />
       )}
     </div>

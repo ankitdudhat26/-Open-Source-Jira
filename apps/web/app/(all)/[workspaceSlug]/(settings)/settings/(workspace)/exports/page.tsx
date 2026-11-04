@@ -17,6 +17,7 @@ import { SettingsHeading } from "@/components/settings/heading";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { ExportsWorkspaceSettingsHeader } from "./header";
 
@@ -27,9 +28,12 @@ function ExportsPage() {
   const { t } = useTranslation();
 
   // derived values
-  const canPerformWorkspaceMemberActions = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
+  // Settings → Roles & access can take exporting away (Exports → Create): the page then shows not authorized
+  const { can } = useFeatureAccess();
+  const canPerformWorkspaceMemberActions = can(
+    "exports",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.WORKSPACE)
   );
   const pageTitle = currentWorkspace?.name
     ? `${currentWorkspace.name} - ${t("workspace_settings.settings.exports.title")}`

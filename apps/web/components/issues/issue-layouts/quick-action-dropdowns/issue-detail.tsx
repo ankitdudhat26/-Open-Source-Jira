@@ -31,6 +31,7 @@ import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/bloc
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useUserPermissions } from "@/hooks/store/user";
 // helper
 import { ArchiveIssueModal } from "../../archive-issue-modal";
@@ -77,6 +78,8 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
   const [_, setDuplicateWorkItemModal] = useState(false);
   // store hooks
   const { allowPermissions } = useUserPermissions();
+  // Settings → Roles & access: Work items → Edit / Delete, in the work item's project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   const { issuesFilter } = useIssues(EIssuesStoreType.PROJECT);
   const { getStateById } = useProjectState();
   const { getProjectIdentifierById } = useProject();
@@ -93,13 +96,13 @@ export const WorkItemDetailQuickActions = observer(function WorkItemDetailQuickA
       issue.project_id ?? undefined
     ) && !readOnly;
   // a client edits (and copies) the work items they created; archiving and deleting stay with members and admins
-  const isEditingAllowed = isMemberEditingAllowed;
+  const isEditingAllowed = can("work_items", "edit", isMemberEditingAllowed, issue.project_id ?? undefined);
 
-  const isArchivingAllowed = !issue.archived_at && isMemberEditingAllowed;
+  const isArchivingAllowed = !issue.archived_at && isEditingAllowed;
   const isInArchivableGroup = !!stateDetails && ARCHIVABLE_STATE_GROUPS.includes(stateDetails?.group);
-  const isRestoringAllowed = !!issue.archived_at && isMemberEditingAllowed;
+  const isRestoringAllowed = !!issue.archived_at && isEditingAllowed;
 
-  const isDeletingAllowed = isMemberEditingAllowed;
+  const isDeletingAllowed = can("work_items", "delete", isMemberEditingAllowed, issue.project_id ?? undefined);
 
   const duplicateIssuePayload = omit(
     {

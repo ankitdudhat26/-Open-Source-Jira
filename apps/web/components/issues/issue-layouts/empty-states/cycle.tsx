@@ -21,6 +21,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkItemFilterInstance } from "@/hooks/store/work-item-filters/use-work-item-filter-instance";
 
 export const CycleEmptyState = observer(function CycleEmptyState() {
@@ -47,6 +48,8 @@ export const CycleEmptyState = observer(function CycleEmptyState() {
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  const { can } = useFeatureAccess();
+  const canCreateWorkItems = can("work_items", "create", canPerformEmptyStateActions, projectId);
 
   const handleAddIssuesToCycle = async (data: ISearchIssueResponse[]) => {
     if (!workspaceSlug || !projectId || !cycleId) return;
@@ -99,7 +102,7 @@ export const CycleEmptyState = observer(function CycleEmptyState() {
                 label: "Clear filters",
                 onClick: cycleWorkItemFilter?.clearFilters,
                 disabled: !canPerformEmptyStateActions || !cycleWorkItemFilter,
-                variant: "secondary",
+                variant: "secondary" as const,
               },
             ]}
           />
@@ -109,19 +112,24 @@ export const CycleEmptyState = observer(function CycleEmptyState() {
             title={t("project_empty_state.cycle_work_items.title")}
             description={t("project_empty_state.cycle_work_items.description")}
             actions={[
-              {
-                label: t("project_empty_state.cycle_work_items.cta_primary"),
-                onClick: () => {
-                  toggleCreateIssueModal(true, EIssuesStoreType.CYCLE);
-                },
-                disabled: !canPerformEmptyStateActions,
-                variant: "primary",
-              },
+              // hidden without Settings → Roles & access: Work items → Create
+              ...(canCreateWorkItems
+                ? [
+                    {
+                      label: t("project_empty_state.cycle_work_items.cta_primary"),
+                      onClick: () => {
+                        toggleCreateIssueModal(true, EIssuesStoreType.CYCLE);
+                      },
+                      disabled: !canPerformEmptyStateActions,
+                      variant: "primary" as const,
+                    },
+                  ]
+                : []),
               {
                 label: t("project_empty_state.cycle_work_items.cta_secondary"),
                 onClick: () => setCycleIssuesListModal(true),
                 disabled: !canPerformEmptyStateActions,
-                variant: "secondary",
+                variant: "secondary" as const,
               },
             ]}
           />

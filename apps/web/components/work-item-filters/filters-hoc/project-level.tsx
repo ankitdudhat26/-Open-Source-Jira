@@ -25,6 +25,7 @@ import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useProjectView } from "@/hooks/store/use-project-view";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useProjectMilestones, useProjectWorkItemTypes } from "@/hooks/use-project-milestones";
 // local imports
 import { WorkItemFiltersHOC } from "./base";
@@ -49,6 +50,7 @@ export const ProjectLevelWorkItemFiltersHOC = observer(function ProjectLevelWork
   const { getViewById, updateView } = useProjectView();
   const { data: currentUser } = useUser();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug);
   const { getProjectCycleIds } = useCycle();
   const { getProjectLabelIds } = useLabel();
   const {
@@ -72,8 +74,11 @@ export const ProjectLevelWorkItemFiltersHOC = observer(function ProjectLevelWork
       projectDetails?.issue_views_view === true &&
       enableSaveView &&
       !props.saveViewOptions?.isDisabled &&
-      hasProjectMemberLevelPermissions,
+      // Settings → Roles & access: Views → Create
+      can("views", "create", hasProjectMemberLevelPermissions, projectId),
     [
+      can,
+      projectId,
       projectDetails?.issue_views_view,
       enableSaveView,
       props.saveViewOptions?.isDisabled,
@@ -85,9 +90,12 @@ export const ProjectLevelWorkItemFiltersHOC = observer(function ProjectLevelWork
       enableUpdateView &&
       !props.updateViewOptions?.isDisabled &&
       !isViewLocked &&
-      hasProjectMemberLevelPermissions &&
+      // Settings → Roles & access: Views → Edit
+      can("views", "edit", hasProjectMemberLevelPermissions, projectId) &&
       isCurrentUserOwner,
     [
+      can,
+      projectId,
       enableUpdateView,
       props.updateViewOptions?.isDisabled,
       isViewLocked,

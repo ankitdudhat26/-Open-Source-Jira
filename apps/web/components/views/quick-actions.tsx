@@ -23,6 +23,7 @@ import { copyUrlToClipboard } from "@plane/utils";
 import { useViewMenuItems } from "@/components/common/quick-actions-helper";
 // hooks
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useViewPublish } from "@/components/views/publish";
 // local imports
 import { DeleteProjectViewModal } from "./delete-view-modal";
@@ -54,6 +55,8 @@ export const ViewQuickActions = observer(function ViewQuickActions(props: Props)
   // auth
   const isOwner = view?.owned_by === data?.id;
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
+  // Settings → Roles & access hides what the role may not do, in every project (on top of owner / admin rules)
+  const { can } = useFeatureAccess(workspaceSlug);
 
   const { publishContextMenu } = useViewPublish(!!view.anchor, isAdmin || isOwner);
 
@@ -72,6 +75,8 @@ export const ViewQuickActions = observer(function ViewQuickActions(props: Props)
   const menuResult = useViewMenuItems({
     isOwner,
     isAdmin,
+    canEdit: can("views", "edit", true, projectId),
+    canDelete: can("views", "delete", true, projectId),
     workspaceSlug,
     projectId,
     view,

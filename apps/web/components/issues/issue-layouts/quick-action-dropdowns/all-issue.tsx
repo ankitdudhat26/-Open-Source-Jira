@@ -30,6 +30,7 @@ import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/bloc
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // helper
 import { ArchiveIssueModal } from "../../archive-issue-modal";
 import { DeleteIssueModal } from "../../delete-issue-modal";
@@ -65,9 +66,11 @@ export const AllIssueQuickActions = observer(function AllIssueQuickActions(props
   const { t } = useTranslation();
   const { getStateById } = useProjectState();
   const { getProjectIdentifierById } = useProject();
+  // Settings → Roles & access: Work items → Edit / Delete, in the work item's project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   // derived values
   const stateDetails = getStateById(issue.state_id);
-  const isEditingAllowed = !readOnly;
+  const isEditingAllowed = can("work_items", "edit", !readOnly, issue.project_id ?? undefined);
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);
   // auth
   const isArchivingAllowed = handleArchive && isEditingAllowed;
@@ -90,7 +93,7 @@ export const AllIssueQuickActions = observer(function AllIssueQuickActions(props
     activeLayout: "Global issues",
     isEditingAllowed,
     isArchivingAllowed,
-    isDeletingAllowed: isEditingAllowed,
+    isDeletingAllowed: can("work_items", "delete", !readOnly, issue.project_id ?? undefined),
     isInArchivableGroup,
     setIssueToEdit,
     setCreateUpdateIssueModal,

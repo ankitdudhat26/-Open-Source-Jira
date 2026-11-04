@@ -16,6 +16,7 @@ import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SettingsHeading } from "@/components/settings/heading";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import { CustomFieldsProjectSettingsHeader } from "./header";
 
@@ -23,7 +24,8 @@ function CustomFieldsSettingsPage() {
   const { workspaceSlug, projectId } = useParams();
   const { workspaceUserInfo, allowPermissions } = useUserPermissions();
   const canView = allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT);
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Project settings → Edit, the same in every project
+  const { canEditSettings: isAdmin } = useProjectAccess(workspaceSlug, projectId);
 
   if (workspaceUserInfo && !canView) return <NotAuthorizedView section="settings" isProjectView className="h-auto" />;
 

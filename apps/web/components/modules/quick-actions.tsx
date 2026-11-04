@@ -23,6 +23,7 @@ import { ArchiveModuleModal, CreateUpdateModuleModal, DeleteModuleModal } from "
 // hooks
 import { useModule } from "@/hooks/store/use-module";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 
 type Props = {
@@ -51,12 +52,16 @@ export const ModuleQuickActions = observer(function ModuleQuickActions(props: Pr
   // derived values
   const moduleDetails = getModuleById(moduleId);
   // auth
-  const isEditingAllowed = allowPermissions(
+  const isProjectMember = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT,
     workspaceSlug,
     projectId
   );
+  // Settings → Roles & access hides what the role may not do, in every project
+  const { can } = useFeatureAccess(workspaceSlug);
+  const isEditingAllowed = can("modules", "edit", isProjectMember, projectId);
+  const isDeletingAllowed = can("modules", "delete", isProjectMember, projectId);
 
   const moduleLink = `${workspaceSlug}/projects/${projectId}/modules/${moduleId}`;
   const handleCopyText = () =>
@@ -66,6 +71,7 @@ export const ModuleQuickActions = observer(function ModuleQuickActions(props: Pr
         title: "Link Copied!",
         message: "Module link copied to clipboard.",
       });
+      return undefined;
     });
   const handleOpenInNewTab = () => window.open(`/${moduleLink}`, "_blank");
 
@@ -94,6 +100,7 @@ export const ModuleQuickActions = observer(function ModuleQuickActions(props: Pr
     projectId,
     moduleId,
     isEditingAllowed,
+    isDeletingAllowed,
     handleEdit: () => setEditModal(true),
     handleArchive: () => setArchiveModuleModal(true),
     handleRestore: handleRestoreModule,

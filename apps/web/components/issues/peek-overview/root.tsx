@@ -19,6 +19,7 @@ import { EIssueServiceType, EIssuesStoreType } from "@plane/types";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useWorkItemProperties } from "@/hooks/use-issue-properties";
 // local imports
@@ -37,6 +38,7 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
   const pathname = usePathname();
   // store hook
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess();
 
   const {
     issues: { restoreIssue },
@@ -234,10 +236,16 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
 
   // Check if issue is editable, based on user role
   // a client edits the work items they created
-  const isEditable = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    peekIssue?.workspaceSlug,
+  // and Settings → Roles & access: Work items → Edit
+  const isEditable = can(
+    "work_items",
+    "edit",
+    allowPermissions(
+      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+      EUserPermissionsLevel.PROJECT,
+      peekIssue?.workspaceSlug,
+      peekIssue?.projectId
+    ),
     peekIssue?.projectId
   );
 

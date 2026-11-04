@@ -23,6 +23,7 @@ from plane.db.models import (
     Project,
     ProjectMember,
     User,
+    WorkspaceAccessPolicy,
     WorkspaceMember,
 )
 
@@ -131,6 +132,8 @@ class TestProjectMemberIsActiveAuthz:
         # role-comparison guard rather than the workspace-admin bypass.
         _add_member(workspace, project, admin, ws_role=15, project_role=20)
         target_member = _add_member(workspace, project, target, ws_role=15, project_role=15)
+        # Settings → Roles & access apply to them in every project: allow Members to change project members
+        WorkspaceAccessPolicy.objects.create(workspace=workspace, rules={"member": {"project_members": {"edit": True}}})
 
         client = APIClient()
         client.force_authenticate(user=admin)

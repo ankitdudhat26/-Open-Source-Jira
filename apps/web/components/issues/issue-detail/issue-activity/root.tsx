@@ -26,6 +26,7 @@ import { CommentCreate } from "@/components/comments/comment-create";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { IssueActivityCommentRoot } from "./activity-comment-root";
 import { useWorkItemCommentOperations } from "./helper";
@@ -61,12 +62,19 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
   const { getProjectById } = useProject();
   const { allowPermissions } = useUserPermissions();
   // clients (project guests) only view work items — no new comments
+  // and Settings → Roles & access: Comments → Create
+  const { can } = useFeatureAccess(workspaceSlug);
   const canComment =
     !disabled &&
-    allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      workspaceSlug,
+    can(
+      "comments",
+      "create",
+      allowPermissions(
+        [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+        EUserPermissionsLevel.PROJECT,
+        workspaceSlug,
+        projectId
+      ),
       projectId
     );
 

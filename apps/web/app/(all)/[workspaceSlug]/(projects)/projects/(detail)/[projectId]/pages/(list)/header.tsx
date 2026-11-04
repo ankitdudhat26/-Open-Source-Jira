@@ -21,6 +21,7 @@ import { Header } from "@plane/blocks/layout";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
@@ -38,6 +39,9 @@ export const PagesListHeader = observer(function PagesListHeader() {
   // store hooks
   const { currentProjectDetails, loader } = useProject();
   const { canCurrentUserCreatePage, createPage } = usePageStore(EPageStoreType.PROJECT);
+  // Settings → Roles & access: Pages → Create, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canCreatePage = can("pages", "create", canCurrentUserCreatePage, projectId?.toString());
   // handle page create
   const handleCreatePage = async () => {
     setIsCreatingPage(true);
@@ -84,7 +88,7 @@ export const PagesListHeader = observer(function PagesListHeader() {
           />
         </Breadcrumbs>
       </Header.LeftItem>
-      {canCurrentUserCreatePage && (
+      {canCreatePage && (
         <Header.RightItem>
           <Button
             variant="primary"

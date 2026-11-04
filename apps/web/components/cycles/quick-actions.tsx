@@ -21,6 +21,7 @@ import { copyUrlToClipboard } from "@plane/utils";
 import { useCycleMenuItems } from "@/components/common/quick-actions-helper";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { ArchiveCycleModal } from "./archived-cycles/modal";
@@ -50,12 +51,16 @@ export const CycleQuickActions = observer(function CycleQuickActions(props: Prop
   // derived values
   const cycleDetails = getCycleById(cycleId);
   // auth
-  const isEditingAllowed = allowPermissions(
+  const isProjectMember = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT,
     workspaceSlug,
     projectId
   );
+  // Settings → Roles & access hides what the role may not do, in every project
+  const { can } = useFeatureAccess(workspaceSlug);
+  const isEditingAllowed = can("sprints", "edit", isProjectMember, projectId);
+  const isDeletingAllowed = can("sprints", "delete", isProjectMember, projectId);
 
   const cycleLink = `${workspaceSlug}/projects/${projectId}/cycles/${cycleId}`;
   const handleCopyText = () =>
@@ -65,6 +70,7 @@ export const CycleQuickActions = observer(function CycleQuickActions(props: Prop
         title: t("common.link_copied"),
         message: t("common.link_copied_to_clipboard"),
       });
+      return undefined;
     });
   const handleOpenInNewTab = () => window.open(`/${cycleLink}`, "_blank");
 
@@ -77,6 +83,7 @@ export const CycleQuickActions = observer(function CycleQuickActions(props: Prop
           message: t("project_cycles.action.restore.success.description"),
         });
         router.push(`/${workspaceSlug}/projects/${projectId}/archives/cycles`);
+        return undefined;
       })
       .catch(() => {
         setToast({
@@ -92,6 +99,7 @@ export const CycleQuickActions = observer(function CycleQuickActions(props: Prop
     projectId,
     cycleId,
     isEditingAllowed,
+    isDeletingAllowed,
     handleEdit: () => setUpdateModal(true),
     handleArchive: () => setArchiveCycleModal(true),
     handleRestore: handleRestoreCycle,

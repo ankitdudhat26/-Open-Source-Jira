@@ -18,6 +18,7 @@ import { EUserProjectRoles } from "@plane/types";
 import { PageLoader } from "@/components/pages/loaders/page-loader";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
 
@@ -41,7 +42,7 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   // router
   const router = useRouter();
-  const { workspaceSlug } = useParams();
+  const { workspaceSlug, projectId } = useParams();
   // derived values
   const pageIds = getCurrentProjectPageIdsByTab(pageType);
   const filteredPageIds = getCurrentProjectFilteredPageIdsByTab(pageType);
@@ -49,6 +50,9 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  // Settings → Roles & access: Pages → Create, in every project — hidden when denied
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canCreatePage = can("pages", "create", true, projectId?.toString());
 
   // handle page create
   const handleCreatePage = async () => {
@@ -62,6 +66,7 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
       .then((res) => {
         const pageId = `/${workspaceSlug}/projects/${currentProjectDetails?.id}/pages/${res?.id}`;
         router.push(pageId);
+        return undefined;
       })
       .catch((err) => {
         setToast({
@@ -82,16 +87,20 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
           assetKey="page"
           title={t("project_empty_state.pages.title")}
           description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
+          actions={
+            canCreatePage
+              ? [
+                  {
+                    label: t("project_empty_state.pages.cta_primary"),
+                    onClick: () => {
+                      handleCreatePage();
+                    },
+                    variant: "primary",
+                    disabled: !canPerformEmptyStateActions || isCreatingPage,
+                  },
+                ]
+              : []
+          }
         />
       );
     }
@@ -101,16 +110,20 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
           assetKey="page"
           title={t("project_empty_state.pages.title")}
           description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
+          actions={
+            canCreatePage
+              ? [
+                  {
+                    label: t("project_empty_state.pages.cta_primary"),
+                    onClick: () => {
+                      handleCreatePage();
+                    },
+                    variant: "primary",
+                    disabled: !canPerformEmptyStateActions || isCreatingPage,
+                  },
+                ]
+              : []
+          }
         />
       );
     if (pageType === "private")
@@ -119,16 +132,20 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
           assetKey="page"
           title={t("project_empty_state.pages.title")}
           description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
+          actions={
+            canCreatePage
+              ? [
+                  {
+                    label: t("project_empty_state.pages.cta_primary"),
+                    onClick: () => {
+                      handleCreatePage();
+                    },
+                    variant: "primary",
+                    disabled: !canPerformEmptyStateActions || isCreatingPage,
+                  },
+                ]
+              : []
+          }
         />
       );
     if (pageType === "archived")

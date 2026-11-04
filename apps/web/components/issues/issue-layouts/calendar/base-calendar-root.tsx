@@ -20,6 +20,7 @@ import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // types
 import type { IQuickActionProps } from "../list/list-view-types";
 import { CalendarChart } from "./calendar";
@@ -80,6 +81,7 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
     EUserPermissionsLevel.PROJECT
   );
   // clients edit the work items they created
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
 
   const { enableInlineEditing } = issues?.viewFlags || {};
 
@@ -154,9 +156,10 @@ export const BaseCalendarRoot = observer(function BaseCalendarRoot(props: IBaseC
       const isEditingAllowedBasedOnProject =
         canEditPropertiesBasedOnProject && projectId ? canEditPropertiesBasedOnProject(projectId) : isEditingAllowed;
 
-      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
+      // Settings → Roles & access: Work items → Edit, per the work item's project
+      return !!enableInlineEditing && can("work_items", "edit", isEditingAllowedBasedOnProject, projectId);
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, can]
   );
 
   return (

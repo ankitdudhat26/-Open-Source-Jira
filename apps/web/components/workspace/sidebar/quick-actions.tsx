@@ -19,6 +19,7 @@ import { SidebarAddButton } from "@/components/sidebar/add-button";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import useLocalStorage from "@/hooks/use-local-storage";
 
 export const SidebarQuickActions = observer(function SidebarQuickActions() {
@@ -30,7 +31,7 @@ export const SidebarQuickActions = observer(function SidebarQuickActions() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const timeoutRef = useRef<any>(undefined);
   // router
-  const { workspaceSlug: routerWorkspaceSlug } = useParams();
+  const { workspaceSlug: routerWorkspaceSlug, projectId: routerProjectId } = useParams();
   const workspaceSlug = routerWorkspaceSlug?.toString();
   // store hooks
   const { toggleCreateIssueModal } = useCommandPalette();
@@ -45,6 +46,9 @@ export const SidebarQuickActions = observer(function SidebarQuickActions() {
     EUserPermissionsLevel.WORKSPACE
   );
   const disabled = joinedProjectIds.length === 0 || !canCreateIssue;
+  // hidden where Settings → Roles & access denies Work items → Create (in the open project, else for their role)
+  const { can } = useFeatureAccess(workspaceSlug);
+  const isCreateAllowed = can("work_items", "create", true, routerProjectId?.toString());
   const workspaceDraftIssue = workspaceSlug ? (storedValue?.[workspaceSlug] ?? undefined) : undefined;
 
   const handleMouseEnter = () => {
@@ -78,20 +82,22 @@ export const SidebarQuickActions = observer(function SidebarQuickActions() {
         fetchIssueDetails={false}
         isDraft
       />
-      <div className="flex cursor-pointer items-center justify-between gap-2">
-        <SidebarAddButton
-          label={
-            <>
-              <AddWorkItemOutline className="size-4" />
-              <span className="max-w-[145px] truncate text-13 font-medium">{t("sidebar.new_work_item")}</span>
-            </>
-          }
-          onClick={() => toggleCreateIssueModal(true)}
-          disabled={disabled}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        />
-      </div>
+      {isCreateAllowed && (
+        <div className="flex cursor-pointer items-center justify-between gap-2">
+          <SidebarAddButton
+            label={
+              <>
+                <AddWorkItemOutline className="size-4" />
+                <span className="max-w-[145px] truncate text-13 font-medium">{t("sidebar.new_work_item")}</span>
+              </>
+            }
+            onClick={() => toggleCreateIssueModal(true)}
+            disabled={disabled}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          />
+        </div>
+      )}
     </>
   );
 });

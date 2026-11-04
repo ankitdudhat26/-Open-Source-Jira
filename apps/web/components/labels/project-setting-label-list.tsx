@@ -8,7 +8,6 @@ import { useState, useRef } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@makeplane/propel/components/button";
 import { EmptyStateCompact } from "@plane/blocks/empty-state";
@@ -23,7 +22,7 @@ import {
 } from "@/components/labels";
 // hooks
 import { useLabel } from "@/hooks/store/use-label";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import { SettingsHeading } from "../settings/heading";
 
@@ -40,9 +39,12 @@ export const ProjectSettingsLabelList = observer(function ProjectSettingsLabelLi
   const { t } = useTranslation();
   // store hooks
   const { projectLabels, updateLabelPosition, projectLabelsTree, createLabel, updateLabel } = useLabel();
-  const { allowPermissions } = useUserPermissions();
   // derived values
-  const isEditable = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Project settings → Edit (else a project admin), the same in every project
+  const { canEditSettings: isEditable } = useProjectAccess(
+    workspaceSlug?.toString() ?? "",
+    projectId?.toString() ?? ""
+  );
   const labelOperationsCallbacks: TLabelOperationsCallbacks = {
     createLabel: (data: Partial<IIssueLabel>) => createLabel(workspaceSlug?.toString(), projectId?.toString(), data),
     updateLabel: (labelId: string, data: Partial<IIssueLabel>) =>
@@ -131,7 +133,7 @@ export const ProjectSettingsLabelList = observer(function ProjectSettingsLabelLi
                     key={label.id}
                     label={label}
                     labelChildren={label.children || []}
-                    handleLabelDelete={(label: IIssueLabel) => setSelectDeleteLabel(label)}
+                    handleLabelDelete={(labelToDelete: IIssueLabel) => setSelectDeleteLabel(labelToDelete)}
                     isUpdating={isUpdating}
                     setIsUpdating={setIsUpdating}
                     isLastChild={index === projectLabelsTree.length - 1}
@@ -146,7 +148,7 @@ export const ProjectSettingsLabelList = observer(function ProjectSettingsLabelLi
                   label={label}
                   key={label.id}
                   setIsUpdating={setIsUpdating}
-                  handleLabelDelete={(label) => setSelectDeleteLabel(label)}
+                  handleLabelDelete={(labelToDelete) => setSelectDeleteLabel(labelToDelete)}
                   isChild={false}
                   isLastChild={index === projectLabelsTree.length - 1}
                   onDrop={onDrop}

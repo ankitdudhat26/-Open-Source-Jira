@@ -11,13 +11,12 @@ import { mutate } from "swr";
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { AddOutline, DeleteOutline, EditOutline, MilestoneOutline } from "@makeplane/propel/icons";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { TDeliverable } from "@plane/types";
 import { cn } from "@plane/utils";
 // hooks
-import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureActions } from "@/hooks/use-feature-access";
 import {
   PROJECT_DELIVERABLES,
   PROJECT_MILESTONES,
@@ -44,11 +43,11 @@ export const DeliverablesTable = observer(function DeliverablesTable(props: Prop
   const [deleteTarget, setDeleteTarget] = useState<TDeliverable | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   // hooks
-  const { allowPermissions } = useUserPermissions();
   const { milestones } = useProjectMilestones(workspaceSlug, projectId);
   const { deliverables, isLoading } = useProjectDeliverables(workspaceSlug, projectId);
   // derived values
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access, the same in every project
+  const { canCreate, canEdit, canDelete } = useFeatureActions("deliverables", workspaceSlug, projectId);
   const milestoneOrder = new Map((milestones ?? []).map((milestone, index) => [milestone.id, index]));
   // in milestone order, deliverables without a milestone last
   // copy is sorted, the source array is left untouched (toSorted needs ES2023)
@@ -78,7 +77,7 @@ export const DeliverablesTable = observer(function DeliverablesTable(props: Prop
       <div className="flex items-center gap-2 border-b border-subtle px-page-x py-2.5">
         <span className="text-caption-sm-regular text-tertiary">Deliverables</span>
         <span className="text-body-xs-medium text-primary">{deliverables?.length ?? 0}</span>
-        {isAdmin && (
+        {canCreate && (
           <div className="ml-auto">
             <Button
               variant="secondary"
@@ -144,23 +143,23 @@ export const DeliverablesTable = observer(function DeliverablesTable(props: Prop
                     )}
                   </span>
                   <span className="flex justify-end gap-0.5 pr-2">
-                    {isAdmin && (
-                      <>
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          icon={<EditOutline />}
-                          aria-label={`Edit ${deliverable.name}`}
-                          onClick={() => setModal({ isOpen: true, data: deliverable })}
-                        />
-                        <IconButton
-                          variant="ghost"
-                          size="sm"
-                          icon={<DeleteOutline />}
-                          aria-label={`Delete ${deliverable.name}`}
-                          onClick={() => setDeleteTarget(deliverable)}
-                        />
-                      </>
+                    {canEdit && (
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        icon={<EditOutline />}
+                        aria-label={`Edit ${deliverable.name}`}
+                        onClick={() => setModal({ isOpen: true, data: deliverable })}
+                      />
+                    )}
+                    {canDelete && (
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        icon={<DeleteOutline />}
+                        aria-label={`Delete ${deliverable.name}`}
+                        onClick={() => setDeleteTarget(deliverable)}
+                      />
                     )}
                   </span>
                 </div>

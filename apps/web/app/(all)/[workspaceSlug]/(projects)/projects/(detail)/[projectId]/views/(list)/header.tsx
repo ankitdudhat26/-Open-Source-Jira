@@ -16,6 +16,7 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { ViewListHeader } from "@/components/views/view-list-header";
 // hooks
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useProject } from "@/hooks/store/use-project";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
@@ -27,6 +28,9 @@ export const ProjectViewsHeader = observer(function ProjectViewsHeader() {
   // store hooks
   const { toggleCreateViewModal } = useCommandPalette();
   const { loader } = useProject();
+  // Settings → Roles & access: Views → Create, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canCreateView = can("views", "create", true, projectId?.toString());
 
   return (
     <>
@@ -53,15 +57,17 @@ export const ProjectViewsHeader = observer(function ProjectViewsHeader() {
         </Header.LeftItem>
         <Header.RightItem>
           <ViewListHeader />
-          <div>
-            <Button
-              variant="primary"
-              size="md"
-              stretch="auto"
-              label="Add view"
-              onClick={() => toggleCreateViewModal(true)}
-            />
-          </div>
+          {canCreateView && (
+            <div>
+              <Button
+                variant="primary"
+                size="md"
+                stretch="auto"
+                label="Add view"
+                onClick={() => toggleCreateViewModal(true)}
+              />
+            </div>
+          )}
         </Header.RightItem>
       </Header>
     </>

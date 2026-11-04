@@ -23,6 +23,7 @@ import { IssueLayoutIcon } from "@/components/issues/issue-layouts/layout-icon";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useProject } from "@/hooks/store/use-project";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 const SUPPORTED_LAYOUTS = [
   { key: "list", titleTranslationKey: "issue.layouts.list", icon: ListOutline },
@@ -35,6 +36,9 @@ export const CycleIssuesMobileHeader = observer(function CycleIssuesMobileHeader
   const { workspaceSlug, projectId, cycleId } = useParams();
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
+  // Settings → Roles & access can hide Analytics (Analytics → View)
+  const { can: canAccess } = useFeatureAccess();
+  const canSeeAnalytics = canAccess("analytics", "view", true);
   // plane hooks
   const { t } = useTranslation();
   // store hooks
@@ -143,13 +147,15 @@ export const CycleIssuesMobileHeader = observer(function CycleIssuesMobileHeader
           </FiltersDropdown>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setAnalyticsModal(true)}
-          className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
-        >
-          {t("common.analytics")}
-        </button>
+        {canSeeAnalytics && (
+          <button
+            type="button"
+            onClick={() => setAnalyticsModal(true)}
+            className="flex flex-grow justify-center border-l border-subtle text-13 text-secondary"
+          >
+            {t("common.analytics")}
+          </button>
+        )}
       </div>
     </>
   );

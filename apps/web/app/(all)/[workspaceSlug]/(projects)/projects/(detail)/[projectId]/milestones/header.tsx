@@ -8,7 +8,6 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Button } from "@makeplane/propel/components/button";
 import { ImportsOutline, MilestoneOutline } from "@makeplane/propel/icons";
 import { Breadcrumbs } from "@plane/blocks/breadcrumb";
@@ -20,7 +19,7 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { MilestoneFormModal, SOWImportModal } from "@/components/milestones";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureActions } from "@/hooks/use-feature-access";
 
 export const MilestonesListHeader = observer(function MilestonesListHeader() {
   // router
@@ -31,9 +30,9 @@ export const MilestonesListHeader = observer(function MilestonesListHeader() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   // store hooks
   const { loader } = useProject();
-  const { allowPermissions } = useUserPermissions();
   // derived values
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Milestones → Create (add one, import the SOW), the same in every project
+  const { canCreate } = useFeatureActions("milestones", workspaceSlug?.toString() ?? "", projectId?.toString() ?? "");
 
   return (
     <Header>
@@ -59,7 +58,7 @@ export const MilestonesListHeader = observer(function MilestonesListHeader() {
           </Breadcrumbs>
         </div>
       </Header.LeftItem>
-      {isAdmin && workspaceSlug && projectId && (
+      {canCreate && workspaceSlug && projectId && (
         <Header.RightItem>
           <Button
             variant="secondary"

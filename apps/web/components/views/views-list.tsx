@@ -18,6 +18,7 @@ import { ViewListLoader } from "@/components/ui/loader/view-list-loader";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProjectView } from "@/hooks/store/use-project-view";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { ProjectViewListItem } from "./view-list-item";
 
@@ -36,6 +37,9 @@ export const ProjectViewsList = observer(function ProjectViewsList() {
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER, EUserProjectRoles.GUEST],
     EUserPermissionsLevel.PROJECT
   );
+  // Settings → Roles & access: Views → Create, in every project — hidden when denied
+  const { can } = useFeatureAccess();
+  const canCreateView = can("views", "create", true, projectId?.toString());
 
   if (loader || !projectViews || !filteredProjectViews) return <ViewListLoader />;
 
@@ -66,14 +70,18 @@ export const ProjectViewsList = observer(function ProjectViewsList() {
           assetKey="view"
           title={t("project_empty_state.views.title")}
           description={t("project_empty_state.views.description")}
-          actions={[
-            {
-              label: t("project_empty_state.views.cta_primary"),
-              onClick: () => toggleCreateViewModal(true),
-              disabled: !canPerformEmptyStateActions,
-              variant: "primary",
-            },
-          ]}
+          actions={
+            canCreateView
+              ? [
+                  {
+                    label: t("project_empty_state.views.cta_primary"),
+                    onClick: () => toggleCreateViewModal(true),
+                    disabled: !canPerformEmptyStateActions,
+                    variant: "primary",
+                  },
+                ]
+              : []
+          }
         />
       )}
     </>

@@ -22,6 +22,7 @@ import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local components
 import { IssuePeekOverview } from "../peek-overview";
@@ -81,6 +82,7 @@ export const IssueDetailRoot = observer(function IssueDetailRoot(props: TIssueDe
     issues: { removeIssue: removeArchivedIssue },
   } = useIssues(EIssuesStoreType.ARCHIVED);
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug);
   const { issueDetailSidebarCollapsed } = useAppTheme();
 
   const issueOperations: TIssueOperations = useMemo(
@@ -224,10 +226,16 @@ export const IssueDetailRoot = observer(function IssueDetailRoot(props: TIssueDe
   // issue details
   const issue = getIssueById(issueId);
   // checking if issue is editable, based on user role (a client edits the work items they created)
-  const isEditable = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
+  // and Settings → Roles & access: Work items → Edit
+  const isEditable = can(
+    "work_items",
+    "edit",
+    allowPermissions(
+      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+      EUserPermissionsLevel.PROJECT,
+      workspaceSlug,
+      projectId
+    ),
     projectId
   );
 

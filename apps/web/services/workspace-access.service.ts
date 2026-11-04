@@ -55,6 +55,8 @@ export type TMyAccess = {
   is_sub_admin: boolean;
   rules: Partial<Record<TAccessRole, TAccessCells>>;
   custom_access: TAccessCells;
+  /** the built-in rules of Sub Admins and Members, which apply where nothing is set (empty for admins) */
+  defaults: Partial<Record<TAccessRole, Record<string, Partial<Record<TAccessAction, boolean>>>>>;
 };
 
 const unwrap = <T>(promise: Promise<{ data: T }>): Promise<T> =>
@@ -84,6 +86,15 @@ export class WorkspaceAccessService extends APIService {
     return unwrap(this.patch(this.url(workspaceSlug), data));
   }
 
+  /** several cells of one role, saved together */
+  setRoleCells(
+    workspaceSlug: string,
+    role: TAccessRole,
+    cells: { feature: string; action: TAccessAction; allowed: boolean }[]
+  ): Promise<{ rules: TWorkspaceAccess["rules"] }> {
+    return unwrap(this.patch(this.url(workspaceSlug), { role, cells }));
+  }
+
   resetRole(workspaceSlug: string, role: TAccessRole): Promise<{ rules: TWorkspaceAccess["rules"] }> {
     return unwrap(this.delete(`${this.url(workspaceSlug)}?role=${role}`));
   }
@@ -102,6 +113,15 @@ export class WorkspaceAccessService extends APIService {
     data: { feature: string; action: TAccessAction; value: "allow" | "deny" | "default" }
   ): Promise<TPersonAccess> {
     return unwrap(this.patch(`${this.url(workspaceSlug)}people/${memberId}/`, data));
+  }
+
+  /** several cells of one person's custom access, saved together */
+  setPersonCells(
+    workspaceSlug: string,
+    memberId: string,
+    cells: { feature: string; action: TAccessAction; value: "allow" | "deny" | "default" }[]
+  ): Promise<TPersonAccess> {
+    return unwrap(this.patch(`${this.url(workspaceSlug)}people/${memberId}/`, { cells }));
   }
 
   resetPerson(workspaceSlug: string, memberId: string): Promise<TPersonAccess> {

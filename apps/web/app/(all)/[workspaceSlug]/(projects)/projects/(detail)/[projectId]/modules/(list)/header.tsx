@@ -21,6 +21,7 @@ import { ModuleViewHeader } from "@/components/modules";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
@@ -38,9 +39,13 @@ export const ModulesListHeader = observer(function ModulesListHeader() {
   const { t } = useTranslation();
 
   // auth
-  const canUserCreateModule = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Modules → Create, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canUserCreateModule = can(
+    "modules",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   return (

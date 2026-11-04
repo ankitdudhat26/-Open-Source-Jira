@@ -20,6 +20,7 @@ import { joinUrlPath } from "@plane/utils";
 import { SettingsSidebarItem } from "@/components/settings/sidebar/item";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 // local imports
 import { WORKSPACE_SETTINGS_ICONS } from "./item-icon";
@@ -31,6 +32,7 @@ export const WorkspaceSettingsSidebarItemCategories = observer(function Workspac
   // store hooks
   const { allowPermissions } = useUserPermissions();
   const { canInviteMembers } = useWorkspaceRoleAccess();
+  const { can } = useFeatureAccess(workspaceSlug);
   // translation
   const { t } = useTranslation();
 
@@ -38,11 +40,13 @@ export const WorkspaceSettingsSidebarItemCategories = observer(function Workspac
     <div className="mt-3 flex flex-col divide-y divide-subtle px-3">
       {WORKSPACE_SETTINGS_CATEGORIES.map((category) => {
         const categoryItems = GROUPED_WORKSPACE_SETTINGS[category];
-        const accessibleItems = categoryItems.filter(
-          (item) =>
+        const accessibleItems = categoryItems.filter((item) => {
+          const byRole =
             allowPermissions(item.access, EUserPermissionsLevel.WORKSPACE, workspaceSlug) ||
-            (canInviteMembers && item.subAdminAccess)
-        );
+            (canInviteMembers && !!item.subAdminAccess);
+          // Settings → Roles & access can take exporting away (Exports → Create)
+          return item.key === "export" ? can("exports", "create", byRole) : byRole;
+        });
 
         if (accessibleItems.length === 0) return null;
 

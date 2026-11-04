@@ -17,6 +17,7 @@ import { SettingsHeading } from "@/components/settings/heading";
 // hook
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import type { Route } from "./+types/page";
 import { StatesProjectSettingsHeader } from "./header";
@@ -32,6 +33,8 @@ function StatesSettingsPage({ params }: Route.ComponentProps) {
   // derived values
   const pageTitle = currentProjectDetails?.name ? `${currentProjectDetails?.name} - States & workflow` : undefined;
   // derived values
+  // Settings → Roles & access: Project settings → Edit, the same in every project
+  const { canEditSettings } = useProjectAccess(workspaceSlug, projectId);
   const canPerformProjectMemberActions = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
@@ -52,11 +55,7 @@ function StatesSettingsPage({ params }: Route.ComponentProps) {
         <div className="mt-6">
           <ProjectStateRoot workspaceSlug={workspaceSlug} projectId={projectId} />
         </div>
-        <ProjectWorkflowEditor
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          isEditable={allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT)}
-        />
+        <ProjectWorkflowEditor workspaceSlug={workspaceSlug} projectId={projectId} isEditable={canEditSettings} />
       </div>
     </SettingsContentWrapper>
   );

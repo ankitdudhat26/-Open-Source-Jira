@@ -6,7 +6,6 @@
 
 import { observer } from "mobx-react";
 // plane imports
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { setToast } from "@plane/blocks/toast";
 import type { IProject } from "@plane/types";
@@ -18,6 +17,7 @@ import { SettingsHeading } from "@/components/settings/heading";
 // hooks
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useProjectAccess } from "@/hooks/use-feature-access";
 // local imports
 import type { Route } from "./+types/page";
 import { AutomationsProjectSettingsHeader } from "./header";
@@ -26,13 +26,14 @@ function AutomationSettingsPage({ params }: Route.ComponentProps) {
   // router
   const { workspaceSlug, projectId } = params;
   // store hooks
-  const { workspaceUserInfo, allowPermissions } = useUserPermissions();
+  const { workspaceUserInfo } = useUserPermissions();
   const { currentProjectDetails: projectDetails, updateProject } = useProject();
 
   const { t } = useTranslation();
 
   // derived values
-  const canPerformProjectAdminActions = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access: Projects → Edit, the same in every project
+  const { canEditProject: canPerformProjectAdminActions } = useProjectAccess(workspaceSlug, projectId);
 
   const handleChange = async (formData: Partial<IProject>) => {
     if (!projectDetails) return;

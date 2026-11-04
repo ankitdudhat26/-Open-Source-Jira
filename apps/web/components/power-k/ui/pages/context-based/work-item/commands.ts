@@ -36,6 +36,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 export const usePowerKWorkItemContextBasedCommands = (): TPowerKCommandConfig[] => {
   // params
@@ -79,11 +80,18 @@ export const usePowerKWorkItemContextBasedCommands = (): TPowerKCommandConfig[] 
   const createEntitySubscription = isEpic ? createEpicSubscription : createSubscription;
   const removeEntitySubscription = isEpic ? removeEpicSubscription : removeSubscription;
   // permission
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  // Settings → Roles & access: Work items → Edit, in the work item's project
   const isEditingAllowed =
-    allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      workspaceSlug?.toString(),
+    can(
+      "work_items",
+      "edit",
+      allowPermissions(
+        [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+        EUserPermissionsLevel.PROJECT,
+        workspaceSlug?.toString(),
+        entityDetails?.project_id ?? undefined
+      ),
       entityDetails?.project_id ?? undefined
     ) && !entityDetails?.archived_at;
 
@@ -147,12 +155,12 @@ export const usePowerKWorkItemContextBasedCommands = (): TPowerKCommandConfig[] 
   const copyWorkItemIdToClipboard = useCallback(() => {
     const id = `${projectDetails?.identifier}-${entityDetails?.sequence_id}`;
     copyTextToClipboard(id)
-      .then(() => {
+      .then(() =>
         setToast({
           type: "success",
           title: t("power_k.contextual_actions.work_item.copy_id_toast_success"),
-        });
-      })
+        })
+      )
       .catch(() => {
         setToast({
           type: "error",
@@ -164,12 +172,12 @@ export const usePowerKWorkItemContextBasedCommands = (): TPowerKCommandConfig[] 
 
   const copyWorkItemTitleToClipboard = useCallback(() => {
     copyTextToClipboard(entityDetails?.name ?? "")
-      .then(() => {
+      .then(() =>
         setToast({
           type: "success",
           title: t("power_k.contextual_actions.work_item.copy_title_toast_success"),
-        });
-      })
+        })
+      )
       .catch(() => {
         setToast({
           type: "error",
@@ -182,12 +190,12 @@ export const usePowerKWorkItemContextBasedCommands = (): TPowerKCommandConfig[] 
   const copyWorkItemUrlToClipboard = useCallback(() => {
     const url = new URL(window.location.href);
     copyTextToClipboard(url.href)
-      .then(() => {
+      .then(() =>
         setToast({
           type: "success",
           title: t("power_k.contextual_actions.work_item.copy_url_toast_success"),
-        });
-      })
+        })
+      )
       .catch(() => {
         setToast({
           type: "error",

@@ -86,24 +86,27 @@ export const GroupItem = observer(function GroupItem(props: TGroupItem) {
           </span>
         }
         trailing={
-          <IconButton
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={t("common.add")}
-            disabled={isCreateDisabled}
-            onClick={() => {
-              if (!createState) {
-                handleExpand(groupKey);
-                setCreateState(true);
+          // hidden for those Settings → Roles & access does not let change states
+          isEditable && (
+            <IconButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={t("common.add")}
+              disabled={isCreateDisabled}
+              onClick={() => {
+                if (!createState) {
+                  handleExpand(groupKey);
+                  setCreateState(true);
+                }
+              }}
+              icon={
+                <Icon
+                  icon={<AddOutline className={isCreateDisabled ? "text-placeholder" : "text-accent-primary/80"} />}
+                />
               }
-            }}
-            icon={
-              <Icon
-                icon={<AddOutline className={isCreateDisabled ? "text-placeholder" : "text-accent-primary/80"} />}
-              />
-            }
-          />
+            />
+          )
         }
       >
         {shouldShowEmptyState && (

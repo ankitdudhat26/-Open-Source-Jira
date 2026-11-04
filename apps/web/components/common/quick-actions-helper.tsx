@@ -16,6 +16,8 @@ import { useQuickActionsFactory } from "@/components/common/quick-actions-factor
 interface UseCycleMenuItemsProps {
   cycleDetails: ICycle | undefined;
   isEditingAllowed: boolean;
+  /** Settings → Roles & access can deny deleting apart from editing; defaults to `isEditingAllowed` */
+  isDeletingAllowed?: boolean;
   workspaceSlug: string;
   projectId: string;
   cycleId: string;
@@ -30,6 +32,8 @@ interface UseCycleMenuItemsProps {
 interface UseModuleMenuItemsProps {
   moduleDetails: IModule | undefined;
   isEditingAllowed: boolean;
+  /** Settings → Roles & access can deny deleting apart from editing; defaults to `isEditingAllowed` */
+  isDeletingAllowed?: boolean;
   workspaceSlug: string;
   projectId: string;
   moduleId: string;
@@ -44,6 +48,9 @@ interface UseModuleMenuItemsProps {
 interface UseViewMenuItemsProps {
   isOwner: boolean;
   isAdmin: boolean;
+  /** Settings → Roles & access: Views → Edit / Delete (project views); both default to allowed */
+  canEdit?: boolean;
+  canDelete?: boolean;
   workspaceSlug: string;
   projectId?: string;
   view: IProjectView | IWorkspaceView;
@@ -68,7 +75,7 @@ type MenuResult = {
 
 export const useCycleMenuItems = (props: UseCycleMenuItemsProps): MenuResult => {
   const factory = useQuickActionsFactory();
-  const { cycleDetails, isEditingAllowed, ...handlers } = props;
+  const { cycleDetails, isEditingAllowed, isDeletingAllowed = isEditingAllowed, ...handlers } = props;
 
   const isArchived = !!cycleDetails?.archived_at;
   const isCompleted = cycleDetails?.status?.toLowerCase() === "completed";
@@ -84,7 +91,7 @@ export const useCycleMenuItems = (props: UseCycleMenuItemsProps): MenuResult => 
       description: isCompleted ? undefined : "Only completed sprints can be archived",
     }),
     factory.createRestoreMenuItem(handlers.handleRestore, isEditingAllowed && isArchived),
-    factory.createDeleteMenuItem(handlers.handleDelete, isEditingAllowed && !isCompleted && !isArchived),
+    factory.createDeleteMenuItem(handlers.handleDelete, isDeletingAllowed && !isCompleted && !isArchived),
   ].filter((item) => item.shouldRender !== false);
 
   return { items, modals: null };
@@ -92,7 +99,7 @@ export const useCycleMenuItems = (props: UseCycleMenuItemsProps): MenuResult => 
 
 export const useModuleMenuItems = (props: UseModuleMenuItemsProps): MenuResult => {
   const factory = useQuickActionsFactory();
-  const { moduleDetails, isEditingAllowed, ...handlers } = props;
+  const { moduleDetails, isEditingAllowed, isDeletingAllowed = isEditingAllowed, ...handlers } = props;
 
   const isArchived = !!moduleDetails?.archived_at;
   const moduleState = moduleDetails?.status?.toLocaleLowerCase();
@@ -109,7 +116,7 @@ export const useModuleMenuItems = (props: UseModuleMenuItemsProps): MenuResult =
       description: isInArchivableGroup ? undefined : "Only completed or cancelled modules can be archived",
     }),
     factory.createRestoreMenuItem(handlers.handleRestore, isEditingAllowed && isArchived),
-    factory.createDeleteMenuItem(handlers.handleDelete, isEditingAllowed && !isArchived),
+    factory.createDeleteMenuItem(handlers.handleDelete, isDeletingAllowed && !isArchived),
   ].filter((item) => item.shouldRender !== false);
 
   return { items, modals: null };
@@ -117,16 +124,16 @@ export const useModuleMenuItems = (props: UseModuleMenuItemsProps): MenuResult =
 
 export const useViewMenuItems = (props: UseViewMenuItemsProps): MenuResult => {
   const factory = useQuickActionsFactory();
-  const { workspaceSlug, isOwner, isAdmin, projectId, view, ...handlers } = props;
+  const { workspaceSlug, isOwner, isAdmin, canEdit = true, canDelete = true, projectId, view, ...handlers } = props;
 
   if (!view) return { items: [], modals: null };
 
   // Assemble final menu items - order defined here
   const items = [
-    factory.createEditMenuItem(handlers.handleEdit, isOwner),
+    factory.createEditMenuItem(handlers.handleEdit, isOwner && canEdit),
     factory.createOpenInNewTabMenuItem(handlers.handleOpenInNewTab),
     factory.createCopyLinkMenuItem(handlers.handleCopyLink),
-    factory.createDeleteMenuItem(handlers.handleDelete, isOwner || isAdmin),
+    factory.createDeleteMenuItem(handlers.handleDelete, (isOwner || isAdmin) && canDelete),
   ].filter((item) => item.shouldRender !== false);
 
   return { items, modals: null };

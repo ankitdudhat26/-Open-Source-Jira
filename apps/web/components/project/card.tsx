@@ -39,6 +39,7 @@ import { copyUrlToClipboard, cn, getFileURL, renderFormattedDate } from "@plane/
 import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // local imports
@@ -66,6 +67,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
   const { getUserDetails } = useMember();
   const { addProjectToFavorites, removeProjectFromFavorites } = useProject();
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   // hooks
   const { isMobile } = usePlatformOS();
   // derived values
@@ -174,14 +176,16 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
       action: () => setRestoreProject(true),
       title: "Restore",
       icon: RestoreOutline,
-      shouldRender: isArchived && hasAdminRole,
+      // Settings → Roles & access: Projects → Edit
+      shouldRender: isArchived && can("projects", "edit", hasAdminRole, project.id),
     },
     {
       key: "delete",
       action: () => setDeleteProjectModal(true),
       title: "Delete",
       icon: DeleteOutline,
-      shouldRender: isArchived && hasAdminRole,
+      // Settings → Roles & access: Projects → Delete
+      shouldRender: isArchived && can("projects", "delete", hasAdminRole, project.id),
     },
   ];
 

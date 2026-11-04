@@ -21,6 +21,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 import { useGroupIssuesDragNDrop } from "@/hooks/use-group-dragndrop";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // store
 // ui
 // types
@@ -123,10 +124,13 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  // clients (project guests) only view work items
-  const isCreatingAllowed = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // clients (project guests) only view work items; Settings → Roles & access: Work items → Create
+  const { can } = useFeatureAccess();
+  const isCreatingAllowed = can(
+    "work_items",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   const handleOnDrop = useGroupIssuesDragNDrop(storeType, orderBy, group_by, sub_group_by);
@@ -143,9 +147,13 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
           ? canEditPropertiesBasedOnProject(issueProjectId)
           : isEditingAllowed;
 
-      return !!enableInlineEditing && isEditingAllowedBasedOnProject;
+      // Settings → Roles & access: Work items → Edit, per the work item's project
+      return (
+        !!enableInlineEditing &&
+        can("work_items", "edit", isEditingAllowedBasedOnProject, issueProjectId ?? projectId?.toString())
+      );
     },
-    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed]
+    [canEditPropertiesBasedOnProject, enableInlineEditing, isEditingAllowed, can, projectId]
   );
 
   // Enable Auto Scroll for Main Kanban

@@ -20,6 +20,7 @@ import { CyclesViewHeader } from "@/components/cycles/cycles-view-header";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
@@ -35,9 +36,13 @@ export const CyclesListHeader = observer(function CyclesListHeader() {
   const { currentProjectDetails, loader } = useProject();
   const { t } = useTranslation();
 
-  const canUserCreateCycle = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT
+  // Settings → Roles & access: Sprints → Create, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canUserCreateCycle = can(
+    "sprints",
+    "create",
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT),
+    projectId?.toString()
   );
 
   return (

@@ -22,14 +22,13 @@ import {
   ModuleOutline,
   TickCircleOutline,
 } from "@makeplane/propel/icons";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { TMilestone } from "@plane/types";
 import { cn } from "@plane/utils";
 // hooks
 import { useModule } from "@/hooks/store/use-module";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureActions } from "@/hooks/use-feature-access";
 import {
   PROJECT_DELIVERABLES,
   PROJECT_MILESTONES,
@@ -85,14 +84,14 @@ export const MilestonesRoot = observer(function MilestonesRoot(props: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // store hooks
   const { getModuleById, fetchModules } = useModule();
-  const { allowPermissions } = useUserPermissions();
   const { milestones, isLoading } = useProjectMilestones(workspaceSlug, projectId);
   const { deliverables } = useProjectDeliverables(workspaceSlug, projectId);
   useSWR(`PROJECT_MODULES_FOR_MILESTONES_${projectId}`, () => fetchModules(workspaceSlug, projectId), {
     revalidateOnFocus: false,
   });
   // derived values
-  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT);
+  // Settings → Roles & access, the same in every project
+  const { canCreate, canEdit, canDelete } = useFeatureActions("milestones", workspaceSlug, projectId);
   const totalAmount = (milestones ?? []).reduce((sum, milestone) => sum + Number(milestone.amount ?? 0), 0);
   const totalPercentage = (milestones ?? []).reduce(
     (sum, milestone) => sum + Number(milestone.payment_percentage ?? 0),
@@ -268,7 +267,7 @@ export const MilestonesRoot = observer(function MilestonesRoot(props: Props) {
                 Add milestones manually or import the SOW to create milestones, deliverables, modules, features and
                 tasks.
               </p>
-              {isAdmin && (
+              {canCreate && (
                 <div className="mt-4 flex justify-center">
                   <Button
                     variant="secondary"
@@ -331,29 +330,29 @@ export const MilestonesRoot = observer(function MilestonesRoot(props: Props) {
                     <span className="text-right text-primary">{formatAmount(milestone.amount)}</span>
                     <span className="text-right text-primary">{formatPercentage(milestone.payment_percentage)}</span>
                     <span className="flex justify-end gap-0.5 pr-2">
-                      {isAdmin && (
-                        <>
-                          <IconButton
-                            variant="ghost"
-                            size="sm"
-                            icon={<EditOutline />}
-                            aria-label={`Edit ${milestone.name}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMilestoneModal({ isOpen: true, data: milestone });
-                            }}
-                          />
-                          <IconButton
-                            variant="ghost"
-                            size="sm"
-                            icon={<DeleteOutline />}
-                            aria-label={`Delete ${milestone.name}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(milestone);
-                            }}
-                          />
-                        </>
+                      {canEdit && (
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
+                          icon={<EditOutline />}
+                          aria-label={`Edit ${milestone.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMilestoneModal({ isOpen: true, data: milestone });
+                          }}
+                        />
+                      )}
+                      {canDelete && (
+                        <IconButton
+                          variant="ghost"
+                          size="sm"
+                          icon={<DeleteOutline />}
+                          aria-label={`Delete ${milestone.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(milestone);
+                          }}
+                        />
                       )}
                     </span>
                   </div>

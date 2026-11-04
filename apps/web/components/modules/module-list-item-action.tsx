@@ -25,6 +25,7 @@ import { ModuleStatusDropdown } from "@/components/modules/module-status-dropdow
 import { useMember } from "@/hooks/store/use-member";
 import { useModule } from "@/hooks/store/use-module";
 import { useUserPermissions, useUserProfile } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { ButtonAvatars } from "../dropdowns/member/avatar";
 
 type Props = {
@@ -54,7 +55,10 @@ export const ModuleListItemAction = observer(function ModuleListItemAction(props
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
-  const isDisabled = !isEditingAllowed || !!moduleDetails?.archived_at;
+  // Settings → Roles & access: Modules → Edit, in every project
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
+  const canEditModule = can("modules", "edit", isEditingAllowed, projectId?.toString());
+  const isDisabled = !canEditModule || !!moduleDetails?.archived_at;
   const renderIcon = Boolean(moduleDetails.start_date) || Boolean(moduleDetails.target_date);
 
   // handlers
@@ -67,6 +71,7 @@ export const ModuleListItemAction = observer(function ModuleListItemAction(props
       () => {
         // open favorites menu if closed
         if (!storedValue) toggleFavoriteMenu(true);
+        return undefined;
       }
     );
 
@@ -117,6 +122,7 @@ export const ModuleListItemAction = observer(function ModuleListItemAction(props
           title: "Success!",
           message: "Module updated successfully.",
         });
+        return undefined;
       })
       .catch((err) => {
         setToast({

@@ -19,11 +19,23 @@ import { useTranslation } from "@plane/i18n";
 import { SettingsSidebarItem } from "@/components/settings/sidebar/item";
 // hooks
 import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 // local imports
 import { PROJECT_SETTINGS_ICONS } from "./item-icon";
 
 type Props = {
   projectId: string;
+};
+
+/** The Settings → Roles & access feature that changing each admin-only settings page needs */
+const ITEM_FEATURES: Record<string, string> = {
+  features_cycles: "projects",
+  features_modules: "projects",
+  features_views: "projects",
+  features_pages: "projects",
+  features_intake: "projects",
+  automations: "projects",
+  estimates: "project_settings",
 };
 
 export const ProjectSettingsSidebarItemCategories = observer(function ProjectSettingsSidebarItemCategories(
@@ -35,6 +47,7 @@ export const ProjectSettingsSidebarItemCategories = observer(function ProjectSet
   const pathname = usePathname();
   // store hooks
   const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug?.toString());
   // translation
   const { t } = useTranslation();
 
@@ -42,9 +55,12 @@ export const ProjectSettingsSidebarItemCategories = observer(function ProjectSet
     <div className="mt-3 flex flex-col divide-y divide-subtle px-3">
       {PROJECT_SETTINGS_CATEGORIES.map((category) => {
         const categoryItems = GROUPED_PROJECT_SETTINGS[category];
-        const accessibleItems = categoryItems.filter((item) =>
-          allowPermissions(item.access, EUserPermissionsLevel.PROJECT, workspaceSlug, projectId)
-        );
+        // the same in every project: what Settings → Roles & access allows, else the page's own roles
+        const accessibleItems = categoryItems.filter((item) => {
+          const byRole = allowPermissions(item.access, EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
+          const feature = ITEM_FEATURES[item.key];
+          return feature ? can(feature, "edit", byRole, projectId) : byRole;
+        });
 
         if (accessibleItems.length === 0) return null;
 

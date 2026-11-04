@@ -22,6 +22,7 @@ import { useCommandPalette } from "@/hooks/store/use-command-palette";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser } from "@/hooks/store/user";
 import { useInstance } from "@/hooks/store/use-instance";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { useWorkspaceRoleAccess } from "@/hooks/use-workspace-role-access";
 
 export type TPowerKCreationCommandKeys =
@@ -64,6 +65,10 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       ctx.params.projectId?.toString()
     );
   const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  // Settings → Roles & access: create in a project feature only where allowed, in every project
+  const { can } = useFeatureAccess();
+  const canCreateIn = (ctx: TPowerKContext, feature: string) =>
+    can(feature, "create", hasProjectMemberLevelPermissions(ctx), ctx.params.projectId?.toString());
 
   const getProjectDetails = (ctx: TPowerKContext) =>
     ctx.params.projectId ? getPartialProjectById(ctx.params.projectId.toString()) : undefined;
@@ -77,8 +82,9 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       icon: WorkItemsOutline,
       keySequence: "ni",
       action: () => toggleCreateIssueModal(true),
-      isEnabled: () => Boolean(canCreateWorkItem),
-      isVisible: () => Boolean(canCreateWorkItem),
+      // inside a project, only where Settings → Roles & access allows Work items → Create
+      isEnabled: (ctx) => Boolean(canCreateWorkItem) && (!ctx.params.projectId || canCreateIn(ctx, "work_items")),
+      isVisible: (ctx) => Boolean(canCreateWorkItem) && (!ctx.params.projectId || canCreateIn(ctx, "work_items")),
       closeOnSelect: true,
     },
     create_page: {
@@ -89,9 +95,9 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       icon: DocumentationOutline,
       keySequence: "nd",
       action: () => toggleCreatePageModal({ isOpen: true }),
-      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.page_view && hasProjectMemberLevelPermissions(ctx)),
+      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.page_view && canCreateIn(ctx, "pages")),
       isVisible: (ctx) =>
-        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.page_view && hasProjectMemberLevelPermissions(ctx)),
+        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.page_view && canCreateIn(ctx, "pages")),
       closeOnSelect: true,
     },
     create_view: {
@@ -102,11 +108,9 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       icon: WorkItemsOutline,
       keySequence: "nv",
       action: () => toggleCreateViewModal(true),
-      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.issue_views_view && hasProjectMemberLevelPermissions(ctx)),
+      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.issue_views_view && canCreateIn(ctx, "views")),
       isVisible: (ctx) =>
-        Boolean(
-          ctx.params.projectId && getProjectDetails(ctx)?.issue_views_view && hasProjectMemberLevelPermissions(ctx)
-        ),
+        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.issue_views_view && canCreateIn(ctx, "views")),
       closeOnSelect: true,
     },
     create_cycle: {
@@ -117,9 +121,9 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       icon: CyclesOutline,
       keySequence: "nc",
       action: () => toggleCreateCycleModal(true),
-      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.cycle_view && hasProjectMemberLevelPermissions(ctx)),
+      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.cycle_view && canCreateIn(ctx, "sprints")),
       isVisible: (ctx) =>
-        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.cycle_view && hasProjectMemberLevelPermissions(ctx)),
+        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.cycle_view && canCreateIn(ctx, "sprints")),
       closeOnSelect: true,
     },
     create_module: {
@@ -130,9 +134,9 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
       icon: ModuleOutline,
       keySequence: "nm",
       action: () => toggleCreateModuleModal(true),
-      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.module_view && hasProjectMemberLevelPermissions(ctx)),
+      isEnabled: (ctx) => Boolean(getProjectDetails(ctx)?.module_view && canCreateIn(ctx, "modules")),
       isVisible: (ctx) =>
-        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.module_view && hasProjectMemberLevelPermissions(ctx)),
+        Boolean(ctx.params.projectId && getProjectDetails(ctx)?.module_view && canCreateIn(ctx, "modules")),
       closeOnSelect: true,
     },
     create_project: {

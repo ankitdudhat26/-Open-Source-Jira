@@ -18,6 +18,7 @@ import { TextArea, TextAreaGroup } from "@makeplane/propel/components/text-area"
 import { AddOutline, DeleteOutline } from "@makeplane/propel/icons";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { TProjectResource } from "@plane/types";
 import { cn } from "@plane/utils";
 // components
@@ -25,6 +26,8 @@ import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { PROJECT_ROLE_SUGGESTIONS } from "@/components/members/project-role-input";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
+import { useUserPermissions } from "@/hooks/store/user";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { PROJECT_RESOURCES, projectMilestoneService, useProjectResources } from "@/hooks/use-project-milestones";
 
 type Props = {
@@ -322,6 +325,18 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   // hooks
   const { resources } = useProjectResources(workspaceSlug, projectId);
+  const { allowPermissions } = useUserPermissions();
+  const { can } = useFeatureAccess(workspaceSlug);
+  // Settings → Roles & access decides (project members may by default, clients may not), the same in every project
+  const isProjectMember = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
+  const canAdd = can("resources", "create", isAdmin || isProjectMember, projectId);
+  const canEdit = can("resources", "edit", isAdmin || isProjectMember, projectId);
+  const canDelete = can("resources", "delete", isAdmin || isProjectMember, projectId);
   const {
     project: { fetchProjectMembers },
     getUserDetails,
@@ -369,7 +384,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
           Map each role to the member who fills it. They get access to the project and an invite email, their tasks are
           assigned to them automatically, and they are the people offered in Assignees.
         </span>
-        {isAdmin && (
+        {canAdd && (
           <div className="ml-auto">
             <Button
               variant="secondary"
@@ -435,7 +450,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
                       multiple={false}
                       variant="select-ghost-md"
                       placeholder="Map member"
-                      disabled={!isAdmin || updatingId === resource.id}
+                      disabled={!canEdit || updatingId === resource.id}
                     />
                     {/* the login email of the person filling the role */}
                     {resource.member_id && getUserDetails(resource.member_id)?.email && (
@@ -453,7 +468,7 @@ export const ResourcesSection = observer(function ResourcesSection(props: Props)
                     </span>
                   </span>
                   <span className="flex justify-end pr-2">
-                    {isAdmin && (
+                    {canDelete && (
                       <IconButton
                         variant="ghost"
                         size="sm"

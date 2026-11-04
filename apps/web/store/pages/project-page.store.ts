@@ -33,9 +33,13 @@ export const ROLE_PERMISSIONS_TO_CREATE_PAGE = [
   EUserProjectRoles.MEMBER,
 ];
 
+/** Settings → Roles & access for pages in the current project: what is denied is hidden (see PagesAccessSync) */
+export type TPagesFeatureAccess = { create: boolean; edit: boolean; delete: boolean };
+
 export interface IProjectPageStore {
   // observables
   loader: TLoader;
+  featureAccess: TPagesFeatureAccess;
   data: Record<string, TProjectPage>; // pageId => Page
   error: TError | undefined;
   filters: TPageFilters;
@@ -49,6 +53,7 @@ export interface IProjectPageStore {
   getPageById: (pageId: string) => TProjectPage | undefined;
   updateFilters: <T extends keyof TPageFilters>(filterKey: T, filterValue: TPageFilters[T]) => void;
   clearAllFilters: () => void;
+  setFeatureAccess: (access: TPagesFeatureAccess) => void;
   // actions
   fetchPagesList: (
     workspaceSlug: string,
@@ -71,6 +76,7 @@ export class ProjectPageStore implements IProjectPageStore {
   loader: TLoader = "init-loader";
   data: Record<string, TProjectPage> = {}; // pageId => Page
   error: TError | undefined = undefined;
+  featureAccess: TPagesFeatureAccess = { create: true, edit: true, delete: true };
   filters: TPageFilters = {
     searchQuery: "",
     sortKey: "updated_at",
@@ -87,12 +93,14 @@ export class ProjectPageStore implements IProjectPageStore {
       data: observable,
       error: observable,
       filters: observable,
+      featureAccess: observable.ref,
       // computed
       isAnyPageAvailable: computed,
       canCurrentUserCreatePage: computed,
       // helper actions
       updateFilters: action,
       clearAllFilters: action,
+      setFeatureAccess: action,
       // actions
       fetchPagesList: action,
       fetchPageDetails: action,
@@ -130,8 +138,16 @@ export class ProjectPageStore implements IProjectPageStore {
       workspaceSlug?.toString() || "",
       projectId?.toString() || ""
     );
-    return !!currentUserProjectRole && ROLE_PERMISSIONS_TO_CREATE_PAGE.includes(currentUserProjectRole);
+    return (
+      !!currentUserProjectRole &&
+      ROLE_PERMISSIONS_TO_CREATE_PAGE.includes(currentUserProjectRole) &&
+      this.featureAccess.create
+    );
   }
+
+  setFeatureAccess = (access: TPagesFeatureAccess) => {
+    this.featureAccess = access;
+  };
 
   /**
    * @description get the current project page ids based on the pageType

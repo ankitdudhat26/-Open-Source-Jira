@@ -77,9 +77,23 @@ class WorkspaceAccessEndpoint(BaseAPIView):
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def patch(self, request, slug):
-        role, feature, action = request.data.get("role"), request.data.get("feature"), request.data.get("action")
-        allowed = request.data.get("allowed")
-        if role not in ROLES or not _valid_cell(feature, action) or not isinstance(allowed, bool):
+        """One cell ({role, feature, action, allowed}) or several of one role ({role, cells: [{feature, action,
+        allowed}]}), saved together."""
+        role = request.data.get("role")
+        cells = request.data.get("cells")
+        if cells is None:
+            cells = [{key: request.data.get(key) for key in ("feature", "action", "allowed")}]
+        if (
+            role not in ROLES
+            or not isinstance(cells, list)
+            or not cells
+            or any(
+                not isinstance(cell, dict)
+                or not _valid_cell(cell.get("feature"), cell.get("action"))
+                or not isinstance(cell.get("allowed"), bool)
+                for cell in cells
+            )
+        ):
             return Response({"error": "Choose a role, a feature and an action."}, status=status.HTTP_400_BAD_REQUEST)
         workspace = Workspace.objects.get(slug=slug)
         # one per workspace, also counting a deleted one: bring it back rather than adding another
@@ -90,18 +104,21 @@ class WorkspaceAccessEndpoint(BaseAPIView):
             policy.deleted_at = None
             policy.rules = {}
         rules = policy.rules or {}
-        cells = rules.setdefault(role, {}).setdefault(feature, {})
-        # the same as the built-in rule: nothing to keep, so the code keeps deciding it
-        if allowed == DEFAULTS[role][feature][action]:
-            cells.pop(action, None)
-        else:
-            cells[action] = allowed
-        if not cells:
-            rules[role].pop(feature, None)
-        if not rules[role]:
+        for cell in cells:
+            feature, action, allowed = cell["feature"], cell["action"], cell["allowed"]
+            features = rules.setdefault(role, {})
+            actions = features.setdefault(feature, {})
+            # the same as the built-in rule: nothing to keep, so the code keeps deciding it
+            if allowed == DEFAULTS[role][feature][action]:
+                actions.pop(action, None)
+            else:
+                actions[action] = allowed
+            if not actions:
+                features.pop(feature, None)
+        if not rules.get(role):
             rules.pop(role, None)
         policy.rules = rules
-        policy.save(update_fields=["rules", "updated_at"])
+        policy.save(update_fields=["rules", "updated_at", "deleted_at"])
         return Response({"rules": rules}, status=status.HTTP_200_OK)
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
@@ -140,20 +157,34 @@ class WorkspaceMemberAccessEndpoint(BaseAPIView):
             return Response({"error": "This person is not in the workspace."}, status=status.HTTP_404_NOT_FOUND)
         if membership.role == ROLE.ADMIN.value:
             return Response({"error": "Admins always have full access."}, status=status.HTTP_400_BAD_REQUEST)
-        feature, action, value = request.data.get("feature"), request.data.get("action"), request.data.get("value")
-        if not _valid_cell(feature, action) or value not in ("allow", "deny", "default"):
+        # one cell ({feature, action, value}) or several ({cells: [{feature, action, value}]}), saved together
+        cells = request.data.get("cells")
+        if cells is None:
+            cells = [{key: request.data.get(key) for key in ("feature", "action", "value")}]
+        if (
+            not isinstance(cells, list)
+            or not cells
+            or any(
+                not isinstance(cell, dict)
+                or not _valid_cell(cell.get("feature"), cell.get("action"))
+                or cell.get("value") not in ("allow", "deny", "default")
+                for cell in cells
+            )
+        ):
             return Response(
                 {"error": "Choose a feature, an action and allow, deny or default."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         custom = membership.custom_access or {}
-        cells = custom.setdefault(feature, {})
-        if value == "default":
-            cells.pop(action, None)
-        else:
-            cells[action] = CUSTOM_VALUES[value]
-        if not cells:
-            custom.pop(feature, None)
+        for cell in cells:
+            feature, action, value = cell["feature"], cell["action"], cell["value"]
+            actions = custom.setdefault(feature, {})
+            if value == "default":
+                actions.pop(action, None)
+            else:
+                actions[action] = CUSTOM_VALUES[value]
+            if not actions:
+                custom.pop(feature, None)
         membership.custom_access = custom
         membership.save(update_fields=["custom_access", "updated_at"])
         return Response(_member_data(membership), status=status.HTTP_200_OK)
@@ -193,9 +224,11 @@ class MyWorkspaceAccessEndpoint(BaseAPIView):
             {
                 "is_admin": is_admin,
                 "is_sub_admin": membership.is_sub_admin,
-                # in a project the rules of the project role apply (a project admin has full access there)
+                # the same in every project: a project role only lowers them, Sub Admins keep their own projects
                 "rules": {} if is_admin else policy_rules(membership.workspace_id),
                 "custom_access": {} if is_admin else (membership.custom_access or {}),
+                # the built-in rules, which apply where nothing is set (clients keep the code's read-only rules)
+                "defaults": {} if is_admin else {key: DEFAULTS[key] for key in ("sub_admin", "member")},
             },
             status=status.HTTP_200_OK,
         )
