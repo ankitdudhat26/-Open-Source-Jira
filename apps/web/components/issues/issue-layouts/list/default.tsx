@@ -27,6 +27,7 @@ import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { MultipleSelectGroup } from "@/components/core/multiple-select";
 // hooks
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useHiddenStateIds } from "@/hooks/use-hidden-states";
 // plane web components
 import { IssueBulkOperationsRoot } from "@/components/issues/bulk-operations";
 // plane web hooks
@@ -88,11 +89,13 @@ export const List = observer(function List(props: IList) {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  const hiddenStateIds = useHiddenStateIds();
   const groups = getGroupByColumns({
     groupBy: group_by as GroupByColumnTypes,
     includeNone: true,
     isWorkspaceLevel: isWorkspaceLevel(storeType),
     isEpic: isEpic,
+    hiddenStateIds,
   });
 
   // Enable Auto Scroll for Main Kanban

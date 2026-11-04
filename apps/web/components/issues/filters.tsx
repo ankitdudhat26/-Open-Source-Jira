@@ -19,6 +19,7 @@ import { useIssues } from "@/hooks/store/use-issues";
 import type { TProject } from "@plane/types";
 // local imports
 import { WorkItemsModal } from "../analytics/work-items/modal";
+import { StatusVisibilityDropdown } from "./status-visibility-dropdown";
 import { WorkItemFiltersToggle } from "../work-item-filters/filters-toggle";
 import {
   HierarchyViewToggle,
@@ -127,6 +128,14 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
         />
       </div>
       {!isHierarchyView && <WorkItemFiltersToggle entityType={storeType} entityId={projectId} />}
+      {/* choose which statuses (and their work items) the screen shows */}
+      {!isHierarchyView && storeType === EIssuesStoreType.PROJECT && (
+        <StatusVisibilityDropdown
+          projectId={projectId}
+          hiddenStateIds={issueFilters?.displayFilters?.hidden_state_ids ?? []}
+          onChange={(hiddenStateIds) => handleDisplayFilters({ hidden_state_ids: hiddenStateIds })}
+        />
+      )}
       {!isHierarchyView && (
         <FiltersDropdown
           miniIcon={<PreferencesOutline className="size-3.5" />}

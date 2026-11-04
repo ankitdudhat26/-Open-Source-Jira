@@ -23,6 +23,7 @@ import { Row } from "@plane/blocks/layout";
 // hooks
 import type { TCanEditProperties } from "@/hooks/use-client-work-item-access";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useHiddenStateIds } from "@/hooks/use-hidden-states";
 // plane web imports
 import { useWorkFlowFDragNDrop } from "@/components/workflow";
 // local imports
@@ -290,18 +291,21 @@ export const KanBanSwimLanes = observer(function KanBanSwimLanes(props: IKanBanS
   } = props;
   // store hooks
   const storeType = useIssueStoreType();
+  const hiddenStateIds = useHiddenStateIds();
   // derived values
   const groupByList = getGroupByColumns({
     groupBy: group_by as GroupByColumnTypes,
     includeNone: true,
     isWorkspaceLevel: isWorkspaceLevel(storeType),
     isEpic: isEpic,
+    hiddenStateIds,
   });
   const subGroupByList = getGroupByColumns({
     groupBy: sub_group_by as GroupByColumnTypes,
     includeNone: true,
     isWorkspaceLevel: isWorkspaceLevel(storeType),
     isEpic: isEpic,
+    hiddenStateIds,
   });
 
   if (!groupByList || !subGroupByList) return null;

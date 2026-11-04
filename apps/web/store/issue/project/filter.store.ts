@@ -111,8 +111,18 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
     const filteredParams = handleIssueQueryParamsByLayout(userFilters?.displayFilters?.layout, "issues");
     if (!filteredParams) return undefined;
 
+    // statuses hidden on this screen: leave their work items out, on top of the user's filters
+    const hiddenStateIds = userFilters?.displayFilters?.hidden_state_ids ?? [];
+    const hideStates = { not: { state_id__in: hiddenStateIds.join(",") } };
+    const richFilters = (
+      hiddenStateIds.length === 0
+        ? userFilters?.richFilters
+        : isEmpty(userFilters?.richFilters)
+          ? hideStates
+          : { and: [userFilters?.richFilters, hideStates] }
+    ) as TWorkItemFilterExpression;
     const filteredRouteParams: Partial<Record<TIssueParams, string | boolean>> = this.computedFilteredParams(
-      userFilters?.richFilters,
+      richFilters,
       userFilters?.displayFilters,
       filteredParams
     );

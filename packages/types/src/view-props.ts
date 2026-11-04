@@ -162,6 +162,8 @@ export interface IIssueDisplayFilterOptions {
   order_by?: TIssueOrderByOptions;
   show_empty_groups?: boolean;
   sub_issue?: boolean;
+  /** statuses the user hid on the project's work items screen: their work items and columns are not shown */
+  hidden_state_ids?: string[];
 }
 export interface IIssueDisplayProperties {
   assignee?: boolean;

@@ -115,6 +115,8 @@ type TGetGroupByColumns = {
   isWorkspaceLevel: boolean;
   isEpic?: boolean;
   projectId?: string;
+  /** statuses hidden on the screen: no column / group for them when grouping by status */
+  hiddenStateIds?: string[];
 };
 
 // NOTE: Type of groupBy is different compared to what's being passed from the components.
@@ -126,6 +128,7 @@ export const getGroupByColumns = ({
   isWorkspaceLevel,
   isEpic = false,
   projectId,
+  hiddenStateIds = [],
 }: TGetGroupByColumns): IGroupByColumn[] | undefined => {
   // If no groupBy is specified and includeNone is true, return "All Issues" group
   if (!groupBy && includeNone) {
@@ -162,7 +165,10 @@ export const getGroupByColumns = ({
   };
 
   // Get and return the columns for the specified group by option
-  return groupByColumnMap[groupBy]?.({ isWorkspaceLevel, projectId });
+  const columns = groupByColumnMap[groupBy]?.({ isWorkspaceLevel, projectId });
+  if (groupBy === "state" && hiddenStateIds.length > 0)
+    return columns?.filter((column) => !hiddenStateIds.includes(column.id));
+  return columns;
 };
 
 const getWorkItemTypeColumns = (): IGroupByColumn[] | undefined => {

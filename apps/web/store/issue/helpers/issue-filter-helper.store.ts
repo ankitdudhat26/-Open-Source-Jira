@@ -265,7 +265,7 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
    * @returns
    */
   getShouldReFetchIssues = (displayFilters: IIssueDisplayFilterOptions) => {
-    const NON_SERVER_DISPLAY_FILTERS = ["order_by", "sub_issue", "type"];
+    const NON_SERVER_DISPLAY_FILTERS = ["order_by", "sub_issue", "type", "hidden_state_ids"];
     const displayFilterKeys = Object.keys(displayFilters);
 
     return NON_SERVER_DISPLAY_FILTERS.some((serverDisplayfilter: string) =>
