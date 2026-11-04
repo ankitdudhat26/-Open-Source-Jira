@@ -7,7 +7,8 @@
 # Writes to BACKUP_DIR (from .env, default ./backups):
 #   plane-db-<timestamp>.dump        Postgres custom-format dump (restore with scripts/restore.sh)
 #   plane-uploads-<timestamp>.tar.gz MinIO data
-# Files older than BACKUP_RETENTION_DAYS (default 14) are deleted.
+# Files older than BACKUP_RETENTION_DAYS (default 14) are deleted, and only the newest BACKUP_KEEP (default 7) of
+# each kind are kept: every app deploy takes a backup (~400 MB), so several deploys a day filled the 28 GB disk.
 #
 # Example cron entry (daily at 02:30):
 #   30 2 * * * /opt/plane-database/scripts/backup.sh >> /opt/plane-database/backups/backup.log 2>&1
@@ -29,6 +30,7 @@ set +a
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION="${BACKUP_RETENTION_DAYS:-14}"
+KEEP="${BACKUP_KEEP:-7}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
@@ -55,5 +57,12 @@ fi
 # --- Retention ---------------------------------------------------------------
 find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'plane-db-*.dump' -o -name 'plane-uploads-*.tar.gz' \) \
   -mtime +"$RETENTION" -print -delete | sed 's/^/[backup] removed old backup: /'
+# beyond the newest $KEEP of each kind (names sort by their UTC timestamp)
+for pattern in 'plane-db-*.dump' 'plane-uploads-*.tar.gz'; do
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name "$pattern" | sort -r | tail -n +"$((KEEP + 1))" |
+    while IFS= read -r old; do
+      rm -f -- "$old" && echo "[backup] removed old backup: $old"
+    done
+done
 
 log "Backup complete."
