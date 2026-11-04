@@ -27,6 +27,8 @@ export type DataTableColumn<T> = {
    * into the cell's gutter is clipped by the content region's `truncate`.
    */
   padding?: "cell" | "trigger";
+  /** Keeps the column in view while the table scrolls sideways, e.g. row actions at the `end`. @default "none" */
+  pinned?: "none" | "start" | "end";
 };
 
 /** Row attributes: the `<tr>` props propel forwards, plus `data-*` flags a wrapping selector can style. */
@@ -70,11 +72,11 @@ export function DataTable<T>(props: DataTableProps<T>) {
           <TableRow>
             {columns.map((column) =>
               column.thRender ? (
-                <TableHeadElement key={column.key} variant={variant} pinned="none">
+                <TableHeadElement key={column.key} variant={variant} pinned={column.pinned ?? "none"}>
                   {column.thRender()}
                 </TableHeadElement>
               ) : (
-                <TableHead key={column.key} label={column.content} pinned="none" />
+                <TableHead key={column.key} label={column.content} pinned={column.pinned ?? "none"} />
               )
             )}
           </TableRow>
@@ -94,7 +96,11 @@ export function DataTable<T>(props: DataTableProps<T>) {
             data.map((rowData) => {
               const key = keyExtractor(rowData);
               const cells = columns.map((column) => (
-                <TableCell key={`${column.key}-${key}`} pinned="none" padding={column.padding ?? "cell"}>
+                <TableCell
+                  key={`${column.key}-${key}`}
+                  pinned={column.pinned ?? "none"}
+                  padding={column.padding ?? "cell"}
+                >
                   {column.tdRender(rowData)}
                 </TableCell>
               ));

@@ -9,17 +9,16 @@ import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
-import { CircleMinus } from "lucide-react";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
-import { MoreHorizontalOutline } from "@makeplane/propel/icons";
+import { Tooltip } from "@makeplane/propel/components/tooltip";
+import { DeleteOutline, LogOutOutline } from "@makeplane/propel/icons";
 // plane imports
 import { Select } from "@plane/blocks/select";
 import { setToast } from "@plane/blocks/toast";
 import { ROLE, EUserPermissions } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import type { EUserProjectRoles, IUser, IWorkspaceMember, TProjectMembership } from "@plane/types";
+import type { EUserProjectRoles, IWorkspaceMember, TProjectMembership } from "@plane/types";
 import { getFileURL } from "@plane/utils";
 // hooks
 import { ProjectRoleInput } from "@/components/members/project-role-input";
@@ -33,8 +32,13 @@ export interface RowData extends Pick<TProjectMembership, "original_role" | "des
 type NameProps = {
   rowData: RowData;
   workspaceSlug: string;
-  isAdmin: boolean;
-  currentUser: IUser | undefined;
+};
+
+type RemoveProps = {
+  rowData: RowData;
+  /** Settings → Roles & access: Project members → Delete (a project admin by default) */
+  canRemoveMembers: boolean;
+  currentProjectRole: EUserPermissions | undefined;
   setRemoveMemberModal: (rowData: RowData) => void;
 };
 
@@ -53,15 +57,13 @@ type AccountTypeProps = {
 };
 
 export function NameColumn(props: NameProps) {
-  const { rowData, workspaceSlug, isAdmin, currentUser, setRemoveMemberModal } = props;
-  // plane hooks
-  const { t } = useTranslation();
+  const { rowData, workspaceSlug } = props;
   // derived values
   const { avatar_url, display_name, email, first_name, id, last_name } = rowData.member;
 
   return (
     <div className="group relative">
-      <div className="flex w-72 items-center gap-2">
+      <div className="flex w-56 items-center gap-2">
         <div className="flex flex-1 items-center gap-x-2 gap-y-2">
           {avatar_url && avatar_url.trim() !== "" ? (
             <Link href={`/${workspaceSlug}/profile/${id}`}>
@@ -82,34 +84,47 @@ export function NameColumn(props: NameProps) {
           )}
           {first_name} {last_name}
         </div>
-        {(isAdmin || id === currentUser?.id) && (
-          <Menu>
-            <div className="opacity-0 transition-opacity group-hover:opacity-100">
-              <MenuTrigger
-                render={
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("aria_labels.common.more_actions")}
-                    icon={<Icon icon={MoreHorizontalOutline} />}
-                  />
-                }
-              />
-            </div>
-            <MenuContent side="bottom" align="end">
-              <MenuItem
-                variant="danger"
-                icon={<Icon icon={CircleMinus} />}
-                label={rowData.member?.id === currentUser?.id ? t("leave") : t("remove")}
-                onClick={() => setRemoveMemberModal(rowData)}
-              />
-            </MenuContent>
-          </Menu>
-        )}
       </div>
     </div>
   );
 }
+
+/**
+ * Remove (or Leave, on your own row) at the end of the row. Shown only where it works: the API refuses removing
+ * someone with a higher project role than yours, and only workspace admins remove a workspace admin.
+ */
+export const RemoveMemberColumn = observer(function RemoveMemberColumn(props: RemoveProps) {
+  const { rowData, canRemoveMembers, currentProjectRole, setRemoveMemberModal } = props;
+  const { t } = useTranslation();
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
+  const { data: currentUser } = useUser();
+  const { id, first_name, last_name } = rowData.member;
+  const isCurrentUser = id === currentUser?.id;
+  const isCurrentUserWorkspaceAdmin =
+    !!currentUser && Number(getWorkspaceMemberDetails(currentUser.id)?.role) === EUserPermissions.ADMIN;
+  const isRowWorkspaceAdmin = Number(getWorkspaceMemberDetails(id)?.role) === EUserPermissions.ADMIN;
+  const isHigherRole =
+    (rowData.original_role ?? EUserPermissions.GUEST) > (currentProjectRole ?? EUserPermissions.GUEST);
+  const canRemove = canRemoveMembers && !isHigherRole && (!isRowWorkspaceAdmin || isCurrentUserWorkspaceAdmin);
+  if (!isCurrentUser && !canRemove) return <div className="w-10" />;
+  const label = isCurrentUser ? t("leave") : t("remove");
+
+  return (
+    <div className="flex w-10 justify-end">
+      <Tooltip label={label}>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          icon={<Icon icon={isCurrentUser ? LogOutOutline : DeleteOutline} />}
+          aria-label={`${label} ${first_name ?? ""} ${last_name ?? ""}`.trim()}
+          onClick={() => setRemoveMemberModal(rowData)}
+        />
+      </Tooltip>
+    </div>
+  );
+});
 
 export const AccountTypeColumn = observer(function AccountTypeColumn(props: AccountTypeProps) {
   const { rowData, projectId, workspaceSlug, canChangeMembers } = props;

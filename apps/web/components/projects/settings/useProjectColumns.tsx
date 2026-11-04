@@ -11,10 +11,15 @@ import type { IWorkspaceMember, TProjectMembership } from "@plane/types";
 import { renderFormattedDate } from "@plane/utils";
 // components
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
-import { AccountTypeColumn, NameColumn, ProjectRoleColumn } from "@/components/project/settings/member-columns";
+import {
+  AccountTypeColumn,
+  NameColumn,
+  ProjectRoleColumn,
+  RemoveMemberColumn,
+} from "@/components/project/settings/member-columns";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
-import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useUserPermissions } from "@/hooks/store/user";
 import { useProjectAccess } from "@/hooks/use-feature-access";
 import type { IMemberFilters } from "@/store/member/utils";
 
@@ -33,7 +38,6 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
   const [removeMemberModal, setRemoveMemberModal] = useState<RowData | null>(null);
 
   // store hooks
-  const { data: currentUser } = useUser();
   const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   const {
     project: {
@@ -65,15 +69,7 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
           handleDisplayFilterUpdate={handleDisplayFilterUpdate}
         />
       ),
-      tdRender: (rowData: RowData) => (
-        <NameColumn
-          rowData={rowData}
-          workspaceSlug={workspaceSlug}
-          isAdmin={canRemoveMembers}
-          currentUser={currentUser}
-          setRemoveMemberModal={setRemoveMemberModal}
-        />
-      ),
+      tdRender: (rowData: RowData) => <NameColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
     },
     {
       key: "Display Name",
@@ -143,6 +139,22 @@ export const useProjectColumns = (props: TUseProjectColumnsProps) => {
         />
       ),
       tdRender: (rowData: RowData) => <div>{renderFormattedDate(rowData?.member?.joining_date)}</div>,
+    },
+    {
+      // Remove / Leave, at the far right of each row
+      key: "Remove",
+      content: "",
+      // stays in view when the table is wider than the page
+      pinned: "end" as const,
+      thRender: () => <span className="sr-only">Remove</span>,
+      tdRender: (rowData: RowData) => (
+        <RemoveMemberColumn
+          rowData={rowData}
+          canRemoveMembers={canRemoveMembers}
+          currentProjectRole={currentProjectRole}
+          setRemoveMemberModal={setRemoveMemberModal}
+        />
+      ),
     },
   ];
   return {
