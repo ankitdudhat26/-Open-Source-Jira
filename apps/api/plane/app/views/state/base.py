@@ -7,6 +7,7 @@ from itertools import groupby
 from collections import defaultdict
 
 # Django imports
+from django.db.models import Q
 from django.db.utils import IntegrityError
 
 # Third party imports
@@ -17,8 +18,9 @@ from rest_framework import status
 from .. import BaseViewSet, BaseAPIView
 from plane.app.serializers import StateSerializer
 from plane.app.permissions import ROLE, allow_permission
-from plane.db.models import State, Issue
+from plane.db.models import State, Issue, WorkflowTransition
 from plane.utils.cache import invalidate_cache
+from plane.utils.workflow import mark_customized
 
 
 class StateViewSet(BaseViewSet):
@@ -49,6 +51,8 @@ class StateViewSet(BaseViewSet):
             serializer = StateSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save(project_id=project_id)
+                # the project no longer has only the default states: a new default leaves it alone
+                mark_customized(project_id)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
@@ -62,9 +66,13 @@ class StateViewSet(BaseViewSet):
     def partial_update(self, request, slug, project_id, pk):
         try:
             state = State.objects.get(pk=pk, project_id=project_id, workspace__slug=slug)
+            before = (state.name, state.group)
             serializer = StateSerializer(state, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
+                # renamed or moved to another category (not just reordered or recoloured): customized
+                if (serializer.instance.name, serializer.instance.group) != before:
+                    mark_customized(project_id)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
@@ -130,6 +138,10 @@ class StateViewSet(BaseViewSet):
             )
 
         state.delete()
+        # its permitted moves go with it, and the project's workflow is now its own
+        for transition in WorkflowTransition.objects.filter(Q(from_state_id=pk) | Q(to_state_id=pk)):
+            transition.delete(soft=False)
+        mark_customized(project_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

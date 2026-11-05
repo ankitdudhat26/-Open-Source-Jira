@@ -52,17 +52,28 @@ class TestProjectWorkflow:
 
         assert data["is_enabled"] is True
         assert {template["key"] for template in data["templates"]} == {"default", "software", "release", "simple"}
+        assert data["is_customized"] is False
         assert moves == {
+            ("Backlog", "To Do"),
+            ("Backlog", "Cancelled"),
             ("To Do", "In Progress"),
+            ("To Do", "Backlog"),
+            ("To Do", "Cancelled"),
             ("In Progress", "In QA"),
+            ("In Progress", "To Do"),
+            ("In Progress", "Cancelled"),
             ("In QA", "Waiting for Demo"),
             ("In QA", "In Progress"),
             ("In QA", "To Do"),
+            ("In QA", "Cancelled"),
             ("Waiting for Demo", "Done"),
             ("Waiting for Demo", "In Progress"),
-            ("Waiting for Demo", "To Do"),
-            ("Done", "Reopened"),
+            ("Waiting for Demo", "Cancelled"),
             ("Reopened", "In Progress"),
+            ("Reopened", "To Do"),
+            ("Reopened", "Cancelled"),
+            ("Done", "Reopened"),
+            ("Cancelled", "Backlog"),
         }
         # new work items start in To Do, and skipping steps is refused
         assert State.objects.get(project=project, default=True).name == "To Do"
@@ -230,7 +241,7 @@ class TestReleaseWorkflowTemplate:
         # the other project keeps its own states and the default workflow
         assert set(State.objects.filter(project=other_project).values_list("name", flat=True)) == other_states
         other_rules = session_client.get(url(workspace, other_project, "workflow/")).data["transitions"]
-        assert len(other_rules) == 10
+        assert len(other_rules) == 20
 
         # a move the flow does not allow is refused in this project
         issue = Issue.objects.create(
@@ -248,3 +259,47 @@ class TestReleaseWorkflowTemplate:
         )
         assert refused.status_code == status.HTTP_400_BAD_REQUEST
         assert allowed.status_code == status.HTTP_204_NO_CONTENT
+
+
+@pytest.mark.contract
+class TestCustomizedWorkflow:
+    """A project follows the default workflow until its states or moves are changed in its settings."""
+
+    @pytest.mark.django_db
+    def test_saving_moves_or_renaming_a_state_makes_it_the_projects_own(self, session_client, workspace, project):
+        def customized():
+            return session_client.get(url(workspace, project, "workflow/")).data["is_customized"]
+
+        in_qa = state(project, "In QA")
+        # a new colour is not a customization
+        session_client.patch(url(workspace, project, f"states/{in_qa.id}/"), {"color": "#000000"}, format="json")
+        assert customized() is False
+
+        session_client.patch(url(workspace, project, f"states/{in_qa.id}/"), {"name": "Testing"}, format="json")
+        assert customized() is True
+
+        # back to the default: it follows the default again (missing states are added back)
+        response = session_client.post(url(workspace, project, "workflow/apply-template/"), {"template": "default"})
+        assert response.data["is_customized"] is False
+        assert State.objects.filter(project=project, name="In QA").exists()
+
+        data = session_client.get(url(workspace, project, "workflow/")).data
+        session_client.put(
+            url(workspace, project, "workflow/"),
+            {"is_enabled": True, "transitions": data["transitions"][:-1]},
+            format="json",
+        )
+        assert customized() is True
+
+    @pytest.mark.django_db
+    def test_deleting_an_unused_state_drops_its_moves(self, session_client, workspace, project):
+        reopened = state(project, "Reopened")
+
+        response = session_client.delete(url(workspace, project, f"states/{reopened.id}/"))
+        data = session_client.get(url(workspace, project, "workflow/")).data
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert str(reopened.id) not in {t["from_state"] for t in data["transitions"]} | {
+            t["to_state"] for t in data["transitions"]
+        }
+        assert data["is_customized"] is True

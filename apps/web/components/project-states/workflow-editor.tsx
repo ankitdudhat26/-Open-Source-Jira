@@ -69,6 +69,11 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
   const projectStates = getProjectStates(projectId);
   const states = useMemo(() => projectStates ?? [], [projectStates]);
   const stateMap = useMemo(() => new Map(states.map((state) => [state.id, state])), [states]);
+  // adding, renaming, moving or deleting a status can make the workflow customized (or drop its moves): reload it
+  const statesSignature = states.map((state) => `${state.id}:${state.name}:${state.group}`).join("|");
+  useEffect(() => {
+    if (statesSignature) void mutate();
+  }, [statesSignature, mutate]);
 
   const isDirty = useMemo(() => {
     if (!workflow) return false;
@@ -144,10 +149,27 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
     <div className="mt-10 border-t border-subtle pt-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-xl">
-          <h3 className="text-h5-medium text-primary">Workflow</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-h5-medium text-primary">Workflow</h3>
+            {/* whether the project follows the default workflow or has its own */}
+            <span
+              className={`rounded-sm px-1.5 py-0.5 text-caption-sm-medium ${
+                workflow.is_customized
+                  ? "bg-warning-subtle text-warning-primary"
+                  : "bg-success-subtle text-success-primary"
+              }`}
+            >
+              {workflow.is_customized ? "Customized for this project" : "Default workflow"}
+            </span>
+          </div>
           <p className="mt-1 text-body-xs-regular text-tertiary">
-            Choose which state a work item can move to next, like a Jira workflow. A state without rules can move to any
-            state. Add reviewers to a step to let only them (and project admins) make that move.
+            Each status lists the statuses its work items can move to next; any other move is refused. A status without
+            rules can move anywhere. Add reviewers to a move to let only them (and project admins) make it.
+          </p>
+          <p className="mt-1 text-body-xs-regular text-tertiary">
+            {workflow.is_customized
+              ? "This project has its own statuses or moves, so changes to the default workflow do not touch it."
+              : "This project follows the default workflow. Renaming, adding or deleting a status, or saving changes here, makes it this project's own; other projects are not affected."}
           </p>
         </div>
         <div className="flex items-center gap-2 text-body-xs-medium text-secondary">
@@ -164,7 +186,18 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
 
       {isEditable && workflow.templates.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-caption-md-regular text-tertiary">Start from a template:</span>
+          {workflow.is_customized && (
+            <Button
+              variant="secondary"
+              size="sm"
+              stretch="auto"
+              label="Reset to default"
+              onClick={() =>
+                setTemplateToApply(workflow.templates.find((item) => item.key === workflow.default_template) ?? null)
+              }
+            />
+          )}
+          <span className="text-caption-md-regular text-tertiary">Use a ready-made workflow:</span>
           {workflow.templates.map((template) => (
             <Button
               key={template.key}
@@ -188,7 +221,7 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 {rules.length === 0 && (
-                  <span className="pt-1 text-caption-md-regular text-tertiary">No rules: can move to any state</span>
+                  <span className="pt-1 text-caption-md-regular text-tertiary">No rules: can move to any status</span>
                 )}
                 {rules.map((rule) => (
                   <div key={rule.to_state} className="flex flex-wrap items-center gap-2">
@@ -255,7 +288,9 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
         handleClose={() => setTemplateToApply(null)}
         handleSubmit={handleApplyTemplate}
         title={`Apply the ${templateToApply?.name ?? ""} workflow?`}
-        content={`${templateToApply?.description ?? ""} Missing states are added, your existing states are kept, and the current rules are replaced.`}
+        content={`${templateToApply?.description ?? ""} Missing statuses are added, your existing statuses and work items are kept, and this project's current moves are replaced.${
+          templateToApply?.key === workflow.default_template ? " The project follows the default workflow again." : ""
+        }`}
         variant="primary"
         isSubmitting={isApplying}
         primaryButtonText={{ loading: "Applying...", default: "Apply workflow" }}

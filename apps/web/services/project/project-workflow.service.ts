@@ -20,6 +20,10 @@ export type TWorkflowTemplate = { key: string; name: string; description: string
 
 export type TProjectWorkflow = {
   is_enabled: boolean;
+  /** changed in this project's settings; otherwise it follows the default workflow and gets its updates */
+  is_customized: boolean;
+  /** key of the default template, for "Reset to default" */
+  default_template: string;
   transitions: TWorkflowTransition[];
   templates: TWorkflowTemplate[];
 };

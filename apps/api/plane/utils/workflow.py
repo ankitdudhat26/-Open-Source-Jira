@@ -25,24 +25,28 @@ WORKFLOW_TEMPLATES = {
     DEFAULT_TEMPLATE: {
         "name": "Default",
         "description": (
-            "To Do → In Progress → In QA → Waiting for Demo → Done; QA and the demo can send work back, and Done "
-            "can be Reopened."
+            "Backlog → To Do → In Progress → In QA → Waiting for Demo → Done. Work can go back when it fails QA or "
+            "needs changes, Done can be Reopened, and anything can be Cancelled."
         ),
         "states": [
+            {"name": "Backlog", "group": "backlog", "color": "#60646C"},
             {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
             {"name": "In Progress", "group": "started", "color": "#F59E0B"},
             {"name": "In QA", "group": "started", "color": "#0EA5E9"},
             {"name": "Waiting for Demo", "group": "started", "color": "#8B5CF6"},
-            {"name": "Done", "group": "completed", "color": "#16A34A"},
             {"name": "Reopened", "group": "started", "color": "#EF4444"},
+            {"name": "Done", "group": "completed", "color": "#16A34A"},
+            {"name": "Cancelled", "group": "cancelled", "color": "#9AA4BC"},
         ],
         "transitions": {
-            "To Do": ["In Progress"],
-            "In Progress": ["In QA"],
-            "In QA": ["Waiting for Demo", "In Progress", "To Do"],
-            "Waiting for Demo": ["Done", "In Progress", "To Do"],
+            "Backlog": ["To Do", "Cancelled"],
+            "To Do": ["In Progress", "Backlog", "Cancelled"],
+            "In Progress": ["In QA", "To Do", "Cancelled"],
+            "In QA": ["Waiting for Demo", "In Progress", "To Do", "Cancelled"],
+            "Waiting for Demo": ["Done", "In Progress", "Cancelled"],
+            "Reopened": ["In Progress", "To Do", "Cancelled"],
             "Done": ["Reopened"],
-            "Reopened": ["In Progress"],
+            "Cancelled": ["Backlog"],
         },
     },
     "software": {
@@ -153,6 +157,9 @@ def serialize_workflow(project_id):
     ).order_by("created_at")
     return {
         "is_enabled": bool(workflow and workflow.is_enabled),
+        # false while the project follows the default workflow (and gets its updates)
+        "is_customized": bool(workflow and workflow.is_customized),
+        "default_template": DEFAULT_TEMPLATE,
         "transitions": [
             {
                 "id": str(transition.id),
@@ -169,8 +176,14 @@ def serialize_workflow(project_id):
     }
 
 
-def save_workflow(project, is_enabled, transitions, user_id):
-    """Replace the workflow of the project. ``transitions`` is a list of {from_state, to_state, reviewer_ids}."""
+def mark_customized(project_id):
+    """The project's states or workflow were changed by hand: later changes to the default leave it alone."""
+    ProjectWorkflow.objects.filter(project_id=project_id, is_customized=False).update(is_customized=True)
+
+
+def save_workflow(project, is_enabled, transitions, user_id, is_customized=True):
+    """Replace the workflow of the project. ``transitions`` is a list of {from_state, to_state, reviewer_ids}.
+    A workflow saved from the project's settings is customized; applying the default template is not."""
     state_ids = {str(state_id) for state_id in State.objects.filter(project=project).values_list("id", flat=True)}
     member_ids = {
         str(member_id)
@@ -197,8 +210,9 @@ def save_workflow(project, is_enabled, transitions, user_id):
             project=project, defaults={"workspace_id": project.workspace_id, "created_by_id": user_id}
         )
         workflow.is_enabled = bool(is_enabled)
+        workflow.is_customized = bool(is_customized)
         workflow.updated_by_id = user_id
-        workflow.save(update_fields=["is_enabled", "updated_by", "updated_at"])
+        workflow.save(update_fields=["is_enabled", "is_customized", "updated_by", "updated_at"])
 
         existing = {
             (str(transition.from_state_id), str(transition.to_state_id)): transition
@@ -267,4 +281,4 @@ def apply_template(project, template_key, user_id):
             for source, targets in template["transitions"].items()
             for target in targets
         ]
-        return save_workflow(project, True, transitions, user_id)
+        return save_workflow(project, True, transitions, user_id, is_customized=template_key != DEFAULT_TEMPLATE)

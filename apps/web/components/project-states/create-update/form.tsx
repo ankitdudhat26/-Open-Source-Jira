@@ -11,6 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@makeplane/propel/compo
 import { TextArea, TextAreaGroup } from "@makeplane/propel/components/text-area";
 import { Button } from "@makeplane/propel/components/button";
 import { ColorSwatchPicker } from "@plane/blocks/common";
+import { StateGroupIcon } from "@plane/blocks/icons";
+import { EIconSize, STATE_GROUPS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { IState } from "@plane/types";
 
@@ -20,6 +22,8 @@ type TStateForm = {
   onCancel: () => void;
   buttonDisabled: boolean;
   buttonTitle: string;
+  /** editing: the status can be moved to another category (Backlog, Unstarted, Started, Completed, Cancelled) */
+  showCategory?: boolean;
 };
 
 function PopoverButton({ color }: { color?: string }) {
@@ -34,7 +38,7 @@ function PopoverButton({ color }: { color?: string }) {
 }
 
 export function StateForm(props: TStateForm) {
-  const { data, onSubmit, onCancel, buttonDisabled, buttonTitle } = props;
+  const { data, onSubmit, onCancel, buttonDisabled, buttonTitle, showCategory = false } = props;
   // plane hooks
   const { t } = useTranslation();
   // states
@@ -103,6 +107,8 @@ export function StateForm(props: TStateForm) {
               value={formData?.name}
               onChange={(e) => handleFormData("name", e.target.value)}
               maxLength={100}
+              // the inline form opens to type the name right away
+              // oxlint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
           </InputGroup>
@@ -124,6 +130,30 @@ export function StateForm(props: TStateForm) {
             />
           </TextAreaGroup>
         </Field>
+
+        {/* category: which group the status belongs to (drives progress, reports and its icon) */}
+        {showCategory && (
+          <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Category">
+            <span className="mr-1 text-caption-md-medium text-tertiary">Category</span>
+            {Object.values(STATE_GROUPS).map((group) => (
+              <button
+                key={group.key}
+                type="button"
+                role="radio"
+                aria-checked={formData?.group === group.key}
+                onClick={() => handleFormData("group", group.key)}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-caption-md-medium ${
+                  formData?.group === group.key
+                    ? "border-accent-strong bg-accent-subtle text-accent-primary"
+                    : "border-subtle text-secondary hover:bg-layer-transparent-hover"
+                }`}
+              >
+                <StateGroupIcon stateGroup={group.key} size={EIconSize.SM} />
+                {group.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center space-x-2">
           <Button

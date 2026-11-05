@@ -327,9 +327,11 @@ class TestJiraImport:
             "Done": "completed",
             "Won't Do": "cancelled",
             # added by the default workflow; Jira's own To Do / In Progress / Done are reused
+            "Backlog": "backlog",
             "In QA": "started",
             "Waiting for Demo": "started",
             "Reopened": "started",
+            "Cancelled": "cancelled",
         }
         issues = {issue.external_id: issue for issue in Issue.objects.filter(project=project)}
         epic, card, bug = issues["1"], issues["2"], issues["3"]

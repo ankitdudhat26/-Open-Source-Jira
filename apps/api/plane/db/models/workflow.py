@@ -15,6 +15,8 @@ class ProjectWorkflow(ProjectBaseModel):
     """Jira style workflow of a project: whether the state transition rules below are enforced."""
 
     is_enabled = models.BooleanField(default=False)
+    # changed in the project's settings (its states or transitions): a new global default leaves it alone
+    is_customized = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "Project Workflow"

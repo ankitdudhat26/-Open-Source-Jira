@@ -65,7 +65,8 @@ def get_default_display_filters():
         "type": None,
         "sub_issue": True,
         "show_empty_groups": True,
-        "layout": "list",
+        # a project's work items open as a spreadsheet until the person picks another layout (kept per project)
+        "layout": "spreadsheet",
         "calendar_date_range": "",
     }
 

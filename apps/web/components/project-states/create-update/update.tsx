@@ -66,6 +66,7 @@ export const StateUpdate = observer(function StateUpdate(props: TStateUpdate) {
       onCancel={onCancel}
       buttonDisabled={loader}
       buttonTitle={loader ? `Updating` : `Update`}
+      showCategory
     />
   );
 });
