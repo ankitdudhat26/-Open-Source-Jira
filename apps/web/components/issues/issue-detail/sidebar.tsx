@@ -29,6 +29,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
+import { CreatedByClient } from "@/components/issues/created-by-client";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { PrioritySelect } from "@/components/dropdowns/priority/priority-select";
 import { StateSelect } from "@/components/dropdowns/state/state-select";
@@ -168,13 +169,22 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               />
             </SidebarPropertyListItem>
 
-            {createdByDetails && (
+            {createdByDetails ? (
               <SidebarPropertyListItem icon={UserOutline} label={t("common.created_by")}>
                 <div className="flex gap-2 px-2">
                   <ButtonAvatars showTooltip userIds={createdByDetails.id} />
                   <span className="grow truncate text-body-xs-regular leading-5">{createdByDetails?.display_name}</span>
                 </div>
               </SidebarPropertyListItem>
+            ) : (
+              issue.created_by_detail && (
+                // a client outside the workspace (sent it through the Intake link): their name comes with the work item
+                <SidebarPropertyListItem icon={UserOutline} label={t("common.created_by")}>
+                  <div className="px-2">
+                    <CreatedByClient creator={issue.created_by_detail} />
+                  </div>
+                </SidebarPropertyListItem>
+              )
             )}
 
             <SidebarPropertyListItem icon={StartDateOutline} label={t("common.order_by.start_date")}>

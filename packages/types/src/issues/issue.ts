@@ -73,6 +73,8 @@ export type TBaseIssue = {
   archived_at: string | null;
 
   created_by: string;
+  /** who created it, when they may not be in the member list (a client who sent it through the Intake link) */
+  created_by_detail?: { id: string; display_name: string; first_name: string; last_name: string; email: string } | null;
   updated_by: string;
 
   is_draft: boolean;

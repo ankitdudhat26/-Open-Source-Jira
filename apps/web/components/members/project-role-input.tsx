@@ -25,6 +25,7 @@ export const PROJECT_ROLE_SUGGESTIONS = [
   "Backend Developer",
   "Full Stack Developer",
   "Mobile Developer",
+  "Salesforce Developer",
   "UI/UX Designer",
   "Graphic Designer",
   "QA Engineer",

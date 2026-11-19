@@ -59,3 +59,27 @@ export const IntakeDescriptionEditor = forwardRef(function IntakeDescriptionEdit
     />
   );
 });
+
+/**
+ * A description or comment written in the app, shown read only with the same editor (it only keeps what the editor
+ * knows how to show, so the HTML cannot run anything).
+ */
+export function IntakeReadOnlyHtml({ id, html }: { id: string; html: string }) {
+  return (
+    <RichTextEditorWithRef
+      id={id}
+      editable={false}
+      initialValue={html || "<p></p>"}
+      onChange={() => {}}
+      disabledExtensions={["ai", "issue-embed"]}
+      flaggedExtensions={[]}
+      fileHandler={NO_FILES}
+      mentionHandler={{ renderComponent: () => null, searchCallback: async () => [] }}
+      getEditorMetaData={() => ({ file_assets: [], user_mentions: [] })}
+      extendedEditorProps={{}}
+      containerClassName="border-none p-0"
+      editorClassName="py-0"
+      displayConfig={{ fontSize: "small-font" }}
+    />
+  );
+}

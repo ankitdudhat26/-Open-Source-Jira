@@ -19,9 +19,9 @@ from rest_framework.response import Response
 
 # Module imports
 from .base import BaseAPIView
-from plane.app.serializers import IssueAttachmentSerializer, IssueCreateSerializer
+from plane.app.serializers import IssueAttachmentSerializer, IssueCommentSerializer, IssueCreateSerializer
 from plane.bgtasks.issue_activities_task import issue_activity
-from plane.db.models import FileAsset, IntakeForm, IntakeIssue, Issue, Label, Project, State, StateGroup
+from plane.db.models import FileAsset, IntakeForm, IntakeIssue, Issue, Project, State, StateGroup
 from plane.db.models.intake import SourceType
 from plane.settings.storage import S3Storage
 from plane.utils.asset_paths import asset_storage_key
@@ -31,11 +31,21 @@ from plane.utils.intake_form import (
     is_invited,
     open_form_filter,
     project_form,
+    resolve_role_labels,
     strip_hidden_fields,
     user_requests,
     visible_fields,
 )
+from plane.utils.intake_portal import (
+    allowed_states,
+    notifications,
+    visible_work_items,
+    work_item_detail,
+    work_item_row,
+)
 from plane.utils.path_validator import sanitize_filename
+from plane.utils.work_item_automation import run_work_item_automation
+from plane.utils.workflow import check_transition
 
 NOT_AVAILABLE = {"error": "This form is not available. Ask the person who shared it for a new link."}
 
@@ -111,12 +121,8 @@ class IntakeFormRequestEndpoint(BaseAPIView):
         issue_data = {key: value for key, value in issue_data.items() if key in allowed}
         issue_data["name"] = str(issue_data["name"]).strip()[:255]
         if issue_data.get("label_ids"):
-            issue_data["label_ids"] = [
-                str(label_id)
-                for label_id in Label.objects.filter(project=project, id__in=issue_data["label_ids"]).values_list(
-                    "id", flat=True
-                )
-            ]
+            # the project's roles only (a role without a label gets one)
+            issue_data["label_ids"] = resolve_role_labels(project, issue_data["label_ids"])
 
         triage_state = State.triage_objects.filter(project=project).first() or State.objects.create(
             name="Triage",
@@ -164,6 +170,52 @@ class IntakeFormRequestEndpoint(BaseAPIView):
         )
 
 
+def _store_attachment(request, issue):
+    """Store the uploaded file as an attachment of the work item (as in the app), or return an error Response."""
+    upload = request.FILES.get("file")
+    if not upload:
+        return Response({"error": "Choose a file."}, status=status.HTTP_400_BAD_REQUEST)
+    if upload.size > settings.FILE_SIZE_LIMIT:
+        return Response(
+            {"error": f"Files can be up to {settings.FILE_SIZE_LIMIT // (1024 * 1024)} MB."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    name = sanitize_filename(upload.name) or "unnamed"
+    content_type = (upload.content_type or "").split(";")[0].strip().lower()
+    if content_type not in settings.ATTACHMENT_MIME_TYPES:
+        content_type = (mimetypes.guess_type(name)[0] or "").lower()
+    if content_type not in settings.ATTACHMENT_MIME_TYPES:
+        return Response({"error": "This type of file cannot be attached."}, status=status.HTTP_400_BAD_REQUEST)
+
+    asset_key = asset_storage_key(
+        name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=issue.workspace_id
+    )
+    if not S3Storage(request=request).upload_file(upload, asset_key, content_type):
+        return Response({"error": "The file could not be stored. Try again."}, status=500)
+    asset = FileAsset.objects.create(
+        attributes={"name": name, "type": content_type, "size": upload.size},
+        asset=asset_key,
+        size=upload.size,
+        workspace_id=issue.workspace_id,
+        project_id=issue.project_id,
+        issue_id=issue.id,
+        entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
+        is_uploaded=True,
+    )
+    issue_activity.delay(
+        type="attachment.activity.created",
+        requested_data=None,
+        actor_id=str(request.user.id),
+        issue_id=str(issue.id),
+        project_id=str(issue.project_id),
+        current_instance=json.dumps(IssueAttachmentSerializer(asset).data, cls=DjangoJSONEncoder),
+        epoch=int(timezone.now().timestamp()),
+        notification=True,
+        origin=base_host(request=request, is_app=True),
+    )
+    return Response({"id": str(asset.id), "name": name}, status=status.HTTP_201_CREATED)
+
+
 class IntakeFormAttachmentEndpoint(BaseAPIView):
     """A file on a request the client sent, while the project's form takes attachments. The file comes through the
     API (the client is not a member of the project) and is stored like any work item attachment."""
@@ -182,45 +234,118 @@ class IntakeFormAttachmentEndpoint(BaseAPIView):
                 {"error": "This project's request form does not take attachments."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        upload = request.FILES.get("file")
-        if not upload:
-            return Response({"error": "Choose a file."}, status=status.HTTP_400_BAD_REQUEST)
-        if upload.size > settings.FILE_SIZE_LIMIT:
+        return _store_attachment(request, issue)
+
+
+def _client_work_item(request, anchor, issue_id):
+    """(form, work item) the client may see through the link, or (None, None)."""
+    form = _form(anchor)
+    if not form or not is_invited(request.user, form.project_id):
+        return None, None
+    issue = visible_work_items(request.user, _client_projects(request.user, form)).filter(pk=issue_id).first()
+    return form, issue
+
+
+class IntakeFormWorkItemListEndpoint(BaseAPIView):
+    """The project's work items the client may see (as in the app), for the Work Items tab."""
+
+    def get(self, request, anchor):
+        form = _form(anchor)
+        if not form or not is_invited(request.user, form.project_id):
+            return Response(NOT_AVAILABLE, status=status.HTTP_404_NOT_FOUND)
+        issues = visible_work_items(request.user, _client_projects(request.user, form))
+        return Response([work_item_row(issue, request.user) for issue in issues], status=status.HTTP_200_OK)
+
+
+class IntakeFormWorkItemEndpoint(BaseAPIView):
+    """A work item's details for the client (description, files, comments, history) and moving it to another state —
+    the only change a client makes; the project's workflow decides which states they may move it to."""
+
+    def get(self, request, anchor, issue_id):
+        _, issue = _client_work_item(request, anchor, issue_id)
+        if not issue:
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(work_item_detail(issue, request.user, S3Storage(request=request)), status=status.HTTP_200_OK)
+
+    def patch(self, request, anchor, issue_id):
+        _, issue = _client_work_item(request, anchor, issue_id)
+        if not issue:
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+        if set(request.data.keys()) - {"state_id"}:
+            return Response({"error": "Only the state can be changed."}, status=status.HTTP_400_BAD_REQUEST)
+        state_id = str(request.data.get("state_id") or "")
+        if state_id not in {state["id"] for state in allowed_states(issue, request.user)}:
+            error = check_transition(issue.project_id, issue.state_id, state_id, request.user.id)
             return Response(
-                {"error": f"Files can be up to {settings.FILE_SIZE_LIMIT // (1024 * 1024)} MB."},
+                {"error": error or "This work item cannot be moved to that state."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        name = sanitize_filename(upload.name) or "unnamed"
-        content_type = (upload.content_type or "").split(";")[0].strip().lower()
-        if content_type not in settings.ATTACHMENT_MIME_TYPES:
-            content_type = (mimetypes.guess_type(name)[0] or "").lower()
-        if content_type not in settings.ATTACHMENT_MIME_TYPES:
-            return Response({"error": "This type of file cannot be attached."}, status=status.HTTP_400_BAD_REQUEST)
-
-        asset_key = asset_storage_key(
-            name, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT, workspace_id=issue.workspace_id
-        )
-        if not S3Storage(request=request).upload_file(upload, asset_key, content_type):
-            return Response({"error": "The file could not be stored. Try again."}, status=500)
-        asset = FileAsset.objects.create(
-            attributes={"name": name, "type": content_type, "size": upload.size},
-            asset=asset_key,
-            size=upload.size,
-            workspace_id=issue.workspace_id,
-            project_id=issue.project_id,
-            issue_id=issue.id,
-            entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
-            is_uploaded=True,
-        )
+        current_instance = json.dumps({"state_id": str(issue.state_id)}, cls=DjangoJSONEncoder)
+        issue.state_id = state_id
+        issue.save(update_fields=["state", "updated_at"])
+        origin = base_host(request=request, is_app=True)
+        # the parent feature follows its tasks' status, as when the team moves it
+        run_work_item_automation(issue.id, request.user.id, origin=origin, state_changed=True)
         issue_activity.delay(
-            type="attachment.activity.created",
-            requested_data=None,
+            type="issue.activity.updated",
+            requested_data=json.dumps({"state_id": state_id}, cls=DjangoJSONEncoder),
             actor_id=str(request.user.id),
             issue_id=str(issue.id),
             project_id=str(issue.project_id),
-            current_instance=json.dumps(IssueAttachmentSerializer(asset).data, cls=DjangoJSONEncoder),
+            current_instance=current_instance,
+            epoch=int(timezone.now().timestamp()),
+            notification=True,
+            origin=origin,
+        )
+        issue.refresh_from_db()
+        return Response(work_item_detail(issue, request.user, S3Storage(request=request)), status=status.HTTP_200_OK)
+
+
+class IntakeFormWorkItemCommentEndpoint(BaseAPIView):
+    """A comment of the client on a work item they may see; the team sees it with the work item's comments."""
+
+    def post(self, request, anchor, issue_id):
+        _, issue = _client_work_item(request, anchor, issue_id)
+        if not issue:
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+        comment_html = str(request.data.get("comment_html") or "").strip()
+        if not comment_html:
+            return Response({"error": "Write a comment."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = IssueCommentSerializer(data={"comment_html": comment_html})
+        if not serializer.is_valid():
+            return Response({"error": "Check the comment and try again."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save(project_id=issue.project_id, issue_id=issue.id, actor=request.user)
+        issue_activity.delay(
+            type="comment.activity.created",
+            requested_data=json.dumps(serializer.data, cls=DjangoJSONEncoder),
+            actor_id=str(request.user.id),
+            issue_id=str(issue.id),
+            project_id=str(issue.project_id),
+            current_instance=None,
             epoch=int(timezone.now().timestamp()),
             notification=True,
             origin=base_host(request=request, is_app=True),
         )
-        return Response({"id": str(asset.id), "name": name}, status=status.HTTP_201_CREATED)
+        return Response({"id": serializer.data["id"]}, status=status.HTTP_201_CREATED)
+
+
+class IntakeFormWorkItemAttachmentEndpoint(BaseAPIView):
+    """A file the client attaches to a work item they may see (with a comment, or on its own)."""
+
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
+    def post(self, request, anchor, issue_id):
+        _, issue = _client_work_item(request, anchor, issue_id)
+        if not issue:
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+        return _store_attachment(request, issue)
+
+
+class IntakeFormNotificationEndpoint(BaseAPIView):
+    """What happened to the client's requests and work items, for the bell in the header."""
+
+    def get(self, request, anchor):
+        form = _form(anchor)
+        if not form or not is_invited(request.user, form.project_id):
+            return Response(NOT_AVAILABLE, status=status.HTTP_404_NOT_FOUND)
+        return Response(notifications(request.user, _client_projects(request.user, form)), status=status.HTTP_200_OK)

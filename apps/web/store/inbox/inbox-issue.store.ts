@@ -12,6 +12,7 @@ import type {
   EInboxIssueSource,
   TIssue,
   TInboxDuplicateIssueDetails,
+  TInboxIssueCreator,
 } from "@plane/types";
 import { EInboxIssueStatus } from "@plane/types";
 // helpers
@@ -32,6 +33,7 @@ export interface IInboxIssueStore {
   created_by: string | undefined;
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined;
   decline_reason: string | undefined;
+  created_by_detail: TInboxIssueCreator | undefined;
   // actions
   updateInboxIssueStatus: (status: TInboxIssueStatus, declineReason?: string) => Promise<void>; // accept, decline (with the reason)
   updateInboxIssueDuplicateTo: (issueId: string) => Promise<void>; // connecting the inbox issue to the project existing issue
@@ -53,6 +55,7 @@ export class InboxIssueStore implements IInboxIssueStore {
   created_by: string | undefined;
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined = undefined;
   decline_reason: string | undefined = undefined;
+  created_by_detail: TInboxIssueCreator | undefined = undefined;
   workspaceSlug: string;
   projectId: string;
   // services
@@ -74,6 +77,7 @@ export class InboxIssueStore implements IInboxIssueStore {
     this.source = data?.source || undefined;
     this.duplicate_issue_detail = data?.duplicate_issue_detail || undefined;
     this.decline_reason = data?.decline_reason || undefined;
+    this.created_by_detail = data?.created_by_detail || undefined;
     this.workspaceSlug = workspaceSlug;
     this.projectId = projectId;
     // services
@@ -89,6 +93,7 @@ export class InboxIssueStore implements IInboxIssueStore {
       duplicate_issue_detail: observable,
       decline_reason: observable,
       created_by: observable,
+      created_by_detail: observable.ref,
       source: observable,
       // actions
       updateInboxIssueStatus: action,

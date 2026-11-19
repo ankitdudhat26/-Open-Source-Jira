@@ -6,6 +6,7 @@
 import json
 
 # Django import
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Count, OuterRef, Func, F, Prefetch, Subquery
 from django.core.serializers.json import DjangoJSONEncoder
@@ -52,7 +53,8 @@ from plane.utils.timezone_converter import user_timezone_converter
 from plane.utils.global_paginator import paginate
 from plane.utils.host import base_host
 from plane.db.models.intake import IntakeIssueStatus, SourceType
-from plane.utils.intake_form import strip_hidden_fields
+from plane.bgtasks.intake_request_status_task import intake_request_status
+from plane.utils.intake_form import get_form, strip_hidden_fields
 
 
 class IntakeViewSet(BaseViewSet):
@@ -471,7 +473,17 @@ class IntakeIssueViewSet(BaseViewSet):
                     )
 
         if intake_serializer:
+            previous_status = intake_issue.status
             intake_issue = intake_serializer.save()
+            # accepted / declined / duplicate: tell the person who sent the request (its Created by), by email
+            if "status" in request.data and intake_issue.status != previous_status:
+                transaction.on_commit(
+                    lambda: intake_request_status.delay(
+                        str(intake_issue.id),
+                        str(request.user.id),
+                        f"{base_host(request=request, is_space=True)}intake/{get_form(intake_issue.project).anchor}",
+                    )
+                )
             if "status" in request.data:
                 extra = dict(intake_issue.extra or {})
                 if intake_issue.status == IntakeIssueStatus.REJECTED:

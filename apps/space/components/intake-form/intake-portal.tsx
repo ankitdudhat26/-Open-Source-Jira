@@ -15,7 +15,7 @@ import { AttachOutline, CloseOutline, SearchOutline } from "@makeplane/propel/ic
 import { API_BASE_URL, SPACE_BASE_PATH } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
 import { HlinkLockup, PriorityIcon } from "@plane/blocks/icons";
-import { Select } from "@plane/blocks/select";
+import { LabelSelect } from "@plane/blocks/property-select";
 import { AuthService } from "@plane/services";
 import type { TIssuePriorities } from "@plane/types";
 import { cn, renderFormattedDate } from "@plane/utils";
@@ -23,11 +23,22 @@ import { cn, renderFormattedDate } from "@plane/utils";
 import { LogoSpinner } from "@/components/common/logo-spinner";
 // local imports
 import { IntakeDescriptionEditor } from "./description-editor";
+import { NotificationsBell } from "./notifications-bell";
+import type { TWorkItemRow } from "./portal-shared";
+import {
+  ColorDot,
+  LabelChip,
+  MAX_FILE_SIZE,
+  OptionSelect,
+  PRIORITY_LABELS,
+  getJson,
+  isEmptyHtml,
+} from "./portal-shared";
 import { ThemeSwitch } from "./theme-switch";
+import { WorkItemDetail } from "./work-item-detail";
+import { WorkItemsTable } from "./work-items";
 
 type TFieldKey = "title" | "description" | "type" | "priority" | "labels" | "attachments";
-
-type TOption = { id: string; name: string; color?: string };
 
 type TProjectForm = {
   project_id: string;
@@ -54,7 +65,7 @@ type TRequest = {
   name: string;
   priority: TIssuePriorities;
   type: { name: string; color: string } | null;
-  labels: { name: string; color: string }[];
+  labels: { id?: string; name: string; color: string }[];
   status: number;
   status_label: string;
   decline_reason: string;
@@ -66,7 +77,6 @@ type TRequest = {
 type TDraft = { title: string; description: string; typeId: string; priority: string; labelIds: string[] };
 
 const EMPTY_DRAFT: TDraft = { title: "", description: "", typeId: "", priority: "", labelIds: [] };
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const authService = new AuthService();
 
 // -2 pending, -1 declined, 0 snoozed, 1 accepted, 2 duplicate
@@ -77,43 +87,14 @@ const STATUS_STYLES: Record<number, string> = {
   1: "bg-success-subtle text-success-primary",
   2: "bg-layer-3 text-secondary",
 };
+// accepted requests are followed under Work Items; All still lists them
 const STATUS_FILTERS = [
   { key: "all", label: "All", statuses: null },
   { key: "pending", label: "Pending", statuses: [-2, 0] },
-  { key: "accepted", label: "Accepted", statuses: [1] },
   { key: "declined", label: "Declined", statuses: [-1] },
   { key: "duplicate", label: "Duplicate", statuses: [2] },
 ] as const;
 type TStatusFilter = (typeof STATUS_FILTERS)[number]["key"];
-const PRIORITY_LABELS: Record<string, string> = {
-  urgent: "Urgent",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  none: "None",
-};
-
-const getJson = async <T,>(url: string): Promise<T> => {
-  const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) throw new Error(String(response.status));
-  return (await response.json()) as T;
-};
-
-/** Whether the editor's HTML has no text (an empty paragraph, line breaks…). */
-const isEmptyHtml = (html: string) =>
-  !html ||
-  (!/<(img|table|hr|pre|ul|ol)\b/i.test(html) &&
-    !html
-      .replace(/<[^>]*>/g, "")
-      .replace(/&nbsp;/g, " ")
-      .trim());
-
-function ColorDot({ color }: { color?: string }) {
-  return (
-    <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color || "#6B7280" }} />
-  );
-}
-
 function FieldLabel({ children, required, htmlFor }: { children: string; required?: boolean; htmlFor?: string }) {
   const content = (
     <>
@@ -127,78 +108,6 @@ function FieldLabel({ children, required, htmlFor }: { children: string; require
     </label>
   ) : (
     <span className="text-body-xs-medium text-primary">{content}</span>
-  );
-}
-
-type TOptionSelectProps = {
-  options: TOption[];
-  placeholder: string;
-  icon?: (option: TOption) => React.ReactNode;
-} & (
-  | { multiple?: false; value: string; onChange: (id: string) => void }
-  | {
-      multiple: true;
-      value: string[];
-      onChange: (ids: string[]) => void;
-    }
-);
-
-/** A field-style dropdown whose options (and selected value) carry an icon: type colour, priority, label colour. */
-function OptionSelect(props: TOptionSelectProps) {
-  const { options, placeholder, icon } = props;
-  const byId = new Map(options.map((option) => [option.id, option]));
-  const common = {
-    getValues: () => options,
-    getOptionValue: (option: TOption) => option.id,
-    getOptionLabel: (option: TOption) => option.name,
-    getOptionIcon: icon,
-    placeholder,
-    showSearch: options.length > 8,
-    pinSelected: false,
-  };
-  const trigger = (
-    // the select chrome's border width is dropped from its class list in this app — set it here
-    <Select.Trigger<TOption> variant="select-lg" className="border">
-      {(selected) => (
-        <span className="flex min-w-0 grow items-center gap-1.5 text-left">
-          {selected.length === 0 ? (
-            <span className="truncate text-placeholder">{placeholder}</span>
-          ) : selected.length === 1 ? (
-            <>
-              {icon?.(selected[0])}
-              <span className="truncate">{selected[0].name}</span>
-            </>
-          ) : (
-            <>
-              <span className="flex shrink-0 items-center -space-x-0.5">
-                {selected.slice(0, 4).map((option) => (
-                  <span key={option.id} className="ring-layer-2 flex rounded-full ring-2">
-                    {icon?.(option)}
-                  </span>
-                ))}
-              </span>
-              <span className="truncate">{selected.map((option) => option.name).join(", ")}</span>
-            </>
-          )}
-        </span>
-      )}
-    </Select.Trigger>
-  );
-  if (props.multiple)
-    return (
-      <Select<TOption>
-        {...common}
-        multiple
-        value={props.value.flatMap((id) => byId.get(id) ?? [])}
-        onChange={props.onChange}
-      >
-        {trigger}
-      </Select>
-    );
-  return (
-    <Select<TOption> {...common} value={byId.get(props.value) ?? null} onChange={props.onChange}>
-      {trigger}
-    </Select>
   );
 }
 
@@ -225,9 +134,13 @@ type TRequestFormProps = {
   onSent: () => void;
 };
 
+// the labels are the project's roles: when it has only one, it is picked already
+const defaultLabelIds = (projectForm?: TProjectForm) =>
+  projectForm?.labels.length === 1 ? [projectForm.labels[0].id] : [];
+
 function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
   const [projectId, setProjectId] = useState(forms[0]?.project_id ?? "");
-  const [draft, setDraft] = useState<TDraft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<TDraft>(() => ({ ...EMPTY_DRAFT, labelIds: defaultLabelIds(forms[0]) }));
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -300,13 +213,13 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
           )
         : [];
       const failed = uploads.filter((name): name is string => !!name);
-      setDraft(EMPTY_DRAFT);
+      setDraft({ ...EMPTY_DRAFT, labelIds: defaultLabelIds(form) });
       setEditorKey((key) => key + 1);
       setFiles([]);
       setNotice(
         failed.length
           ? `Your request was sent, but these files could not be attached: ${failed.join(", ")}.`
-          : `Your request was sent to ${form.project_name}. You can follow it under My requests.`
+          : `Your request was sent to ${form.project_name}. You can follow it under Request Status.`
       );
       onSent();
     } catch {
@@ -364,7 +277,11 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
                 onChange={(value) => {
                   setProjectId(value);
                   // types and labels belong to the project
-                  setDraft((current) => ({ ...current, typeId: "", labelIds: [] }));
+                  setDraft((current) => ({
+                    ...current,
+                    typeId: "",
+                    labelIds: defaultLabelIds(forms.find((item) => item.project_id === value)),
+                  }));
                 }}
               />
             </div>
@@ -396,13 +313,19 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
           {shows("labels") && labelOptions.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <FieldLabel>Labels</FieldLabel>
-              <OptionSelect
-                multiple
-                options={labelOptions}
-                placeholder="Choose labels"
-                icon={(option) => <ColorDot color={option.color} />}
-                value={draft.labelIds}
+              {/* the app's label picker: labels as coloured chips, searchable */}
+              <LabelSelect
+                getValues={async ({ search }) => {
+                  const query = search?.trim().toLowerCase();
+                  return {
+                    results: labelOptions.filter((label) => !query || label.name.toLowerCase().includes(query)),
+                    next_page_results: false,
+                  };
+                }}
+                value={labelOptions.filter((label) => draft.labelIds.includes(label.id))}
                 onChange={(values) => setDraft((current) => ({ ...current, labelIds: values }))}
+                variant="select-lg"
+                placeholder="Choose labels"
               />
             </div>
           )}
@@ -482,14 +405,21 @@ function StatusNote({ request }: { request: TRequest }) {
         {request.decline_reason || "No reason given."}
       </span>
     );
-  if (request.status === 1) return <span>Accepted — the team is working on it.</span>;
+  if (request.status === 1) return <span>Accepted — follow it under Work Items.</span>;
   if (request.status === 2 && request.duplicate_of) return <span>Same as {request.duplicate_of}.</span>;
   if (request.status === 0 && request.snoozed_till)
     return <span>On hold until {renderFormattedDate(request.snoozed_till)}.</span>;
   return <span>Waiting for review.</span>;
 }
 
-function RequestList({ requests, showProject }: { requests: TRequest[]; showProject: boolean }) {
+type TRequestListProps = {
+  requests: TRequest[];
+  showProject: boolean;
+  /** an accepted request is a work item: open its details */
+  onOpen: (issueId: string) => void;
+};
+
+function RequestList({ requests, showProject, onOpen }: TRequestListProps) {
   const [filter, setFilter] = useState<TStatusFilter>("all");
   const [search, setSearch] = useState("");
 
@@ -581,20 +511,18 @@ function RequestList({ requests, showProject }: { requests: TRequest[]; showProj
               </thead>
               <tbody className="divide-y divide-subtle">
                 {visible.map((request) => (
-                  <tr key={request.id} className="align-top">
+                  <tr
+                    key={request.id}
+                    className={cn("align-top", request.status === 1 && "cursor-pointer hover:bg-layer-1-hover")}
+                    onClick={request.status === 1 ? () => onOpen(request.issue_id) : undefined}
+                  >
                     <td className="px-4 py-3 text-caption-md-medium whitespace-nowrap text-tertiary">{request.key}</td>
                     <td className="px-4 py-3">
                       <p className="text-body-xs-medium break-words text-primary">{request.name}</p>
                       {request.labels.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {request.labels.map((label) => (
-                            <span
-                              key={label.name}
-                              className="flex items-center gap-1 rounded-sm border border-subtle px-1.5 py-0.5 text-caption-sm-regular text-secondary"
-                            >
-                              <ColorDot color={label.color} />
-                              {label.name}
-                            </span>
+                            <LabelChip key={label.name} label={{ id: label.id ?? label.name, ...label }} />
                           ))}
                         </div>
                       )}
@@ -656,11 +584,14 @@ function Message({ title, children }: { title: string; children: React.ReactNode
 
 /**
  * The page behind a project's Intake link. Invited clients log in here, send requests with the form the project set
- * up (choosing the project when they are invited to more than one) and follow each request: pending, accepted, or
- * declined with the reason. They see nothing else of the project.
+ * up (choosing the project when they are invited to more than one), follow each request under Request Status
+ * (pending, declined with the reason, duplicate), and follow their work items under Work Items: open one to comment,
+ * attach files and move it to another state. The bell lists what the team did.
  */
 export function IntakePortal({ anchor }: { anchor: string }) {
-  const [tab, setTab] = useState<"new" | "requests">("new");
+  const [tab, setTab] = useState<"new" | "requests" | "work-items">("new");
+  // the work item whose details are open (from Work Items, an accepted request or a notification)
+  const [openIssueId, setOpenIssueId] = useState<string | null>(null);
   const base = `${API_BASE_URL}/api/public/intake-forms/${anchor}/`;
   const {
     data: portal,
@@ -673,6 +604,11 @@ export function IntakePortal({ anchor }: { anchor: string }) {
   const { data: requests, mutate: mutateRequests } = useSWR(
     portal?.access === "ok" ? `${base}requests/` : null,
     (url: string) => getJson<TRequest[]>(url),
+    { revalidateOnFocus: true }
+  );
+  const { data: workItems, mutate: mutateWorkItems } = useSWR(
+    portal?.access === "ok" ? `${base}work-items/` : null,
+    (url: string) => getJson<TWorkItemRow[]>(url),
     { revalidateOnFocus: true }
   );
 
@@ -733,7 +669,8 @@ export function IntakePortal({ anchor }: { anchor: string }) {
           {(
             [
               ["new", "New request"],
-              ["requests", `My requests${requests ? ` (${requests.length})` : ""}`],
+              ["requests", `Request Status${requests ? ` (${requests.length})` : ""}`],
+              ["work-items", `Work Items${workItems ? ` (${workItems.length})` : ""}`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -753,12 +690,22 @@ export function IntakePortal({ anchor }: { anchor: string }) {
         </div>
         {tab === "new" ? (
           <RequestForm anchor={anchor} forms={forms} onSent={() => void mutateRequests()} />
-        ) : requests ? (
-          <RequestList requests={requests} showProject={forms.length > 1} />
+        ) : tab === "requests" && requests ? (
+          <RequestList requests={requests} showProject={forms.length > 1} onOpen={setOpenIssueId} />
+        ) : tab === "work-items" && workItems ? (
+          <WorkItemsTable items={workItems} showProject={forms.length > 1} onOpen={setOpenIssueId} />
         ) : (
           <div className="flex justify-center py-16">
             <LogoSpinner />
           </div>
+        )}
+        {openIssueId && (
+          <WorkItemDetail
+            base={base}
+            issueId={openIssueId}
+            onClose={() => setOpenIssueId(null)}
+            onChanged={() => void Promise.all([mutateWorkItems(), mutateRequests()])}
+          />
         )}
       </div>
     );
@@ -782,6 +729,7 @@ export function IntakePortal({ anchor }: { anchor: string }) {
           <ThemeSwitch />
           {portal?.access === "ok" && (
             <>
+              <NotificationsBell base={base} anchor={anchor} onOpen={setOpenIssueId} />
               <span className="h-5 w-px shrink-0 bg-layer-3" />
               <span className="hidden text-body-xs-regular text-tertiary sm:inline">{portal.email}</span>
               <SignOutButton anchor={anchor} />

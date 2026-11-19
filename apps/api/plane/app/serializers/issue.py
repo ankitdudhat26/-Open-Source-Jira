@@ -994,12 +994,28 @@ class IssueDetailSerializer(IssueSerializer):
     description_html = serializers.CharField()
     is_subscribed = serializers.BooleanField(read_only=True)
     is_intake = serializers.BooleanField(read_only=True)
+    # who created it — a client who sent it through the Intake link is not a workspace member, so the app cannot
+    # look them up and shows this instead
+    created_by_detail = serializers.SerializerMethodField()
+
+    def get_created_by_detail(self, obj):
+        user = obj.created_by
+        if user is None:
+            return None
+        return {
+            "id": str(user.id),
+            "display_name": user.display_name,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+        }
 
     class Meta(IssueSerializer.Meta):
         fields = IssueSerializer.Meta.fields + [
             "description_html",
             "is_subscribed",
             "is_intake",
+            "created_by_detail",
             # SOW ID (e.g. "T001") of imported work items
             "external_source",
             "external_id",

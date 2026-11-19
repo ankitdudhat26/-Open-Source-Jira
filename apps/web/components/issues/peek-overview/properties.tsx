@@ -29,6 +29,7 @@ import { useUserPermissions } from "@/hooks/store/user";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
+import { CreatedByClient } from "@/components/issues/created-by-client";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { PrioritySelect } from "@/components/dropdowns/priority/priority-select";
 import { StateSelect } from "@/components/dropdowns/state/state-select";
@@ -163,7 +164,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
           />
         </SidebarPropertyListItem>
 
-        {createdByDetails && (
+        {createdByDetails ? (
           <SidebarPropertyListItem icon={UserOutline} label={t("common.created_by")} childrenClassName="px-2">
             <ButtonAvatars
               showTooltip
@@ -173,6 +174,13 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
               {createdByDetails?.display_name?.includes("-intake") ? "HLIS Flow" : createdByDetails?.display_name}
             </span>
           </SidebarPropertyListItem>
+        ) : (
+          issue.created_by_detail && (
+            // a client outside the workspace (sent it through the Intake link): their name comes with the work item
+            <SidebarPropertyListItem icon={UserOutline} label={t("common.created_by")} childrenClassName="px-2">
+              <CreatedByClient creator={issue.created_by_detail} />
+            </SidebarPropertyListItem>
+          )
         )}
 
         <SidebarPropertyListItem icon={StartDateOutline} label={t("common.order_by.start_date")}>

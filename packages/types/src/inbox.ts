@@ -42,6 +42,17 @@ export type TInboxIssue = {
   duplicate_issue_detail: TInboxDuplicateIssueDetails | undefined;
   /** why the request was declined — required when declining, shown to the person who sent it */
   decline_reason?: string;
+  /** who sent the request — often a client outside the workspace, whom the member list does not have */
+  created_by_detail?: TInboxIssueCreator | null;
+};
+
+export type TInboxIssueCreator = {
+  id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  avatar_url?: string | null;
 };
 
 // filters

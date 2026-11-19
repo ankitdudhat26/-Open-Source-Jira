@@ -53,6 +53,11 @@ export const InboxIssueListItem = observer(function InboxIssueListItem(props: In
   if (!issue) return <></>;
 
   const createdByDetails = issue?.created_by ? getUserDetails(issue?.created_by) : undefined;
+  // a client who sent it through the Intake link is not in the member list: the request carries their name
+  const sender = inboxIssue?.created_by_detail;
+  const senderName = sender
+    ? `${sender.first_name ?? ""} ${sender.last_name ?? ""}`.trim() || sender.display_name || sender.email
+    : "";
 
   return (
     <>
@@ -127,6 +132,13 @@ export const InboxIssueListItem = observer(function InboxIssueListItem(props: In
               <Avatar alt="HLIS Flow" fallback="H" size="xs" />
             ) : createdByDetails ? (
               <ButtonAvatars showTooltip={false} userIds={createdByDetails?.id} />
+            ) : sender ? (
+              <Tooltip label={`Created by ${senderName} · ${sender.email}`} disabled={isMobile}>
+                <span className="flex max-w-32 items-center gap-1 text-11 text-tertiary">
+                  <Avatar alt={senderName} fallback={senderName[0]?.toUpperCase() ?? "?"} size="xs" />
+                  <span className="truncate">{senderName}</span>
+                </span>
+              </Tooltip>
             ) : null}
           </div>
         </Row>

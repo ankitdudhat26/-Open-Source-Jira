@@ -103,15 +103,75 @@ def project_form(project):
         if "type" in shown
         else [],
         "priorities": PRIORITIES if "priority" in shown else [],
-        "labels": [
-            {"id": str(label_id), "name": name, "color": color}
-            for label_id, name, color in Label.objects.filter(project=project)
-            .order_by("sort_order", "name")
-            .values_list("id", "name", "color")
-        ]
-        if "labels" in shown
-        else [],
+        # the labels a client picks are the project's roles (its members' Project role), not its internal labels
+        "labels": role_labels(project) if "labels" in shown else [],
     }
+
+
+# project roles that are not a kind of work to ask for
+ROLE_LABELS_LEFT_OUT = {"client", "project manager"}
+RESOURCE_GROUP = "Resource"
+RESOURCE_COLOR = "#F59E0B"
+ROLE_ID_PREFIX = "role:"
+
+
+def role_names(project):
+    """The Project roles of the project's members (Members settings), once each, without Client and Project Manager."""
+    names = {}
+    for designation in (
+        ProjectMember.objects.filter(project=project, is_active=True, member__is_bot=False)
+        .exclude(designation="")
+        .values_list("designation", flat=True)
+    ):
+        name = designation.strip()
+        if name and name.casefold() not in ROLE_LABELS_LEFT_OUT:
+            names.setdefault(name.casefold(), name)
+    return sorted(names.values(), key=str.casefold)
+
+
+def role_labels(project):
+    """The roles as label choices: the project's label of that name when it has one, else "role:<name>" (its label is
+    made when a request picks it)."""
+    labels = {label.name.casefold(): label for label in Label.objects.filter(project=project)}
+    choices = []
+    for name in role_names(project):
+        label = labels.get(name.casefold())
+        choices.append(
+            {
+                "id": str(label.id) if label else f"{ROLE_ID_PREFIX}{name}",
+                "name": name,
+                "color": (label.color if label else "") or RESOURCE_COLOR,
+            }
+        )
+    return choices
+
+
+def resolve_role_labels(project, label_ids):
+    """The label ids of the roles a request picked: only the project's roles count; a role without a label yet gets
+    one in the "Resource" label group, like the labels of the project's resources."""
+    choices = {choice["id"]: choice for choice in role_labels(project)}
+    resolved = []
+    for label_id in label_ids or []:
+        choice = choices.get(str(label_id))
+        if choice is None:
+            continue
+        if choice["id"].startswith(ROLE_ID_PREFIX):
+            group = Label.objects.filter(project=project, name=RESOURCE_GROUP, parent__isnull=True).first()
+            if group is None:
+                group = Label.objects.create(
+                    project=project, workspace_id=project.workspace_id, name=RESOURCE_GROUP, color=RESOURCE_COLOR
+                )
+            label = Label.objects.filter(project=project, name__iexact=choice["name"]).first() or Label.objects.create(
+                project=project,
+                workspace_id=project.workspace_id,
+                name=choice["name"],
+                parent=group,
+                color=RESOURCE_COLOR,
+            )
+            resolved.append(str(label.id))
+        else:
+            resolved.append(choice["id"])
+    return list(dict.fromkeys(resolved))
 
 
 def type_color(logo_props):

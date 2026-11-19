@@ -14,6 +14,21 @@ from .user import UserLiteSerializer
 from plane.db.models import Intake, IntakeIssue, Issue, StateGroup, State
 
 
+def creator_detail(intake_issue):
+    """Who sent the request — often a client who is not a member of the workspace, so the app cannot look them up."""
+    user = intake_issue.created_by
+    if user is None:
+        return None
+    return {
+        "id": str(user.id),
+        "display_name": user.display_name,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "avatar_url": user.avatar_url,
+    }
+
+
 class IntakeSerializer(BaseSerializer):
     project_detail = ProjectLiteSerializer(source="project", read_only=True)
     pending_issue_count = serializers.IntegerField(read_only=True)
@@ -27,6 +42,7 @@ class IntakeSerializer(BaseSerializer):
 class IntakeIssueSerializer(BaseSerializer):
     issue = IssueIntakeSerializer(read_only=True)
     decline_reason = serializers.SerializerMethodField()
+    created_by_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = IntakeIssue
@@ -38,12 +54,16 @@ class IntakeIssueSerializer(BaseSerializer):
             "source",
             "issue",
             "created_by",
+            "created_by_detail",
             "decline_reason",
         ]
         read_only_fields = ["project", "workspace"]
 
     def get_decline_reason(self, obj):
         return (obj.extra or {}).get("decline_reason", "")
+
+    def get_created_by_detail(self, obj):
+        return creator_detail(obj)
 
     def validate(self, attrs):
         """
@@ -99,6 +119,7 @@ class IntakeIssueDetailSerializer(BaseSerializer):
     issue = IssueDetailSerializer(read_only=True)
     duplicate_issue_detail = IssueIntakeSerializer(read_only=True, source="duplicate_to")
     decline_reason = serializers.SerializerMethodField()
+    created_by_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = IntakeIssue
@@ -111,11 +132,16 @@ class IntakeIssueDetailSerializer(BaseSerializer):
             "source",
             "issue",
             "decline_reason",
+            "created_by",
+            "created_by_detail",
         ]
         read_only_fields = ["project", "workspace"]
 
     def get_decline_reason(self, obj):
         return (obj.extra or {}).get("decline_reason", "")
+
+    def get_created_by_detail(self, obj):
+        return creator_detail(obj)
 
     def to_representation(self, instance):
         # Pass the annotated fields to the Issue instance if they exist

@@ -32,4 +32,13 @@ from .asset import EntityAssetEndpoint, AssetRestoreEndpoint, EntityBulkAssetEnd
 
 from .meta import ProjectMetaDataEndpoint
 
-from .intake_form import IntakeFormAttachmentEndpoint, IntakeFormPortalEndpoint, IntakeFormRequestEndpoint
+from .intake_form import (
+    IntakeFormAttachmentEndpoint,
+    IntakeFormNotificationEndpoint,
+    IntakeFormPortalEndpoint,
+    IntakeFormRequestEndpoint,
+    IntakeFormWorkItemAttachmentEndpoint,
+    IntakeFormWorkItemCommentEndpoint,
+    IntakeFormWorkItemEndpoint,
+    IntakeFormWorkItemListEndpoint,
+)
