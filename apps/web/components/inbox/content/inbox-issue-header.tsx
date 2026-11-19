@@ -83,7 +83,7 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
   // store
   const { currentTab, deleteInboxIssue, filteredInboxIssueIds } = useProjectInbox();
   const { data: currentUser } = useUser();
-  const { allowPermissions } = useUserPermissions();
+  const { allowPermissions, workspaceProjectsPermissions } = useUserPermissions();
   const { getPartialProjectById } = useProject();
   const currentProjectDetails = getPartialProjectById(projectId);
   const { t } = useTranslation();
@@ -94,33 +94,21 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
   const issue = inboxIssue?.issue;
   // derived values
   const { can } = useFeatureAccess(workspaceSlug);
-  // Settings → Roles & access: accepting, declining, snoozing and marking duplicates is Intake → Edit
-  const isAllowed = can(
-    "intake",
-    "edit",
-    allowPermissions(
-      [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-      EUserPermissionsLevel.PROJECT,
-      workspaceSlug,
-      projectId
-    ),
-    projectId
-  );
-  const canMarkAsDuplicate = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
-  const canMarkAsAccepted = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
-  const canMarkAsDeclined = isAllowed && (inboxIssue?.status === 0 || inboxIssue?.status === -2);
+  // Accepting, declining, snoozing and marking duplicates is for this project's admins only: the people whose Role is
+  // Admin in Settings → Members (a workspace admin with another role there does not get them). Settings → Roles &
+  // access can still take it away (Intake → Edit).
+  const isProjectAdmin = workspaceProjectsPermissions?.[workspaceSlug]?.[projectId] === EUserPermissions.ADMIN;
+  const isAllowed = isProjectAdmin && can("intake", "edit", true, projectId);
+  const isPending = inboxIssue?.status === 0 || inboxIssue?.status === -2;
+  const canMarkAsDuplicate = isAllowed && isPending;
+  const canMarkAsAccepted = isAllowed && isPending;
+  const canMarkAsDeclined = isAllowed && isPending;
   // can delete only if admin or is creator of the issue
   const canDelete = can(
     "intake",
     "delete",
     allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId) ||
       issue?.created_by === currentUser?.id,
-    projectId
-  );
-  const isProjectAdmin = allowPermissions(
-    [EUserPermissions.ADMIN],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
     projectId
   );
   const isAcceptedOrDeclined = inboxIssue?.status ? [-1, 1, 2].includes(inboxIssue.status) : undefined;
@@ -408,7 +396,7 @@ export const InboxIssueActionsHeader = observer(function InboxIssueActionsHeader
               </div>
             ) : (
               <>
-                {isAllowed && (
+                {(isAllowed || canDelete) && (
                   <Menu>
                     <MenuTrigger
                       render={

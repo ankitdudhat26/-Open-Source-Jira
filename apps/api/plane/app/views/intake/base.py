@@ -57,6 +57,10 @@ from plane.bgtasks.intake_request_status_task import intake_request_status
 from plane.utils.intake_form import get_form, strip_hidden_fields
 
 
+# the fields of a request that triage it (rather than edit the work item)
+INTAKE_TRIAGE_FIELDS = ("status", "snoozed_till", "duplicate_to", "decline_reason")
+
+
 class IntakeViewSet(BaseViewSet):
     serializer_class = IntakeSerializer
     model = Intake
@@ -427,7 +431,14 @@ class IntakeIssueViewSet(BaseViewSet):
         intake_serializer = None
         intake_current_instance = None
 
-        can_change_status = (project_member and project_member.role > ROLE.MEMBER.value) or is_workspace_admin
+        # accepting, declining, snoozing and marking duplicates is for this project's admins only: the people whose
+        # Role is Admin in the project's Members (a workspace admin with another role there does not get it)
+        can_change_status = bool(project_member and project_member.role == ROLE.ADMIN.value)
+        if not can_change_status and any(field in request.data for field in INTAKE_TRIAGE_FIELDS):
+            return Response(
+                {"error": "Only the project's admins can accept, decline, snooze or mark requests as duplicate."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         # a request is only declined with the reason, which the person who sent it sees
         declining = can_change_status and str(request.data.get("status")) == str(IntakeIssueStatus.REJECTED)
         reason = str(request.data.get("decline_reason") or "").strip()[:2000]
