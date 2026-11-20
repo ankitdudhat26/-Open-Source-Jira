@@ -125,8 +125,8 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
 
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def patch(self, request, slug, pk):
-        """Edit a member's details: name and email while the account has never been signed in to (accounts the
-        Jira import made), the job role always. People who sign in keep their own name and email (profile settings).
+        """Edit a member's details: name and job role always, the email only while the account has never been
+        signed in to (accounts the Jira import made); for people who sign in it is their sign in, theirs to change.
         """
         membership = (
             WorkspaceMember.objects.filter(workspace__slug=slug, pk=pk, is_active=True)
@@ -158,9 +158,11 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
                     )
                 user_changes["email"] = email
         user_changes = {key: value for key, value in user_changes.items() if getattr(user, key) != value}
-        if user_changes and (user.last_login is not None or not user.is_password_autoset or user == request.user):
+        if "email" in user_changes and (
+            user.last_login is not None or not user.is_password_autoset or user == request.user
+        ):
             return Response(
-                {"error": "This person signs in with their own account, so only they can change their name and email."},
+                {"error": "This person signs in with this email, so only they can change it (in their profile)."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

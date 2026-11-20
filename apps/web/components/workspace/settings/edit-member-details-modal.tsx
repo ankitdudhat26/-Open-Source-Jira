@@ -28,8 +28,8 @@ const INPUT =
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Edit a member's details. Name and email only while the account was never signed in to (e.g. people the Jira
- * import added); people who sign in change those themselves. The job role can always be set.
+ * Edit a member's details: name and job role always; the email only while the account was never signed in to (e.g.
+ * people the Jira import added): for people who sign in it is their sign in, which they change themselves.
  */
 export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(props: Props) {
   const { rowData, workspaceSlug, isOpen, onClose } = props;
@@ -37,7 +37,7 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
     workspace: { updateMemberDetails },
   } = useMember();
   const { member } = rowData;
-  const canEditAccount = member.access_status !== "active";
+  const canEditEmail = member.access_status !== "active";
   // states
   const [form, setForm] = useState<Required<TWorkspaceMemberDetailsForm>>({
     first_name: "",
@@ -75,19 +75,21 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
   );
 
   const save = async () => {
-    if (canEditAccount && !form.display_name.trim()) {
+    if (!form.display_name.trim()) {
       setToast({ type: "error", title: "Display name needed", message: "Enter a display name." });
       return;
     }
-    if (canEditAccount && form.email.trim() && !EMAIL_PATTERN.test(form.email.trim())) {
+    if (canEditEmail && form.email.trim() && !EMAIL_PATTERN.test(form.email.trim())) {
       setToast({ type: "error", title: "Check the email", message: "Enter a valid email address." });
       return;
     }
-    const data: TWorkspaceMemberDetailsForm = { company_role: form.company_role.trim() };
-    if (canEditAccount) {
-      data.first_name = form.first_name.trim();
-      data.last_name = form.last_name.trim();
-      data.display_name = form.display_name.trim();
+    const data: TWorkspaceMemberDetailsForm = {
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      display_name: form.display_name.trim(),
+      company_role: form.company_role.trim(),
+    };
+    if (canEditEmail) {
       // a member without an email keeps none until one is typed
       if (form.email.trim() || member.email) data.email = form.email.trim();
     }
@@ -128,16 +130,16 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
           }}
         >
           <div className="grid grid-cols-2 gap-3">
-            {field("first_name", "First name", "First name", !canEditAccount)}
-            {field("last_name", "Last name", "Last name", !canEditAccount)}
+            {field("first_name", "First name", "First name")}
+            {field("last_name", "Last name", "Last name")}
           </div>
-          {field("display_name", "Display name", "Name shown on work items", !canEditAccount)}
-          {field("email", "Email", "name@company.com", !canEditAccount)}
+          {field("display_name", "Display name", "Name shown on work items")}
+          {field("email", "Email", "name@company.com", !canEditEmail)}
           {field("company_role", "Role", "e.g. Developer, Graphic Designer")}
           <p className="text-caption-md-regular text-tertiary">
-            {canEditAccount
+            {canEditEmail
               ? "This person has not signed in yet. A new email is the one they sign in with; send the invite again after changing it."
-              : "This person signs in with their own account, so only they can change their name and email (in their profile settings)."}
+              : "This person signs in with this email, so only they can change it (in their profile settings)."}
           </p>
           {/* Enter in any field saves */}
           <button type="submit" hidden aria-hidden tabIndex={-1} />

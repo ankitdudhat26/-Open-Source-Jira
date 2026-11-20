@@ -57,7 +57,7 @@ type AccountTypeProps = {
   workspaceSlug: string;
 };
 
-export function NameColumn(props: NameProps) {
+export const NameColumn = observer(function NameColumn(props: NameProps) {
   const { rowData, workspaceSlug, isAdmin, currentUser, setRemoveMemberModal } = props;
   // plane hooks
   const { t } = useTranslation();
@@ -107,36 +107,44 @@ export function NameColumn(props: NameProps) {
           </span>
         </div>
 
-        {!isSuspended && (isAdmin || id === currentUser?.id) && (
-          <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100">
-            <Menu>
-              <MenuTrigger
-                render={
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("aria_labels.common.more_actions")}
-                    icon={<Icon icon={MoreHorizontalOutline} />}
-                  />
-                }
-              />
-              <MenuContent side="bottom" align="end">
-                {canEdit && (
-                  <MenuItem
-                    icon={<Icon icon={EditOutline} />}
-                    label="Edit details"
-                    onClick={() => setIsEditOpen(true)}
-                  />
-                )}
-                <MenuItem
-                  icon={<Icon icon={DeleteOutline} />}
-                  label={id === currentUser?.id ? t("leave") : t("remove")}
-                  onClick={() => setRemoveMemberModal(rowData)}
+        <div className="flex items-center gap-1">
+          {!isSuspended && canEdit && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              aria-label={`Edit ${display_name || email || "member"}`}
+              title="Edit"
+              icon={<Icon icon={EditOutline} />}
+              onClick={() => setIsEditOpen(true)}
+            />
+          )}
+          {!isSuspended && (isAdmin || id === currentUser?.id) && (
+            <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100">
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t("aria_labels.common.more_actions")}
+                      icon={<Icon icon={MoreHorizontalOutline} />}
+                    />
+                  }
                 />
-              </MenuContent>
-            </Menu>
-          </div>
-        )}
+                <MenuContent side="bottom" align="end">
+                  {canEdit && (
+                    <MenuItem icon={<Icon icon={EditOutline} />} label="Edit" onClick={() => setIsEditOpen(true)} />
+                  )}
+                  <MenuItem
+                    icon={<Icon icon={DeleteOutline} />}
+                    label={id === currentUser?.id ? t("leave") : t("remove")}
+                    onClick={() => setRemoveMemberModal(rowData)}
+                  />
+                </MenuContent>
+              </Menu>
+            </div>
+          )}
+        </div>
       </div>
       {canEdit && (
         <EditMemberDetailsModal
@@ -148,7 +156,7 @@ export function NameColumn(props: NameProps) {
       )}
     </div>
   );
-}
+});
 
 export const AccountTypeColumn = observer(function AccountTypeColumn(props: AccountTypeProps) {
   const { rowData, workspaceSlug } = props;

@@ -222,10 +222,13 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
     const workspaceMember = this.workspaceMemberMap?.[workspaceSlug]?.[userId];
     if (!workspaceMember) return null;
 
+    const member = this.memberRoot?.memberMap?.[workspaceMember.member];
     const memberDetails: IWorkspaceMember = {
       id: workspaceMember.id,
       role: workspaceMember.role,
-      member: this.memberRoot?.memberMap?.[workspaceMember.member],
+      // a copy: reading every field here makes an edited name or email give new details, so the members table
+      // (not an observer) shows it at once
+      member: member ? { ...member } : member,
       is_active: workspaceMember.is_active,
       company_role: workspaceMember.company_role,
       invite_sent_at: workspaceMember.invite_sent_at,

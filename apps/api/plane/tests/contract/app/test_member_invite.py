@@ -212,19 +212,40 @@ class TestMemberDetailsEdit:
         assert session_client.patch(url, {"email": "not-an-email"}, format="json").status_code == 400
 
     @pytest.mark.django_db
-    def test_people_who_sign_in_keep_their_own_name_and_email(self, session_client, workspace):
+    def test_admin_edits_the_name_of_people_who_sign_in_but_not_their_email(self, session_client, workspace):
         membership = member(workspace, email="mira@example.com", is_password_autoset=False)
         url = f"/api/workspaces/{workspace.slug}/members/{membership.id}/details/"
 
-        refused = session_client.patch(url, {"display_name": "Someone else"}, format="json")
+        # the email is their sign in: only they change it
+        refused = session_client.patch(url, {"email": "other@example.com"}, format="json")
         assert refused.status_code == status.HTTP_403_FORBIDDEN
-        # the job role is the workspace's, so it can always be set (unchanged names are fine to send along)
         response = session_client.patch(
-            url, {"display_name": "Ravi", "email": "mira@example.com", "company_role": "Designer"}, format="json"
+            url,
+            {
+                "first_name": "Mira",
+                "last_name": "Patel",
+                "display_name": "Mira Patel",
+                "email": "mira@example.com",
+                "company_role": "Designer",
+            },
+            format="json",
         )
         assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["member"]["display_name"] == "Mira Patel"
+        user = User.objects.get(pk=membership.member_id)
+        assert (user.first_name, user.last_name, user.display_name, user.email) == (
+            "Mira",
+            "Patel",
+            "Mira Patel",
+            "mira@example.com",
+        )
         assert WorkspaceMember.objects.get(pk=membership.pk).company_role == "Designer"
-        assert User.objects.get(pk=membership.member_id).display_name == "Ravi"
+        # the members list shows the new name
+        listed = session_client.get(f"/api/workspaces/{workspace.slug}/members/").data
+        assert (
+            next(row for row in listed if str(row["id"]) == str(membership.id))["member"]["display_name"]
+            == "Mira Patel"
+        )
 
     @pytest.mark.django_db
     def test_only_admins_edit(self, api_client, workspace):
