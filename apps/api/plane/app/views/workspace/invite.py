@@ -273,6 +273,8 @@ class WorkspaceJoinEndpoint(BaseAPIView):
 
                     # Set the user last_workspace_id to the accepted workspace
                     user.last_workspace_id = workspace_invite.workspace.id
+                    # the token came in the invitation email: the person has that mailbox
+                    user.is_email_verified = True
                     user.save()
 
                     # Delete the invitation
@@ -315,6 +317,13 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
     @invalidate_cache(path="/api/workspaces/", user=False)
     @invalidate_cache(path="/api/users/me/workspaces/", multiple=True)
     def create(self, request):
+        # Sign up with a password does not prove the email is the person's (a magic code or Google / GitHub does):
+        # they accept with the link of the invitation email instead, whose token proves it (WorkspaceJoinEndpoint)
+        if not request.user.is_email_verified:
+            return Response(
+                {"error": "Open the invitation email and accept the invitation from its link."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         invitations = request.data.get("invitations", [])
         workspace_invitations = WorkspaceMemberInvite.objects.filter(
             pk__in=invitations, email=request.user.email

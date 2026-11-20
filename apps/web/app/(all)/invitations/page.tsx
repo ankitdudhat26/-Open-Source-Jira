@@ -99,11 +99,12 @@ function UserInvitationsPage() {
             setIsJoiningWorkspaces(false);
           });
       })
-      .catch((_err) => {
+      .catch((err: { error?: string } | undefined) => {
         setToast({
           type: "error",
           title: t("error"),
-          message: t("something_went_wrong_please_try_again"),
+          // e.g. a password sign up accepts with the link of the invitation email
+          message: err?.error ?? t("something_went_wrong_please_try_again"),
         });
         setIsJoiningWorkspaces(false);
       });

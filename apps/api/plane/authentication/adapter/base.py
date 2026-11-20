@@ -22,12 +22,14 @@ from zxcvbn import zxcvbn
 from plane.bgtasks.user_activation_email_task import user_activation_email
 
 # Module imports
-from plane.db.models import FileAsset, IntakeFormInvite, Profile, User, WorkspaceMemberInvite
+from plane.db.models import FileAsset, Profile, User
 from plane.license.utils.instance_value import get_configuration_value
 from plane.settings.storage import S3Storage
 from plane.utils.exception_logger import log_exception
 from plane.utils.host import base_host
 from plane.utils.ip_address import get_client_ip
+
+from plane.authentication.utils.invitation import has_signup_invitation
 
 from .error import AUTHENTICATION_ERROR_CODES, AuthenticationException
 
@@ -100,21 +102,10 @@ class Adapter:
         return
 
     def __check_signup(self, email):
-        """Check if sign up is enabled or not and raise exception if not enabled"""
-
-        # Get configuration value
-        (ENABLE_SIGNUP,) = get_configuration_value([
-            {"key": "ENABLE_SIGNUP", "default": os.environ.get("ENABLE_SIGNUP", "1")}
-        ])
-
-        # Check if sign up is disabled and invite is present or not
-        # people invited to a workspace, or to a project's request form (Intake), can sign up
-        if (
-            ENABLE_SIGNUP == "0"
-            and not WorkspaceMemberInvite.objects.filter(email=email).exists()
-            and not IntakeFormInvite.objects.filter(email__iexact=email).exists()
-        ):
-            self.logger.warning("Sign up is disabled and invite is not present")
+        """Sign up is by invitation only (every provider: password, magic code, OAuth), whatever ENABLE_SIGNUP says:
+        people invited to a workspace, or to a project's request form (Intake), can sign up."""
+        if not has_signup_invitation(email):
+            self.logger.warning("Sign up without an invitation refused")
             # Raise exception
             raise AuthenticationException(
                 error_code=AUTHENTICATION_ERROR_CODES["SIGNUP_DISABLED"],

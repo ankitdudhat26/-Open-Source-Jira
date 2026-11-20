@@ -127,8 +127,9 @@ const errorCodeMessages: {
     message: () => `Email required. Please try again.`,
   },
   [EAuthenticationErrorCodes.SIGNUP_DISABLED]: {
-    title: `Sign up disabled`,
-    message: () => `Sign up disabled. Please contact your administrator.`,
+    title: `Invitation needed`,
+    message: () =>
+      `This email has not been invited. Ask your administrator to invite it, then sign up with the link in the invitation email.`,
   },
   [EAuthenticationErrorCodes.MAGIC_LINK_LOGIN_DISABLED]: {
     title: `Magic link login disabled`,

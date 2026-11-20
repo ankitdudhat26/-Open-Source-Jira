@@ -101,8 +101,9 @@ const errorCodeMessages: {
     message: () => `Instance not configured. Please contact your administrator.`,
   },
   [EAuthenticationErrorCodes.SIGNUP_DISABLED]: {
-    title: `Sign up disabled`,
-    message: () => `Sign up disabled. Please contact your administrator.`,
+    title: `Invitation needed`,
+    message: () =>
+      `This email has not been invited. Ask your administrator to invite it, then sign up with the link in the invitation email.`,
   },
   [EAuthenticationErrorCodes.INVALID_PASSWORD]: {
     title: `Invalid password`,

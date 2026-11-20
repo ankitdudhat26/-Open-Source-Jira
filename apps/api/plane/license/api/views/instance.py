@@ -117,7 +117,8 @@ class InstanceEndpoint(BaseAPIView):
 
         data = {}
         # Authentication
-        data["enable_signup"] = ENABLE_SIGNUP == "1"
+        # sign up is by invitation only (plane.authentication.utils.invitation): no "Sign up" link for everyone
+        data["enable_signup"] = False
         data["is_workspace_creation_disabled"] = DISABLE_WORKSPACE_CREATION == "1"
         data["is_google_enabled"] = IS_GOOGLE_ENABLED == "1"
         data["is_github_enabled"] = IS_GITHUB_ENABLED == "1"

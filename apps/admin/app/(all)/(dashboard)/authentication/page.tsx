@@ -9,9 +9,8 @@ import { observer } from "mobx-react";
 import { useTheme } from "next-themes";
 import useSWR from "swr";
 // plane internal packages
-import { Switch } from "@makeplane/propel/components/switch";
 import type { TInstanceConfigurationKeys, TInstanceAuthenticationModes } from "@plane/types";
-import { cn, resolveGeneralTheme } from "@plane/utils";
+import { resolveGeneralTheme } from "@plane/utils";
 // components
 import { PageWrapper } from "@/components/common/page-wrapper";
 import { AuthenticationMethodCard } from "@/components/authentication/authentication-method-card";
@@ -36,7 +35,6 @@ const InstanceAuthenticationPage = observer(function InstanceAuthenticationPage(
   // store hooks
   const { fetchInstanceConfigurations, formattedConfig, updateInstanceConfigurations } = useInstance();
   // derived values
-  const enableSignUpConfig = formattedConfig?.ENABLE_SIGNUP ?? "";
 
   useSWR("INSTANCE_CONFIGURATIONS", () => fetchInstanceConfigurations());
 
@@ -115,36 +113,17 @@ const InstanceAuthenticationPage = observer(function InstanceAuthenticationPage(
     <PageWrapper
       header={{
         title: "Manage authentication modes for your instance",
-        description: "Configure authentication modes for your team and restrict sign-ups to be invite only.",
+        description: "Configure authentication modes for your team. Sign up is by invitation only.",
       }}
     >
       {formattedConfig ? (
         <div className="space-y-3">
-          <div className={cn("flex w-full items-center gap-14 rounded-sm")}>
-            <div className="flex grow items-center gap-4">
-              <div className="grow">
-                <div className="pb-1 text-16 font-medium">Allow anyone to sign up even without an invite</div>
-                <div className={cn("text-11 leading-5 font-regular text-tertiary")}>
-                  Toggling this off will only let users sign up when they are invited.
-                </div>
-              </div>
-            </div>
-            <div className={`shrink-0 pr-4 ${isSubmitting && "opacity-70"}`}>
-              <div className="flex items-center gap-4">
-                <Switch
-                  aria-label="Allow anyone to sign up even without an invite"
-                  checked={Boolean(parseInt(enableSignUpConfig))}
-                  onCheckedChange={() => {
-                    if (Boolean(parseInt(enableSignUpConfig)) === true) {
-                      updateConfig("ENABLE_SIGNUP", "0");
-                    } else {
-                      updateConfig("ENABLE_SIGNUP", "1");
-                    }
-                  }}
-                  size="sm"
-                  disabled={isSubmitting}
-                />
-              </div>
+          {/* sign up is by invitation only, always (the API refuses anyone else): nothing to switch */}
+          <div className="flex w-full flex-col gap-1 rounded-sm">
+            <div className="text-16 font-medium">Sign up is by invitation only</div>
+            <div className="text-11 leading-5 font-regular text-tertiary">
+              Only people an admin invited can create an account, with the email the invitation was sent to. Invite
+              people from a workspace&apos;s Members settings.
             </div>
           </div>
           <div className="text-lg pt-6 font-medium">Available authentication modes</div>

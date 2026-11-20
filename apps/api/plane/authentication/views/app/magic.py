@@ -4,6 +4,7 @@
 
 # Django imports
 from django.core.validators import validate_email
+from plane.authentication.utils.invitation import signup_not_invited
 from django.http import HttpResponseRedirect
 from django.views import View
 
@@ -51,6 +52,10 @@ class MagicGenerateEndpoint(APIView):
         email = request.data.get("email", "").strip().lower()
         try:
             validate_email(email)
+            # no code is sent to an email that may not sign up (no account, no invitation)
+            not_invited = signup_not_invited(email)
+            if not_invited:
+                raise not_invited
             adapter = MagicCodeProvider(request=request, key=email)
             key, token = adapter.initiate()
             # If the smtp is configured send through here

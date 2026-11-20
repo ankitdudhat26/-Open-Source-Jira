@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 ## Module imports
+from plane.authentication.utils.invitation import signup_not_invited
 from plane.db.models import User
 from plane.license.models import Instance
 from plane.authentication.adapter.error import (
@@ -93,6 +94,10 @@ class EmailCheckEndpoint(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
+        # sign up is by invitation only: say so before a password is typed or a code is sent
+        not_invited = signup_not_invited(email)
+        if not_invited:
+            return Response(not_invited.get_error_dict(), status=status.HTTP_400_BAD_REQUEST)
         # Else return response
         return Response(
             {

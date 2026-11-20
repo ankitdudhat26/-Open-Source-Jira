@@ -14,6 +14,7 @@ import type { IWorkspaceMemberInvitation } from "@plane/types";
 // ui
 import { Checkbox } from "@makeplane/propel/components/checkbox";
 import { Spinner } from "@plane/blocks/spinner";
+import { setToast } from "@plane/blocks/toast";
 import { truncateText } from "@plane/utils";
 // constants
 // helpers
@@ -49,8 +50,8 @@ export function Invitations(props: Props) {
   };
 
   const submitInvitations = async () => {
-    const invitation = invitations?.find((invitation) => invitation.id === invitationsRespond[0]);
-    if (invitationsRespond.length <= 0 && !invitation?.role) return;
+    const firstInvitation = invitations?.find((invitation) => invitation.id === invitationsRespond[0]);
+    if (invitationsRespond.length <= 0 && !firstInvitation?.role) return;
     setIsJoiningWorkspaces(true);
     try {
       await workspaceService.joinWorkspaces({ invitations: invitationsRespond });
@@ -58,7 +59,12 @@ export function Invitations(props: Props) {
       await fetchCurrentUserSettings();
       await handleNextStep();
     } catch (error) {
-      console.error(error);
+      // e.g. a password sign up accepts with the link of the invitation email
+      const message =
+        error && typeof error === "object" && "error" in error && typeof error.error === "string"
+          ? error.error
+          : "The invitations could not be accepted. Please try again.";
+      setToast({ type: "error", title: "Not joined", message });
       setIsJoiningWorkspaces(false);
     }
   };
@@ -76,10 +82,11 @@ export function Invitations(props: Props) {
             const isSelected = invitationsRespond.includes(invitation.id);
             const invitedWorkspace = invitation.workspace;
             return (
-              <div
+              // the whole row is the checkbox's label: a click anywhere toggles it, the keyboard uses the checkbox
+              <label
                 key={invitation.id}
+                htmlFor={`invitation-${invitation.id}`}
                 className={`flex cursor-pointer items-center gap-2 rounded-sm border border-subtle p-3.5 hover:bg-surface-2`}
-                onClick={() => handleInvitation(invitation, isSelected ? "withdraw" : "accepted")}
               >
                 <div className="flex-shrink-0">
                   <WorkspaceLogo
@@ -92,10 +99,15 @@ export function Invitations(props: Props) {
                   <div className="text-13 font-medium">{truncateText(invitedWorkspace?.name, 30)}</div>
                   <p className="text-11 text-secondary">{ROLE[invitation.role]}</p>
                 </div>
-                <span className="pointer-events-none flex-shrink-0">
-                  <Checkbox checked={isSelected} aria-label={invitedWorkspace?.name ?? "Select workspace invitation"} />
+                <span className="flex-shrink-0">
+                  <Checkbox
+                    id={`invitation-${invitation.id}`}
+                    checked={isSelected}
+                    onCheckedChange={(checked) => handleInvitation(invitation, checked ? "accepted" : "withdraw")}
+                    aria-label={invitedWorkspace?.name ?? "Select workspace invitation"}
+                  />
                 </span>
-              </div>
+              </label>
             );
           })}
       </div>

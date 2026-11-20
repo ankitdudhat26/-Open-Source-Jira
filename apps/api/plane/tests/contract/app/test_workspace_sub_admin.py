@@ -92,7 +92,8 @@ class TestWorkspaceSubAdmin:
     def test_admin_invites_a_sub_admin_who_joins_as_one(self, session_client, workspace):
         response, _ = _invite(session_client, workspace, is_sub_admin=True)
         invite = WorkspaceMemberInvite.objects.get(email="new-person@example.com")
-        user = User.objects.create(email="new-person@example.com", username=uuid.uuid4().hex)
+        # signed up with a magic code (a verified email): joins from the invitations list
+        user = User.objects.create(email="new-person@example.com", username=uuid.uuid4().hex, is_email_verified=True)
         api = APIClient()
         api.force_authenticate(user=user)
 
