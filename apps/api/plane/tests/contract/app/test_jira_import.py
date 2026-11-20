@@ -36,6 +36,7 @@ from plane.db.models import (
     Profile,
     Project,
     ProjectMember,
+    ProjectWorkflow,
     State,
     User,
     WorkspaceMember,
@@ -318,25 +319,21 @@ class TestJiraImport:
             (project.cycle_view, project.module_view, project.issue_views_view, project.page_view, project.intake_view)
         )
         assert Intake.objects.filter(project=project, is_default=True).exists()
-        # statuses keep their Jira names, in the right group
+        # the project follows the default workflow: only its five statuses; every Jira status is one of them
         groups = dict(State.objects.filter(project=project).values_list("name", "group"))
         assert groups == {
             "To Do": "unstarted",
             "In Progress": "started",
-            "Code Review": "started",
-            "Done": "completed",
-            "Won't Do": "cancelled",
-            # added by the default workflow; Jira's own To Do / In Progress / Done are reused
-            "Backlog": "backlog",
             "In QA": "started",
-            "Waiting for Demo": "started",
-            "Reopened": "started",
-            "Cancelled": "cancelled",
+            "Reopen": "started",
+            "Done": "completed",
         }
+        workflow = ProjectWorkflow.objects.get(project=project)
+        assert (workflow.is_enabled, workflow.is_customized, workflow.legacy_state_ids) == (True, False, [])
         issues = {issue.external_id: issue for issue in Issue.objects.filter(project=project)}
         epic, card, bug = issues["1"], issues["2"], issues["3"]
-        # every ticket keeps its Jira status
-        assert (epic.state.name, card.state.name, bug.state.name) == ("In Progress", "Code Review", "Won't Do")
+        # Jira's In Progress, Code Review and Won't Do are In Progress, In QA and Done here
+        assert (epic.state.name, card.state.name, bug.state.name) == ("In Progress", "In QA", "Done")
         assert (epic.type.name, card.type.name, bug.type.name) == ("Feature", "Task", "Bug")
         assert card.parent_id == epic.id
         assert card.priority == "urgent"

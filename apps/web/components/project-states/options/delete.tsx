@@ -16,7 +16,10 @@ import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import type { IState, TStateOperationsCallbacks } from "@plane/types";
 import { cn } from "@plane/utils";
+// components
+import { StateSelect } from "@/components/dropdowns/state/state-select";
 // hooks
+import { useProjectState } from "@/hooks/store/use-project-state";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 
 type TStateDelete = {
@@ -35,7 +38,16 @@ export const StateDelete = observer(function StateDelete(props: TStateDelete) {
   const [isDeleteModal, setIsDeleteModal] = useState(false);
   const [isDelete, setIsDelete] = useState(false);
   // derived values
-  const isDeleteDisabled = state.default ? true : totalStates === 1 ? true : false;
+  const isDeleteDisabled = !!state.default || totalStates === 1;
+  // where its work items go: another status of the same category, else the default one
+  const { getProjectStates } = useProjectState();
+  const otherStates = (getProjectStates(state.project_id) ?? []).filter((item) => item.id !== state.id);
+  const suggested =
+    otherStates.find((item) => item.group === state.group) ??
+    otherStates.find((item) => item.default) ??
+    otherStates[0];
+  const [moveTo, setMoveTo] = useState<string | undefined>(undefined);
+  const target = moveTo ?? suggested?.id;
 
   const handleDeleteState = async () => {
     if (isDeleteDisabled) return;
@@ -43,24 +55,19 @@ export const StateDelete = observer(function StateDelete(props: TStateDelete) {
     setIsDelete(true);
 
     try {
-      await deleteStateCallback(state.id);
+      await deleteStateCallback(state.id, target);
       setIsDelete(false);
+      setIsDeleteModal(false);
     } catch (error) {
-      const errorStatus = error as { status: number; data: { error: string } };
-      if (errorStatus.status === 400) {
-        setToast({
-          type: "error",
-          title: "Error!",
-          message:
-            "This state contains some work items within it, please move them to some other state to delete this state.",
-        });
-      } else {
-        setToast({
-          type: "error",
-          title: "Error!",
-          message: "State could not be deleted. Please try again.",
-        });
-      }
+      const errorStatus = error as { status?: number; data?: { error?: string } };
+      setToast({
+        type: "error",
+        title: "Error!",
+        message:
+          errorStatus?.status === 400 && errorStatus.data?.error
+            ? errorStatus.data.error
+            : "State could not be deleted. Please try again.",
+      });
       setIsDelete(false);
     }
   };
@@ -74,10 +81,28 @@ export const StateDelete = observer(function StateDelete(props: TStateDelete) {
         isOpen={isDeleteModal}
         title="Delete State"
         content={
-          <>
-            Are you sure you want to delete state- <span className="font-medium text-primary">{state?.name}</span>? All
-            of the data related to the state will be permanently removed. This action cannot be undone.
-          </>
+          <div className="flex flex-col gap-3">
+            <p>
+              Delete the status <span className="font-medium text-primary">{state?.name}</span>? Its moves in the
+              workflow are removed too.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-body-xs-medium text-primary">Move its work items to</span>
+              <div className="w-64">
+                <StateSelect
+                  projectId={state.project_id}
+                  value={target ?? null}
+                  onChange={(stateId) => setMoveTo(stateId)}
+                  variant="select-md"
+                  placeholder="Choose a status"
+                  excludeStateIds={[state.id]}
+                />
+              </div>
+              <span className="text-caption-md-regular text-tertiary">
+                Every work item in {state?.name} (also archived ones) moves there before it is deleted.
+              </span>
+            </div>
+          </div>
         }
       />
 

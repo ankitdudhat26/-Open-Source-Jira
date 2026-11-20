@@ -72,8 +72,10 @@ export class ProjectStateService extends APIService {
       });
   }
 
-  async deleteState(workspaceSlug: string, projectId: string, stateId: string): Promise<any> {
-    return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/states/${stateId}/`)
+  /** `moveTo`: the status its work items move to (needed when it has any) */
+  async deleteState(workspaceSlug: string, projectId: string, stateId: string, moveTo?: string): Promise<any> {
+    const query = moveTo ? `?move_to=${encodeURIComponent(moveTo)}` : "";
+    return this.delete(`/api/workspaces/${workspaceSlug}/projects/${projectId}/states/${stateId}/${query}`)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response;

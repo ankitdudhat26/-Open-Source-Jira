@@ -38,6 +38,8 @@ type StateSelectWebProps = {
   tabIndex?: number;
   /** Only offer the states the project's workflow allows from the current state (editing a work item). */
   enforceWorkflow?: boolean;
+  /** States not offered (e.g. the one being deleted, when choosing where its work items go). */
+  excludeStateIds?: string[];
 };
 
 const toOption = (state: IState): StateOption => ({
@@ -72,6 +74,7 @@ export const StateSelect = observer(function StateSelect(props: StateSelectWebPr
     testId,
     tabIndex,
     enforceWorkflow = false,
+    excludeStateIds,
   } = props;
   // router params
   const { workspaceSlug } = useParams();
@@ -94,6 +97,10 @@ export const StateSelect = observer(function StateSelect(props: StateSelectWebPr
     };
   }, [tooltip, t]);
 
+  // keyed by the ids, so a new array with the same ids does not reload the options
+  const excludedKey = (excludeStateIds ?? []).join(",");
+  const excluded = useMemo(() => new Set(excludedKey ? excludedKey.split(",") : []), [excludedKey]);
+
   const getValues = useCallback(
     async ({ search }: SelectPaginationParams): Promise<TPaginatedResponse<StateOption[]>> => {
       if (!workspaceSlug || !projectId) return { results: [] };
@@ -108,11 +115,12 @@ export const StateSelect = observer(function StateSelect(props: StateSelectWebPr
         .filter((state): state is IState => !!state)
         // Jira style workflow: only the permitted next states
         .filter((state) => !allowedStateIds || allowedStateIds.has(state.id))
+        .filter((state) => !excluded.has(state.id))
         .filter((state) => !query || state.name.toLowerCase().includes(query))
         .map(toOption);
       return { results, next_page_results: false };
     },
-    [workspaceSlug, projectId, getProjectStateIds, fetchProjectStates, getStateById, allowedStateIds]
+    [workspaceSlug, projectId, getProjectStateIds, fetchProjectStates, getStateById, allowedStateIds, excluded]
   );
 
   // Resolved in the observer render (not in a memo) so MobX re-renders when the state loads.

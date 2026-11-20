@@ -17,6 +17,8 @@ class ProjectWorkflow(ProjectBaseModel):
     is_enabled = models.BooleanField(default=False)
     # changed in the project's settings (its states or transitions): a new global default leaves it alone
     is_customized = models.BooleanField(default=False)
+    # statuses the old workflow left with work items in them: their work items can only move into the new flow
+    legacy_state_ids = models.JSONField(default=list, blank=True)
 
     class Meta:
         verbose_name = "Project Workflow"

@@ -47,6 +47,10 @@ def project(session_client, workspace):
     project = _create_project(session_client, workspace)
     # these tests jump between states (Done back to To Do…); the workflow is tested in test_project_workflow
     ProjectWorkflow.objects.filter(project=project).update(is_enabled=False)
+    # the default workflow has no Backlog or Cancelled; a project can add them (or keep them from the old workflow)
+    for name, group, sequence in [("Backlog", "backlog", 1000), ("Cancelled", "cancelled", 200000)]:
+        state = State.objects.create(name=name, group=group, project=project, workspace=project.workspace)
+        State.objects.filter(pk=state.pk).update(sequence=sequence)
     return project
 
 

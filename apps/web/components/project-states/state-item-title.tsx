@@ -66,12 +66,13 @@ export const StateItemTitle = observer(function StateItemTitle(props: TStateItem
         </div>
       </div>
       {!disabled && (
-        <div className="hidden items-center gap-2 group-hover:flex">
+        // always shown (not only on hover), so renaming and deleting are easy to find
+        <div className="flex items-center gap-2 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
           {/* state mark as default option */}
           <div className="flex-shrink-0 text-11 transition-all">
             <StateMarksAsDefault
               stateId={state.id}
-              isDefault={state.default ? true : false}
+              isDefault={!!state.default}
               markStateAsDefaultCallback={props.stateOperationsCallbacks.markStateAsDefault}
             />
           </div>

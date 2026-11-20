@@ -91,18 +91,9 @@ class TestProjectAPIPost(TestProjectBase):
 
         # Verify default states were created
         states = State.objects.filter(project=project)
-        # Plane's states plus the ones the default workflow adds
-        assert states.count() == 8
-        expected_states = [
-            "Backlog",
-            "To Do",
-            "In Progress",
-            "Done",
-            "Cancelled",
-            "In QA",
-            "Waiting for Demo",
-            "Reopened",
-        ]
+        # the five statuses of the default workflow
+        assert states.count() == 5
+        expected_states = ["To Do", "In Progress", "In QA", "Reopen", "Done"]
         state_names = list(states.values_list("name", flat=True))
         assert set(state_names) == set(expected_states)
 

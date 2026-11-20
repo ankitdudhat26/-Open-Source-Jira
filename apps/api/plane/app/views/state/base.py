@@ -7,6 +7,7 @@ from itertools import groupby
 from collections import defaultdict
 
 # Django imports
+from django.db import transaction
 from django.db.models import Q
 from django.db.utils import IntegrityError
 
@@ -18,8 +19,9 @@ from rest_framework import status
 from .. import BaseViewSet, BaseAPIView
 from plane.app.serializers import StateSerializer
 from plane.app.permissions import ROLE, allow_permission
-from plane.db.models import State, Issue, WorkflowTransition
+from plane.db.models import DraftIssue, Issue, State, WorkflowTransition
 from plane.utils.cache import invalidate_cache
+from plane.utils.uuid import is_valid_uuid
 from plane.utils.workflow import mark_customized
 
 
@@ -128,14 +130,24 @@ class StateViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Check for any issues in the state
-        issue_exist = Issue.objects.filter(state=pk).exists()
-
-        if issue_exist:
-            return Response(
-                {"error": "The state is not empty, only empty states can be deleted"},
-                status=status.HTTP_400_BAD_REQUEST,
+        # its work items (also archived ones and drafts) move to the status picked in the delete dialog
+        work_items = Issue.all_objects.filter(state_id=pk, deleted_at__isnull=True)
+        drafts = DraftIssue.all_objects.filter(state_id=pk, deleted_at__isnull=True)
+        if work_items.exists() or drafts.exists():
+            move_to = request.query_params.get("move_to") or request.data.get("move_to")
+            target = (
+                State.objects.filter(pk=move_to, project_id=project_id).exclude(pk=pk).first()
+                if move_to and is_valid_uuid(str(move_to))
+                else None
             )
+            if target is None:
+                return Response(
+                    {"error": "This status has work items. Choose the status to move them to."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            with transaction.atomic():
+                work_items.update(state=target)
+                drafts.update(state=target)
 
         state.delete()
         # its permitted moves go with it, and the project's workflow is now its own

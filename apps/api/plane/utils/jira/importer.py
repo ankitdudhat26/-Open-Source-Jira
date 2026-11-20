@@ -59,6 +59,7 @@ from plane.db.models import (
     ModuleIssue,
     Profile,
     Project,
+    ProjectWorkflow,
     ProjectIdentifier,
     ProjectMember,
     State,
@@ -69,7 +70,7 @@ from plane.utils.asset_paths import asset_storage_key
 from plane.utils.jira.adf import adf_to_html
 from plane.utils.jira.client import JiraError
 from plane.utils.work_item_types import ensure_project_work_item_types
-from plane.utils.workflow import apply_default_workflow
+from plane.utils.workflow import default_status_for, ensure_default_workflow
 
 logger = logging.getLogger("plane.worker")
 
@@ -1021,6 +1022,20 @@ class JiraImporter:
     # ---- statuses -----------------------------------------------------------------------------------------------
     def states_for(self, project, project_key):
         states = {}
+        follows_default = not ProjectWorkflow.objects.filter(project=project, is_customized=True).exists()
+        if follows_default:
+            # the project follows the default workflow: every Jira status is one of its five statuses ("Closed" →
+            # Done, "IN QA" / "Resolved" → In QA, "Open" → To Do…), so no other status is created
+            ensure_default_workflow(project, self.actor.id if self.actor else None)
+            defaults = {state.name: state for state in State.objects.filter(project=project)}
+            for status in self.client.project_statuses(project_key):
+                state = defaults.get(default_status_for(status["name"], state_group(status)))
+                if state is None:
+                    continue
+                self.set_map("status", f"{project.id}:{status['id']}", state.id, status["name"])
+                states[str(status["id"])] = state
+            return states
+        # a project with its own workflow keeps Jira's statuses
         existing = {state.name.lower(): state for state in State.objects.filter(project=project)}
         sequence = max([state.sequence for state in existing.values()], default=0)
         for status in self.client.project_statuses(project_key):
@@ -1050,9 +1065,6 @@ class JiraImporter:
                 (s for s in states.values() if s.group in ("unstarted", "backlog")), next(iter(states.values()))
             )
             State.objects.filter(pk=default.pk).update(default=True)
-        # an imported project starts with the default workflow too (once: a project's own workflow is kept)
-        if states:
-            apply_default_workflow(project, self.actor.id if self.actor else None)
         return states
 
     # ---- sprints and components ------------------------------------------------------------------------------------
@@ -1769,6 +1781,10 @@ class JiraImporter:
             for jira_issue in jira_issues:
                 self.link_issues(project, jira_issue, issue_cycle, modules)
         self.count("issues_seen", len(jira_issues))
+        # the project follows the default workflow (unless its own was set in its settings): Jira's statuses with
+        # work items stay as legacy statuses that lead into it, the empty ones go
+        if self.since is None or jira_issues:
+            ensure_default_workflow(project, self.actor.id if self.actor else None)
         # the next sync reads what changes in Jira from now on (only after the whole project is saved)
         JiraEntityMap.objects.filter(
             workspace=self.workspace, entity_type="project", jira_id=str(jira_project["id"])

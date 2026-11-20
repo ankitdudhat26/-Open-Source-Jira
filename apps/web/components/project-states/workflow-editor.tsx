@@ -134,7 +134,11 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
       await mutate(saved, { revalidate: false });
       // the template may have added states
       await fetchProjectStates(workspaceSlug, projectId);
-      setToast({ type: "success", title: "Workflow applied", message: `${templateToApply.name} workflow is now on.` });
+      setToast({
+        type: "success",
+        title: "Workflow reset",
+        message: "This project follows the default workflow again.",
+      });
       setTemplateToApply(null);
     } catch (error) {
       setToast({ type: "error", title: "Error!", message: errorMessage(error, "The workflow could not be applied.") });
@@ -163,8 +167,9 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
             </span>
           </div>
           <p className="mt-1 text-body-xs-regular text-tertiary">
-            Each status lists the statuses its work items can move to next; any other move is refused. A status without
-            rules can move anywhere. Add reviewers to a move to let only them (and project admins) make it.
+            Each status lists the statuses its work items can move to next; any other move is refused (e.g. To Do
+            straight to Done). Pick people under &ldquo;by&rdquo; to let only them (and project admins) make a move.
+            Click Save workflow to apply your changes.
           </p>
           <p className="mt-1 text-body-xs-regular text-tertiary">
             {workflow.is_customized
@@ -184,30 +189,20 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
         </div>
       </div>
 
-      {isEditable && workflow.templates.length > 0 && (
+      {isEditable && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {workflow.is_customized && (
-            <Button
-              variant="secondary"
-              size="sm"
-              stretch="auto"
-              label="Reset to default"
-              onClick={() =>
-                setTemplateToApply(workflow.templates.find((item) => item.key === workflow.default_template) ?? null)
-              }
-            />
-          )}
-          <span className="text-caption-md-regular text-tertiary">Use a ready-made workflow:</span>
-          {workflow.templates.map((template) => (
-            <Button
-              key={template.key}
-              variant="secondary"
-              size="sm"
-              stretch="auto"
-              label={template.name}
-              onClick={() => setTemplateToApply(template)}
-            />
-          ))}
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            label="Reset to default"
+            onClick={() =>
+              setTemplateToApply(workflow.templates.find((item) => item.key === workflow.default_template) ?? null)
+            }
+          />
+          <span className="text-caption-md-regular text-tertiary">
+            Brings back To Do → In Progress → In QA → Done with Reopen, and their moves.
+          </span>
         </div>
       )}
 
@@ -221,7 +216,9 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 {rules.length === 0 && (
-                  <span className="pt-1 text-caption-md-regular text-tertiary">No rules: can move to any status</span>
+                  <span className="pt-1 text-caption-md-regular text-tertiary">
+                    No moves yet: its work items can move to any status. Add the statuses they may go to next.
+                  </span>
                 )}
                 {rules.map((rule) => (
                   <div key={rule.to_state} className="flex flex-wrap items-center gap-2">
@@ -287,13 +284,11 @@ export const ProjectWorkflowEditor = observer(function ProjectWorkflowEditor(pro
         isOpen={!!templateToApply}
         handleClose={() => setTemplateToApply(null)}
         handleSubmit={handleApplyTemplate}
-        title={`Apply the ${templateToApply?.name ?? ""} workflow?`}
-        content={`${templateToApply?.description ?? ""} Missing statuses are added, your existing statuses and work items are kept, and this project's current moves are replaced.${
-          templateToApply?.key === workflow.default_template ? " The project follows the default workflow again." : ""
-        }`}
+        title="Reset to the default workflow?"
+        content="To Do, In Progress, In QA, Reopen and Done come back with their moves, and To Do is where new work items start. Every other status is removed and its work items move to the one it stands for (e.g. Closed → Done, Resolved → In QA, Backlog → To Do)."
         variant="primary"
         isSubmitting={isApplying}
-        primaryButtonText={{ loading: "Applying...", default: "Apply workflow" }}
+        primaryButtonText={{ loading: "Resetting...", default: "Reset workflow" }}
       />
     </div>
   );

@@ -47,7 +47,8 @@ export interface IStateStore {
     stateId: string,
     data: Partial<IState>
   ) => Promise<IState | undefined>;
-  deleteState: (workspaceSlug: string, projectId: string, stateId: string) => Promise<void>;
+  /** `moveTo`: the status the deleted one's work items move to */
+  deleteState: (workspaceSlug: string, projectId: string, stateId: string, moveTo?: string) => Promise<void>;
   markStateAsDefault: (workspaceSlug: string, projectId: string, stateId: string) => Promise<void>;
   moveStatePosition: (
     workspaceSlug: string,
@@ -306,10 +307,10 @@ export class StateStore implements IStateStore {
    * @param projectId
    * @param stateId
    */
-  deleteState = async (workspaceSlug: string, projectId: string, stateId: string) => {
+  deleteState = async (workspaceSlug: string, projectId: string, stateId: string, moveTo?: string) => {
     if (!this.stateMap?.[stateId]) return;
     // oxlint-disable-next-line promise/always-return
-    await this.stateService.deleteState(workspaceSlug, projectId, stateId).then(() => {
+    await this.stateService.deleteState(workspaceSlug, projectId, stateId, moveTo).then(() => {
       runInAction(() => {
         delete this.stateMap[stateId];
       });

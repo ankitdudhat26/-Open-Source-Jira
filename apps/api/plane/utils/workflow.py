@@ -12,101 +12,71 @@
 """
 
 from django.db import transaction
+from django.utils import timezone
+from django.utils.text import slugify
 
-from plane.db.models import ProjectMember, ProjectWorkflow, State, WorkflowTransition
+from plane.db.models import (
+    DraftIssue,
+    Issue,
+    Project,
+    ProjectMember,
+    ProjectWorkflow,
+    State,
+    WorkflowTransition,
+)
 from plane.utils.uuid import is_valid_uuid
 
 ADMIN_ROLE = 20
 
 DEFAULT_TEMPLATE = "default"
 
+# The workflow every project follows (existing, new and cloned from Jira); a project can change it in its settings.
+DEFAULT_STATES = [
+    {"name": "To Do", "group": "unstarted", "color": "#60646C"},
+    {"name": "In Progress", "group": "started", "color": "#2563EB"},
+    {"name": "In QA", "group": "started", "color": "#7C3AED"},
+    {"name": "Reopen", "group": "started", "color": "#EA580C"},
+    {"name": "Done", "group": "completed", "color": "#16A34A"},
+]
+DEFAULT_TRANSITIONS = {
+    "To Do": ["In Progress"],  # start work
+    "In Progress": ["To Do", "In QA"],  # back to the queue / development completed
+    "In QA": ["In Progress", "Reopen", "Done"],  # direct fixes / QA failed / QA passed
+    "Reopen": ["In Progress", "To Do"],  # restart development / return to the backlog
+    "Done": ["Reopen", "In QA"],  # issue found after completion / retesting
+}
+# other names of the default statuses: their work items move into the default status, which keeps its name
+STATE_ALIASES = {
+    "To Do": {"todo", "open"},
+    "In Progress": {"inprogress"},
+    "In QA": {"inqa", "qa", "testingqa"},
+    "Reopen": {"reopen", "reopened"},
+    "Done": {"done"},
+}
+# every other status of the old workflows goes into one of the five, by what its name says, else by its category
+MOVE_BY_WORDS = [
+    ("Reopen", ("reopen", "fail", "rework")),
+    ("Done", ("production", "deployed", "deploy", "live")),
+    ("In QA", ("qa", "test", "review", "resolved", "demo", "uat", "verif", "approval", "done")),
+]
+MOVE_BY_GROUP = {
+    "backlog": "To Do",
+    "unstarted": "To Do",
+    "started": "In Progress",
+    "completed": "Done",
+    "cancelled": "Done",
+}
+
+
 WORKFLOW_TEMPLATES = {
-    # every project starts with it (new projects and, once, the existing ones); change it in a project's settings
     DEFAULT_TEMPLATE: {
         "name": "Default",
         "description": (
-            "Backlog → To Do → In Progress → In QA → Waiting for Demo → Done. Work can go back when it fails QA or "
-            "needs changes, Done can be Reopened, and anything can be Cancelled."
+            "To Do → In Progress → In QA → Done. QA failed goes to Reopen and back to In Progress; Done can be "
+            "Reopened or sent back to QA."
         ),
-        "states": [
-            {"name": "Backlog", "group": "backlog", "color": "#60646C"},
-            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
-            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
-            {"name": "In QA", "group": "started", "color": "#0EA5E9"},
-            {"name": "Waiting for Demo", "group": "started", "color": "#8B5CF6"},
-            {"name": "Reopened", "group": "started", "color": "#EF4444"},
-            {"name": "Done", "group": "completed", "color": "#16A34A"},
-            {"name": "Cancelled", "group": "cancelled", "color": "#9AA4BC"},
-        ],
-        "transitions": {
-            "Backlog": ["To Do", "Cancelled"],
-            "To Do": ["In Progress", "Backlog", "Cancelled"],
-            "In Progress": ["In QA", "To Do", "Cancelled"],
-            "In QA": ["Waiting for Demo", "In Progress", "To Do", "Cancelled"],
-            "Waiting for Demo": ["Done", "In Progress", "Cancelled"],
-            "Reopened": ["In Progress", "To Do", "Cancelled"],
-            "Done": ["Reopened"],
-            "Cancelled": ["Backlog"],
-        },
-    },
-    "software": {
-        "name": "Software development",
-        "description": "Backlog → To Do → In Progress → In Review → QA → Done, with Cancelled from any state.",
-        "states": [
-            {"name": "Backlog", "group": "backlog", "color": "#A3A3A3"},
-            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
-            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
-            {"name": "In Review", "group": "started", "color": "#8B5CF6"},
-            {"name": "QA", "group": "started", "color": "#0EA5E9"},
-            {"name": "Done", "group": "completed", "color": "#16A34A"},
-            {"name": "Cancelled", "group": "cancelled", "color": "#9AA4BC"},
-        ],
-        "transitions": {
-            "Backlog": ["To Do", "Cancelled"],
-            "To Do": ["In Progress", "Backlog", "Cancelled"],
-            "In Progress": ["In Review", "To Do", "Cancelled"],
-            "In Review": ["QA", "In Progress", "Cancelled"],
-            "QA": ["Done", "In Progress", "Cancelled"],
-            "Done": ["In Progress"],
-            "Cancelled": ["Backlog"],
-        },
-    },
-    "release": {
-        "name": "Development & release",
-        "description": (
-            "To Do → In Progress → Dev/Design Done → Testing / QA → Ready for Deployment; a failed check goes to "
-            "Re-open and back to In Progress."
-        ),
-        "states": [
-            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
-            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
-            {"name": "Dev/Design Done", "group": "started", "color": "#8B5CF6"},
-            {"name": "Re-open", "group": "started", "color": "#EF4444"},
-            {"name": "Testing / QA", "group": "started", "color": "#0EA5E9"},
-            {"name": "Ready for Deployment", "group": "completed", "color": "#16A34A"},
-        ],
-        "transitions": {
-            "To Do": ["In Progress"],
-            "In Progress": ["Dev/Design Done", "To Do"],
-            "Dev/Design Done": ["Testing / QA", "Re-open"],
-            "Re-open": ["In Progress"],
-            "Testing / QA": ["Ready for Deployment", "Re-open"],
-            "Ready for Deployment": ["Re-open"],
-        },
-    },
-    "simple": {
-        "name": "Simple",
-        "description": "To Do → In Progress → Done.",
-        "states": [
-            {"name": "To Do", "group": "unstarted", "color": "#3A3A3A"},
-            {"name": "In Progress", "group": "started", "color": "#F59E0B"},
-            {"name": "Done", "group": "completed", "color": "#16A34A"},
-        ],
-        "transitions": {
-            "To Do": ["In Progress"],
-            "In Progress": ["To Do", "Done"],
-            "Done": ["In Progress"],
-        },
+        "states": DEFAULT_STATES,
+        "transitions": DEFAULT_TRANSITIONS,
     },
 }
 
@@ -160,6 +130,13 @@ def serialize_workflow(project_id):
         # false while the project follows the default workflow (and gets its updates)
         "is_customized": bool(workflow and workflow.is_customized),
         "default_template": DEFAULT_TEMPLATE,
+        # statuses left by the old workflow with work items in them: they only lead into the new flow
+        "legacy_state_ids": [
+            str(state_id)
+            for state_id in State.objects.filter(
+                project_id=project_id, pk__in=(workflow.legacy_state_ids if workflow else []) or []
+            ).values_list("id", flat=True)
+        ],
         "transitions": [
             {
                 "id": str(transition.id),
@@ -245,40 +222,135 @@ def state_key(name):
     return "".join(character for character in name.lower() if character.isalnum())
 
 
+def default_name_for(name):
+    """The default status a status name stands for ("IN QA", "Reopened", "Todo"…), or None."""
+    key = state_key(name)
+    return next((default for default, keys in STATE_ALIASES.items() if key in keys), None)
+
+
+def default_status_for(name, group):
+    """The default status a status of another workflow becomes ("Closed" → Done, "Resolved" → In QA…)."""
+    alias = default_name_for(name)
+    if alias:
+        return alias
+    lowered = name.lower()
+    # a started status is placed by its name ("Testing Done in Dev" → In QA); others by their category
+    if group == "started":
+        for target, words in MOVE_BY_WORDS:
+            if any(word in lowered for word in words):
+                return target
+    elif any(word in lowered for word in MOVE_BY_WORDS[0][1]):
+        return "Reopen"
+    return MOVE_BY_GROUP.get(group, "To Do")
+
+
 def apply_default_workflow(project, user_id=None):
-    """The default workflow for a project that has none yet (a new project, an imported one)."""
+    """The default workflow for a project that has none yet (a new project)."""
     if ProjectWorkflow.objects.filter(project=project).exists():
         return None
-    return apply_template(project, DEFAULT_TEMPLATE, user_id)
+    return adopt_default_workflow(project, user_id)
+
+
+def ensure_default_workflow(project, user_id=None):
+    """After an import or sync from Jira: the default workflow, unless the project's own was set in its settings."""
+    if ProjectWorkflow.objects.filter(project=project, is_customized=True).exists():
+        return None
+    return adopt_default_workflow(project, user_id)
+
+
+def adopt_default_workflow(project, user_id=None):
+    """Make the project follow the default workflow (the same steps as the 0141 migration):
+
+    * the five default statuses, in this order and category; a status with another name for one of them ("IN QA",
+      "Reopened", "Todo", "Open"…) is merged into it, with its work items;
+    * every other status is merged into the default one it stands for (by its name, else its category: "Closed" →
+      Done, "Resolved" → In QA, "Backlog" → To Do…), with its work items, and removed;
+    * To Do is where new work items start; the rules are the default ones; the project follows the default again.
+    """
+    now = timezone.now()
+    with transaction.atomic():
+        states = list(State.objects.filter(project=project).exclude(group="triage").order_by("sequence", "created_at"))
+        defaults = {}
+        merged = []
+        for index, config in enumerate(DEFAULT_STATES):
+            matches = [state for state in states if default_name_for(state.name) == config["name"]]
+            exact = [state for state in matches if state_key(state.name) == state_key(config["name"])]
+            primary = (exact or matches or [None])[0]
+            # the other names for it: their work items move into it
+            for duplicate in matches:
+                if duplicate is not primary:
+                    Issue.all_objects.filter(state=duplicate).update(state=primary)
+                    DraftIssue.all_objects.filter(state=duplicate).update(state=primary)
+                    merged.append(duplicate.id)
+            if merged:
+                State.objects.filter(pk__in=merged).update(deleted_at=now, default=False)
+            values = {
+                "name": config["name"],
+                "group": config["group"],
+                "color": config["color"],
+                "sequence": (index + 1) * 15000,
+                "default": config["name"] == "To Do",
+                "slug": slugify(config["name"]),
+            }
+            if primary is None:
+                primary = State.objects.create(
+                    project=project,
+                    workspace_id=project.workspace_id,
+                    created_by_id=user_id,
+                    updated_by_id=user_id,
+                    **values,
+                )
+            # saving a new state puts it last: the order (and the slug of a renamed one) is set here
+            State.objects.filter(pk=primary.pk).update(**values)
+            defaults[config["name"]] = primary
+
+        # every other status is merged into the one it stands for, with its work items, and removed
+        others = [
+            state
+            for state in states
+            if state.id not in merged and all(state.id != default.id for default in defaults.values())
+        ]
+        for state in others:
+            target = defaults[default_status_for(state.name, state.group)]
+            Issue.all_objects.filter(state=state).update(state=target)
+            DraftIssue.all_objects.filter(state=state).update(state=target)
+        if others:
+            State.objects.filter(pk__in=[state.id for state in others]).update(deleted_at=now, default=False)
+        Project.objects.filter(pk=project.pk).update(default_state=defaults["To Do"])
+
+        WorkflowTransition.all_objects.filter(project=project).delete()
+        rules = [
+            (defaults[source], defaults[target])
+            for source, targets in DEFAULT_TRANSITIONS.items()
+            for target in targets
+        ]
+        WorkflowTransition.objects.bulk_create(
+            [
+                WorkflowTransition(
+                    project=project,
+                    workspace_id=project.workspace_id,
+                    from_state_id=source.id,
+                    to_state_id=target.id,
+                    reviewer_ids=[],
+                    created_by_id=user_id,
+                    updated_by_id=user_id,
+                )
+                for source, target in rules
+            ]
+        )
+        workflow, _ = ProjectWorkflow.objects.get_or_create(
+            project=project, defaults={"workspace_id": project.workspace_id, "created_by_id": user_id}
+        )
+        workflow.is_enabled = True
+        workflow.is_customized = False
+        workflow.legacy_state_ids = []
+        workflow.updated_by_id = user_id
+        workflow.save(update_fields=["is_enabled", "is_customized", "legacy_state_ids", "updated_by", "updated_at"])
+    return serialize_workflow(project.id)
 
 
 def apply_template(project, template_key, user_id):
-    """Create the template's missing states (matched by name) and use its transitions. Existing states are kept."""
-    template = WORKFLOW_TEMPLATES.get(template_key)
-    if template is None:
+    """Reset the project to a ready-made workflow (only the default one now)."""
+    if template_key not in WORKFLOW_TEMPLATES:
         raise WorkflowError("Unknown workflow template.")
-    with transaction.atomic():
-        states = {}
-        for state in State.objects.filter(project=project).order_by("sequence"):
-            states.setdefault(state_key(state.name), state)
-        last_sequence = max([state.sequence for state in states.values()], default=0)
-        for config in template["states"]:
-            if state_key(config["name"]) in states:
-                continue
-            last_sequence += 15000
-            states[state_key(config["name"])] = State.objects.create(
-                project=project,
-                workspace_id=project.workspace_id,
-                name=config["name"],
-                group=config["group"],
-                color=config["color"],
-                sequence=last_sequence,
-                created_by_id=user_id,
-                updated_by_id=user_id,
-            )
-        transitions = [
-            {"from_state": states[state_key(source)].id, "to_state": states[state_key(target)].id, "reviewer_ids": []}
-            for source, targets in template["transitions"].items()
-            for target in targets
-        ]
-        return save_workflow(project, True, transitions, user_id, is_customized=template_key != DEFAULT_TEMPLATE)
+    return adopt_default_workflow(project, user_id)

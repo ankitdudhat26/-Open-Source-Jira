@@ -12,6 +12,7 @@ import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view
 import { PageHead } from "@/components/core/page-title";
 import { ProjectStateRoot } from "@/components/project-states";
 import { ProjectWorkflowEditor } from "@/components/project-states/workflow-editor";
+import { WorkflowGuide } from "@/components/project-states/workflow-guide";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SettingsHeading } from "@/components/settings/heading";
 // hook
@@ -52,6 +53,9 @@ function StatesSettingsPage({ params }: Route.ComponentProps) {
           title={t("project_settings.states.heading")}
           description={t("project_settings.states.description")}
         />
+        <div className="mt-6">
+          <WorkflowGuide />
+        </div>
         <div className="mt-6">
           <ProjectStateRoot workspaceSlug={workspaceSlug} projectId={projectId} />
         </div>
