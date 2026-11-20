@@ -10,6 +10,7 @@ import { observer } from "mobx-react";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { TWorkspaceMemberDetailsForm } from "@plane/types";
+import { renderFormattedDate } from "@plane/utils";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 // local imports
@@ -27,6 +28,15 @@ const INPUT =
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** The account an email belongs to, which can be linked to the member (it signed up with the app link). */
+type TMergeConflict = {
+  data: TWorkspaceMemberDetailsForm;
+  account: { display_name?: string; date_joined?: string; last_login?: string | null };
+};
+
+const errorMessage = (error: unknown, fallback: string) =>
+  error && typeof error === "object" && "error" in error && typeof error.error === "string" ? error.error : fallback;
+
 /**
  * Edit a member's details: name and job role always; the email only while the account was never signed in to (e.g.
  * people the Jira import added): for people who sign in it is their sign in, which they change themselves.
@@ -39,7 +49,7 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
   const { member } = rowData;
   const canEditEmail = member.access_status !== "active";
   // states
-  const [form, setForm] = useState<Required<TWorkspaceMemberDetailsForm>>({
+  const [form, setForm] = useState<Required<Omit<TWorkspaceMemberDetailsForm, "merge_account">>>({
     first_name: "",
     last_name: "",
     display_name: "",
@@ -47,6 +57,7 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
     company_role: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [mergeConflict, setMergeConflict] = useState<TMergeConflict | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,7 +70,7 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
     });
   }, [isOpen, member, rowData.company_role]);
 
-  const field = (key: keyof TWorkspaceMemberDetailsForm, label: string, placeholder: string, disabled = false) => (
+  const field = (key: keyof typeof form, label: string, placeholder: string, disabled = false) => (
     <label className="flex flex-col gap-1">
       <span className="text-caption-md-medium text-secondary">{label}</span>
       <input
@@ -93,25 +104,68 @@ export const EditMemberDetailsModal = observer(function EditMemberDetailsModal(p
       // a member without an email keeps none until one is typed
       if (form.email.trim() || member.email) data.email = form.email.trim();
     }
+    await submit(data);
+  };
+
+  const submit = async (data: TWorkspaceMemberDetailsForm) => {
     setIsSaving(true);
     try {
       await updateMemberDetails(workspaceSlug, member.id, data);
       setToast({
         type: "success",
-        title: "Member updated",
-        message: `${data.display_name ?? member.display_name} saved.`,
+        title: data.merge_account ? "Accounts linked" : "Member updated",
+        message: data.merge_account
+          ? `${data.display_name ?? member.display_name} now signs in with ${data.email}.`
+          : `${data.display_name ?? member.display_name} saved.`,
       });
+      setMergeConflict(null);
       onClose();
     } catch (error) {
-      const message =
-        error && typeof error === "object" && "error" in error && typeof error.error === "string"
-          ? error.error
-          : "The member could not be updated. Please try again.";
-      setToast({ type: "error", title: "Not saved", message });
+      // the email is the account the person made by signing up with the app link: ask to link it
+      if (!data.merge_account && error && typeof error === "object" && "can_merge" in error && error.can_merge) {
+        const account = "account" in error ? (error.account as TMergeConflict["account"]) : {};
+        setMergeConflict({ data, account });
+        return;
+      }
+      setToast({
+        type: "error",
+        title: "Not saved",
+        message: errorMessage(error, "The member could not be updated. Please try again."),
+      });
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (mergeConflict)
+    return (
+      <ConfirmDialog
+        isOpen={isOpen}
+        handleClose={() => !isSaving && setMergeConflict(null)}
+        handleSubmit={() => submit({ ...mergeConflict.data, merge_account: true })}
+        isSubmitting={isSaving}
+        variant="primary"
+        title="Link the account?"
+        content={
+          <div className="flex flex-col gap-3">
+            <p>
+              {mergeConflict.data.email} already has an account
+              {mergeConflict.account.date_joined
+                ? `, made by signing up on ${renderFormattedDate(mergeConflict.account.date_joined)}`
+                : ""}
+              .
+            </p>
+            <p>
+              Linking it makes it {member.display_name}: they sign in with that email and their own password and see all
+              of {member.display_name}&apos;s work items, comments and history. The other account is switched off and
+              its workspaces and projects move to {member.display_name}. They are signed out once and sign in again.
+            </p>
+          </div>
+        }
+        primaryButtonText={{ loading: "Linking…", default: "Link account" }}
+        secondaryButtonText="Back"
+      />
+    );
 
   return (
     <ConfirmDialog

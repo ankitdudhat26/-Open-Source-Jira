@@ -17,7 +17,8 @@ from django.test import Client
 from rest_framework import status
 
 from plane.authentication.views.app.password_management import InviteTokenGenerator
-from plane.db.models import JiraEntityMap, Profile, User, WorkspaceMember
+from plane.db.models import JiraEntityMap, Profile, ProjectMember, Project, Session, User, Workspace, WorkspaceMember
+from plane.license.models import Instance, InstanceAdmin
 
 MAIL_SETTINGS = ("smtp.example.com", "", "", "587", "1", "0", "HLIS Flow <no-reply@example.com>")
 STRONG_PASSWORD = "Correct-Horse-Battery-42!"
@@ -256,3 +257,100 @@ class TestMemberDetailsEdit:
             f"/api/workspaces/{workspace.slug}/members/{membership.id}/details/", {"display_name": "X"}, format="json"
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def signed_up(email, password=STRONG_PASSWORD):
+    """An account made by signing up with the app link: onboarding had them create a workspace of their own."""
+    user = User.objects.create(email=email, username=uuid.uuid4().hex, display_name=email.split("@")[0])
+    user.set_password(password)
+    user.is_password_autoset = False
+    user.save()
+    own = Workspace.objects.create(name="Own", owner=user, slug=f"own-{uuid.uuid4().hex[:6]}")
+    WorkspaceMember.objects.create(workspace=own, member=user, role=20)
+    project = Project.objects.create(name="Sample", identifier="SMP", workspace=own, created_by=user)
+    ProjectMember.objects.create(project=project, workspace=own, member=user, role=20)
+    return user, own
+
+
+@pytest.mark.contract
+class TestLinkSignedUpAccount:
+    @pytest.mark.django_db
+    def test_email_of_a_signed_up_account_asks_to_link_it_then_the_member_takes_over_the_sign_in(
+        self, session_client, workspace
+    ):
+        jira_person = member(workspace, email=None, is_active=False, display_name="Shivrajsinh")
+        JiraEntityMap.objects.create(
+            workspace=workspace,
+            entity_type="user",
+            jira_id="acc-9",
+            plane_id=jira_person.member_id,
+            jira_updated="former",
+        )
+        other, own = signed_up("shivrajs@example.com")
+        Session.objects.create(
+            session_key="k" * 40, session_data="", expire_date="2099-01-01T00:00Z", user_id=str(other.id)
+        )
+        url = f"/api/workspaces/{workspace.slug}/members/{jira_person.id}/details/"
+
+        asked = session_client.patch(url, {"email": "shivrajs@example.com"}, format="json")
+        assert asked.status_code == status.HTTP_409_CONFLICT
+        assert asked.data["can_merge"] is True
+        assert User.objects.get(pk=jira_person.member_id).email is None  # nothing changed yet
+
+        response = session_client.patch(url, {"email": "shivrajs@example.com", "merge_account": True}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["member"]["email"] == "shivrajs@example.com"
+        person = User.objects.get(pk=jira_person.member_id)
+        assert (person.email, person.is_active, person.display_name) == ("shivrajs@example.com", True, "Shivrajsinh")
+        assert person.check_password(STRONG_PASSWORD)  # signs in with their own password
+        other.refresh_from_db()
+        assert (other.email, other.is_active, other.has_usable_password()) == (None, False, False)
+        assert not Session.objects.filter(user_id=str(other.id)).exists()
+        # their own workspace and project come along
+        assert WorkspaceMember.objects.filter(workspace=own, member=person, role=20).exists()
+        assert ProjectMember.objects.filter(workspace=own, member=person).exists()
+        assert Workspace.objects.get(pk=own.pk).owner_id == person.id
+        profile = Profile.objects.get(user=person)
+        assert (profile.is_onboarded, profile.last_workspace_id) == (True, workspace.id)
+        assert JiraEntityMap.objects.get(jira_id="acc-9").jira_updated == "invited"
+        # the members list finds them by their email
+        listed = session_client.get(f"/api/workspaces/{workspace.slug}/members/").data
+        assert "shivrajs@example.com" in [row["member"]["email"] for row in listed]
+
+    @pytest.mark.django_db
+    def test_a_signed_up_account_already_in_the_workspace_is_switched_off_there(self, session_client, workspace):
+        jira_person = member(workspace, email=None, is_active=False)
+        other, _ = signed_up("ravi@example.com")
+        joined = WorkspaceMember.objects.create(workspace=workspace, member=other, role=5)
+
+        response = session_client.patch(
+            f"/api/workspaces/{workspace.slug}/members/{jira_person.id}/details/",
+            {"email": "ravi@example.com", "merge_account": True},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert not WorkspaceMember.objects.get(pk=joined.pk).is_active
+
+    @pytest.mark.django_db
+    def test_instance_admins_are_not_merged(self, session_client, workspace):
+        jira_person = member(workspace, email=None, is_active=False)
+        other, _ = signed_up("admin@example.com")
+        instance = Instance.objects.create(
+            instance_name="Plane",
+            instance_id=uuid.uuid4().hex,
+            current_version="1",
+            latest_version="1",
+            last_checked_at="2026-01-01T00:00Z",
+        )
+        InstanceAdmin.objects.create(user=other, instance=instance)
+
+        response = session_client.patch(
+            f"/api/workspaces/{workspace.slug}/members/{jira_person.id}/details/",
+            {"email": "admin@example.com", "merge_account": True},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert User.objects.get(pk=other.pk).is_active

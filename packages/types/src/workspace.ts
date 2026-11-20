@@ -112,6 +112,8 @@ export type TWorkspaceMemberDetailsForm = {
   display_name?: string;
   email?: string;
   company_role?: string;
+  /** the email belongs to an account the person made by signing up: the member takes over its sign in */
+  merge_account?: boolean;
 };
 
 export interface IWorkspaceMemberMe {

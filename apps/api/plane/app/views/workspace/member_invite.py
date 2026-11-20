@@ -26,6 +26,7 @@ from plane.authentication.views.app.password_management import InviteTokenGenera
 from plane.bgtasks.member_invite_email_task import send_member_invite_email
 from plane.db.models import JiraEntityMap, Profile, User, WorkspaceMember
 from plane.license.utils.instance_value import get_email_configuration
+from plane.utils.account_merge import merge_refusal, merge_signed_up_account
 from plane.utils.host import base_host
 
 logger = logging.getLogger("plane.api")
@@ -127,6 +128,9 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
     def patch(self, request, slug, pk):
         """Edit a member's details: name and job role always, the email only while the account has never been
         signed in to (accounts the Jira import made); for people who sign in it is their sign in, theirs to change.
+
+        An email that belongs to an account the person made by signing up with the app link links that account
+        (merge_account: true, after the admin confirms): the member takes over its sign in.
         """
         membership = (
             WorkspaceMember.objects.filter(workspace__slug=slug, pk=pk, is_active=True)
@@ -138,6 +142,7 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
         user = membership.member
         data = request.data
         user_changes = {}
+        merge_from = None
         for field in self.NAME_FIELDS:
             if field in data:
                 user_changes[field] = str(data.get(field) or "").strip()[:255]
@@ -152,10 +157,28 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
                     validate_email(email)
                 except ValidationError:
                     return Response({"error": "Enter a valid email address."}, status=status.HTTP_400_BAD_REQUEST)
-                if User.objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
-                    return Response(
-                        {"error": f"{email} already belongs to another account."}, status=status.HTTP_400_BAD_REQUEST
-                    )
+                other = User.objects.filter(email__iexact=email).exclude(pk=user.pk).first()
+                if other is not None:
+                    refusal = merge_refusal(other, request.user)
+                    if refusal:
+                        return Response(
+                            {"error": f"{email} already belongs to another account, and {refusal}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if not data.get("merge_account"):
+                        return Response(
+                            {
+                                "error": f"{email} already belongs to another account.",
+                                "can_merge": True,
+                                "account": {
+                                    "display_name": other.display_name,
+                                    "date_joined": other.date_joined,
+                                    "last_login": other.last_login,
+                                },
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    merge_from = other
                 user_changes["email"] = email
         user_changes = {key: value for key, value in user_changes.items() if getattr(user, key) != value}
         if "email" in user_changes and (
@@ -167,6 +190,9 @@ class WorkspaceMemberDetailsEndpoint(BaseAPIView):
             )
 
         with transaction.atomic():
+            if merge_from is not None:
+                user = membership.member = merge_signed_up_account(user, merge_from, membership.workspace)
+                user_changes.pop("email")
             if user_changes:
                 for key, value in user_changes.items():
                     setattr(user, key, value)
