@@ -25,12 +25,20 @@ export type TFiltersRowProps<K extends TFilterProperty, E extends TExternalFilte
   disabledAllOperations?: boolean;
   filter: IFilterInstance<K, E>;
   variant?: "modal" | "header";
+  /** shown after the filters (e.g. the project's resource avatars) */
+  extraContent?: React.ReactNode;
 };
 
 export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty, E extends TExternalFilter>(
   props: TFiltersRowProps<K, E>
 ) {
-  const { buttonConfig, disabledAllOperations: disabledAllOperationsProp = false, filter, variant = "header" } = props;
+  const {
+    buttonConfig,
+    disabledAllOperations: disabledAllOperationsProp = false,
+    extraContent,
+    filter,
+    variant = "header",
+  } = props;
   // states
   const [isUpdating, setIsUpdating] = useState(false);
   // derived values
@@ -75,6 +83,7 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
           isDisabled: disabledAllOperations,
         }}
       />
+      {extraContent}
     </>
   );
 

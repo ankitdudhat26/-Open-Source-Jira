@@ -35,6 +35,8 @@ from .meta import ProjectMetaDataEndpoint
 from .intake_form import (
     IntakeFormAttachmentEndpoint,
     IntakeFormNotificationEndpoint,
+    IntakeFormWorkItemCommentImageEndpoint,
+    IntakeFormAssetEndpoint,
     IntakeFormPortalEndpoint,
     IntakeFormRequestEndpoint,
     IntakeFormWorkItemAttachmentEndpoint,

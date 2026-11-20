@@ -69,6 +69,10 @@ import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 // plane web imports
 import { useFiltersOperatorConfigs } from "@/hooks/rich-filters/use-filters-operator-configs";
+import { WORK_ITEM_UNASSIGNED } from "@/components/work-item-filters/unassigned";
+
+/** the Assignees filter's option for work items nobody is assigned to */
+const UNASSIGNED_OPTION = { id: WORK_ITEM_UNASSIGNED, display_name: "Unassigned" } as IUserLite;
 
 export type TWorkItemFiltersEntityProps = {
   workspaceSlug: string;
@@ -268,15 +272,19 @@ export const useWorkItemFiltersConfig = (props: TUseWorkItemFiltersConfigProps):
       getAssigneeFilterConfig<TWorkItemFilterProperty>("assignee_id")({
         isEnabled: isFilterEnabled("assignee_id") && members !== undefined,
         filterIcon: MembersOutline,
-        members: members ?? [],
-        getOptionIcon: (memberDetails) => (
-          <Avatar
-            alt={memberDetails.display_name}
-            fallback={memberDetails.display_name?.[0]?.toUpperCase()}
-            src={getFileURL(memberDetails.avatar_url)}
-            size="2xs"
-          />
-        ),
+        // "Unassigned" first, for the work items nobody is assigned to
+        members: members ? [UNASSIGNED_OPTION, ...members] : [],
+        getOptionIcon: (memberDetails) =>
+          memberDetails.id === WORK_ITEM_UNASSIGNED ? (
+            <UserOutline className="size-3.5 flex-shrink-0 text-tertiary" />
+          ) : (
+            <Avatar
+              alt={memberDetails.display_name}
+              fallback={memberDetails.display_name?.[0]?.toUpperCase()}
+              src={getFileURL(memberDetails.avatar_url)}
+              size="2xs"
+            />
+          ),
         ...operatorConfigs,
       }),
     [isFilterEnabled, members, operatorConfigs]

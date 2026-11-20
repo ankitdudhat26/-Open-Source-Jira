@@ -5,10 +5,12 @@
 # Python imports
 import json
 import mimetypes
+import re
 
 # Django imports
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
+from django.http import HttpResponseRedirect
 from django.utils import timezone
 
 # Third party imports
@@ -314,7 +316,17 @@ class IntakeFormWorkItemCommentEndpoint(BaseAPIView):
         serializer = IssueCommentSerializer(data={"comment_html": comment_html})
         if not serializer.is_valid():
             return Response({"error": "Check the comment and try again."}, status=status.HTTP_400_BAD_REQUEST)
-        serializer.save(project_id=issue.project_id, issue_id=issue.id, actor=request.user)
+        comment = serializer.save(project_id=issue.project_id, issue_id=issue.id, actor=request.user)
+        # the images the client put in the comment now belong to it
+        image_ids = set(COMMENT_IMAGE_SRC.findall(comment_html))
+        if image_ids:
+            FileAsset.objects.filter(
+                id__in=image_ids,
+                created_by=request.user,
+                project_id=issue.project_id,
+                entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+                comment__isnull=True,
+            ).update(comment_id=comment.id)
         issue_activity.delay(
             type="comment.activity.created",
             requested_data=json.dumps(serializer.data, cls=DjangoJSONEncoder),
@@ -339,6 +351,81 @@ class IntakeFormWorkItemAttachmentEndpoint(BaseAPIView):
         if not issue:
             return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
         return _store_attachment(request, issue)
+
+
+COMMENT_IMAGE_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
+# an image of a comment, as the editor writes it: <image-component src="<asset id>" …>
+COMMENT_IMAGE_SRC = re.compile(
+    r"<image-component\b[^>]*\bsrc=[\"']([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})[\"']"
+)
+
+
+class IntakeFormWorkItemCommentImageEndpoint(BaseAPIView):
+    """An image the client puts in a comment (as in the app: it shows in the comment, for the team too)."""
+
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
+    def post(self, request, anchor, issue_id):
+        _, issue = _client_work_item(request, anchor, issue_id)
+        if not issue:
+            return Response({"error": "Work item not found."}, status=status.HTTP_404_NOT_FOUND)
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"error": "Choose an image."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size > settings.FILE_SIZE_LIMIT:
+            return Response(
+                {"error": f"Images can be up to {settings.FILE_SIZE_LIMIT // (1024 * 1024)} MB."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        name = sanitize_filename(upload.name) or "image"
+        content_type = (upload.content_type or "").split(";")[0].strip().lower()
+        if content_type not in COMMENT_IMAGE_TYPES:
+            return Response(
+                {"error": "Only JPEG, PNG, WebP and GIF images can be put in a comment."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        asset_key = asset_storage_key(
+            name, entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION, workspace_id=issue.workspace_id
+        )
+        if not S3Storage(request=request).upload_file(upload, asset_key, content_type):
+            return Response({"error": "The image could not be stored. Try again."}, status=500)
+        asset = FileAsset.objects.create(
+            attributes={"name": name, "type": content_type, "size": upload.size},
+            asset=asset_key,
+            size=upload.size,
+            workspace_id=issue.workspace_id,
+            project_id=issue.project_id,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            is_uploaded=True,
+        )
+        return Response({"asset_id": str(asset.id)}, status=status.HTTP_201_CREATED)
+
+
+class IntakeFormAssetEndpoint(BaseAPIView):
+    """An image in a description or comment of a work item the client may see: opens the stored file."""
+
+    def get(self, request, anchor, asset_id):
+        form = _form(anchor)
+        if not form or not is_invited(request.user, form.project_id):
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        asset = FileAsset.objects.filter(
+            pk=asset_id,
+            project__in=_client_projects(request.user, form),
+            is_uploaded=True,
+            entity_type__in=[
+                FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+                FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+            ],
+        ).first()
+        if not asset:
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        download = request.query_params.get("download") == "1"
+        url = S3Storage(request=request).generate_presigned_url(
+            object_name=asset.asset.name,
+            disposition="attachment" if download else "inline",
+            filename=asset.attributes.get("name"),
+        )
+        return HttpResponseRedirect(url)
 
 
 class IntakeFormNotificationEndpoint(BaseAPIView):

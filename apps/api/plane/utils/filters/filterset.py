@@ -3,12 +3,24 @@
 # See the LICENSE file for details.
 
 import copy
+import uuid
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django_filters import FilterSet, filters
 
-from plane.db.models import Issue
+from plane.db.models import Issue, IssueAssignee
+
+# the assignee filter's value for work items without an assignee
+UNASSIGNED = "none"
+
+
+def _is_uuid(value):
+    try:
+        uuid.UUID(str(value))
+    except ValueError:
+        return False
+    return True
 
 
 class UUIDInFilter(filters.BaseInFilter, filters.UUIDFilter):
@@ -135,8 +147,9 @@ class BaseFilterSet(FilterSet):
 class IssueFilterSet(BaseFilterSet):
     # Custom filter methods to handle soft delete exclusion for relations
 
-    assignee_id = filters.UUIDFilter(method="filter_assignee_id")
-    assignee_id__in = UUIDInFilter(method="filter_assignee_id_in", lookup_expr="in")
+    # a member's id, or "none" for work items without an assignee (Jira's "Unassigned")
+    assignee_id = filters.CharFilter(method="filter_assignee_id")
+    assignee_id__in = CharInFilter(method="filter_assignee_id_in", lookup_expr="in")
 
     cycle_id = filters.UUIDFilter(method="filter_cycle_id")
     cycle_id__in = UUIDInFilter(method="filter_cycle_id_in", lookup_expr="in")
@@ -220,18 +233,19 @@ class IssueFilterSet(BaseFilterSet):
     # Filter methods with soft delete exclusion for relations
 
     def filter_assignee_id(self, queryset, name, value):
-        """Filter by assignee ID, excluding soft deleted users"""
-        return Q(
-            issue_assignee__assignee_id=value,
-            issue_assignee__deleted_at__isnull=True,
-        )
+        """Filter by assignee ID (or "none": no assignee), excluding soft deleted users"""
+        return self.filter_assignee_id_in(queryset, name, [value])
 
     def filter_assignee_id_in(self, queryset, name, value):
-        """Filter by assignee IDs (in), excluding soft deleted users"""
-        return Q(
-            issue_assignee__assignee_id__in=value,
-            issue_assignee__deleted_at__isnull=True,
-        )
+        """Filter by assignee IDs (in), excluding soft deleted users; "none" matches work items without an assignee"""
+        values = [str(item).strip() for item in (value or [])]
+        member_ids = [item for item in values if _is_uuid(item)]
+        q = Q(pk__in=[])
+        if member_ids:
+            q |= Q(issue_assignee__assignee_id__in=member_ids, issue_assignee__deleted_at__isnull=True)
+        if any(item.lower() == UNASSIGNED for item in values):
+            q |= ~Exists(IssueAssignee.objects.filter(issue_id=OuterRef("pk"), deleted_at__isnull=True))
+        return q
 
     def filter_cycle_id(self, queryset, name, value):
         """Filter by cycle ID, excluding soft deleted cycles"""

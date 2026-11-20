@@ -9,9 +9,8 @@ import useSWR from "swr";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
-import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Input, InputGroup } from "@makeplane/propel/components/input";
-import { AttachOutline, CloseOutline, SearchOutline } from "@makeplane/propel/icons";
+import { SearchOutline } from "@makeplane/propel/icons";
 import { API_BASE_URL, SPACE_BASE_PATH } from "@plane/constants";
 import type { EditorRefApi } from "@plane/editor";
 import { HlinkLockup, PriorityIcon } from "@plane/blocks/icons";
@@ -23,17 +22,10 @@ import { cn, renderFormattedDate } from "@plane/utils";
 import { LogoSpinner } from "@/components/common/logo-spinner";
 // local imports
 import { IntakeDescriptionEditor } from "./description-editor";
+import { FileCards, FileDropZone, addFiles, usePickedPreviews } from "./file-previews";
 import { NotificationsBell } from "./notifications-bell";
 import type { TWorkItemRow } from "./portal-shared";
-import {
-  ColorDot,
-  LabelChip,
-  MAX_FILE_SIZE,
-  OptionSelect,
-  PRIORITY_LABELS,
-  getJson,
-  isEmptyHtml,
-} from "./portal-shared";
+import { ColorDot, LabelChip, OptionSelect, PRIORITY_LABELS, getJson, isEmptyHtml } from "./portal-shared";
 import { ThemeSwitch } from "./theme-switch";
 import { WorkItemDetail } from "./work-item-detail";
 import { WorkItemsTable } from "./work-items";
@@ -145,7 +137,6 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<EditorRefApi>(null);
   // a new key gives an empty editor after a request is sent
   const [editorKey, setEditorKey] = useState(0);
@@ -163,13 +154,12 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
     shows("priority") ||
     (shows("labels") && labelOptions.length > 0);
 
-  const handleFiles = (list: FileList | null) => {
-    const chosen = Array.from(list ?? []);
-    const tooBig = chosen.filter((file) => file.size > MAX_FILE_SIZE);
-    setError(tooBig.length ? `${tooBig.map((file) => file.name).join(", ")} is over 5 MB.` : "");
-    setFiles((current) => [...current, ...chosen.filter((file) => file.size <= MAX_FILE_SIZE)]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const handleFiles = (picked: File[]) => {
+    const result = addFiles(files, picked);
+    setError(result.error);
+    setFiles(result.files);
   };
+  const filePreviews = usePickedPreviews(files);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -334,49 +324,12 @@ function RequestForm({ anchor, forms, onSent }: TRequestFormProps) {
 
       {shows("attachments") && (
         <div className="flex flex-col gap-2">
-          <FieldLabel>Attachments</FieldLabel>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            aria-label="Attachments"
-            onChange={(event) => handleFiles(event.target.files)}
+          <FieldLabel>{files.length > 0 ? `Attachments (${files.length})` : "Attachments"}</FieldLabel>
+          <FileDropZone onFiles={handleFiles} disabled={isSending} />
+          <FileCards
+            files={filePreviews}
+            onRemove={(key) => setFiles((current) => current.filter((_, index) => filePreviews[index]?.key !== key))}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center gap-1 rounded-md border border-dashed border-subtle-1 bg-layer-1 px-4 py-5 text-center hover:bg-layer-1-hover"
-          >
-            <AttachOutline className="size-5 text-tertiary" />
-            <span className="text-body-xs-medium text-primary">Add files</span>
-            <span className="text-caption-sm-regular text-tertiary">
-              Documents, screenshots and other files, up to 5 MB each
-            </span>
-          </button>
-          {files.length > 0 && (
-            <ul className="flex flex-col divide-y divide-subtle rounded-md border border-subtle">
-              {files.map((file) => (
-                <li
-                  key={`${file.name}-${file.size}-${file.lastModified}`}
-                  className="flex items-center gap-2 px-3 py-1.5"
-                >
-                  <AttachOutline className="size-4 shrink-0 text-tertiary" />
-                  <span className="min-w-0 flex-1 truncate text-body-xs-regular text-primary">{file.name}</span>
-                  <span className="text-caption-sm-regular text-tertiary">
-                    {Math.max(1, Math.round(file.size / 1024))} KB
-                  </span>
-                  <IconButton
-                    variant="ghost"
-                    size="xs"
-                    icon={<Icon icon={CloseOutline} />}
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() => setFiles((current) => current.filter((item) => item !== file))}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
       <div className="flex flex-col-reverse items-stretch gap-3 border-t border-subtle pt-5 sm:flex-row sm:items-center sm:justify-between">

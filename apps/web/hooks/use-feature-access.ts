@@ -28,6 +28,9 @@ export const NAV_ITEM_FEATURES: Record<string, string> = {
   intake: "intake",
 };
 
+/** What a project's Admin always has in that project (as `feature.action`), whatever their workspace role. */
+const PROJECT_ADMIN_ACCESS = new Set(["intake.edit"]);
+
 /**
  * Settings → Roles & access for the current user: `can(feature, action, fallback, projectId)` is what an admin set for
  * them (their custom access, else their role's rule); else false where the role's built-in rule denies it; else
@@ -59,6 +62,9 @@ export const useFeatureAccess = (workspaceSlug?: string) => {
         // a Sub Admin has full access to the projects they created
         if (mine.is_sub_admin && currentUser?.id && getProjectById(projectId)?.created_by === currentUser.id)
           return fallback;
+        // a project's Admin (their Role in the project's Members) always triages its Intake, whatever their
+        // workspace role's rules — the server allows the same
+        if (projectRole === EUserPermissions.ADMIN && PROJECT_ADMIN_ACCESS.has(`${feature}.${action}`)) return fallback;
         role = Math.min(workspaceRole, projectRole);
       }
       const key: TAccessRole =

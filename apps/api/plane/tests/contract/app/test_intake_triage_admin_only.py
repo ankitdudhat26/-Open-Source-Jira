@@ -13,7 +13,16 @@ import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from plane.db.models import Intake, IntakeIssue, Project, ProjectMember, State, User, WorkspaceMember
+from plane.db.models import (
+    Intake,
+    IntakeIssue,
+    Project,
+    ProjectMember,
+    State,
+    User,
+    WorkspaceAccessPolicy,
+    WorkspaceMember,
+)
 
 INTAKE_ISSUES_URL = "/api/workspaces/{slug}/projects/{project_id}/intake-issues/"
 
@@ -111,3 +120,23 @@ class TestIntakeTriageIsForProjectAdmins:
 
         assert response.status_code == status.HTTP_200_OK, response.data
         assert response.data["issue"]["name"] == "Invoice mail body"
+
+    @pytest.mark.django_db
+    def test_project_admin_with_a_member_workspace_role_triages_though_members_cannot(
+        self, session_client, workspace, project, url
+    ):
+        """Like Rajendra on live: Member of the workspace, Admin of the project; Roles & access denies Members Intake
+        Edit. The Members list decides: they accept, a Member still cannot."""
+        WorkspaceAccessPolicy.objects.create(
+            workspace=workspace, rules={"member": {"intake": {"edit": False, "create": False, "delete": False}}}
+        )
+        project_admin = _person(workspace, project, workspace_role=15, project_role=20)
+        member = _person(workspace, project, workspace_role=15, project_role=15)
+        issue_id = _request(session_client, url)
+
+        refused = member.patch(f"{url}{issue_id}/", {"status": 1}, format="json")
+        accepted = project_admin.patch(f"{url}{issue_id}/", {"status": 1}, format="json")
+
+        assert refused.status_code == status.HTTP_403_FORBIDDEN
+        assert accepted.status_code == status.HTTP_200_OK, accepted.data
+        assert IntakeIssue.objects.get(issue_id=issue_id).status == 1

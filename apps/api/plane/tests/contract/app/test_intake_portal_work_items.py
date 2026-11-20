@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from plane.db.models import (
+    FileAsset,
     Intake,
     IntakeIssue,
     Issue,
@@ -174,6 +175,61 @@ class TestClientWorkItems:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert comment.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.contract
+class TestClientCommentImages:
+    """An image the client puts in a comment is stored with the work item and belongs to the comment once sent; the
+    client sees images of the project's work items through the link (the team, through the app)."""
+
+    @pytest.mark.django_db
+    def test_client_puts_an_image_in_a_comment(self, session_client, workspace, project, anchor, client_api):
+        issue_id = _send(client_api, anchor)
+        _decide(session_client, workspace, project, issue_id, status=1)
+        url = f"{PORTAL_URL.format(anchor=anchor)}work-items/{issue_id}/"
+
+        with patch("plane.space.views.intake_form.S3Storage.upload_file", return_value=True):
+            image = client_api.post(
+                f"{url}comment-images/", {"file": SimpleUploadedFile("shot.png", b"png", content_type="image/png")}
+            )
+            not_an_image = client_api.post(
+                f"{url}comment-images/", {"file": SimpleUploadedFile("log.txt", b"trace", content_type="text/plain")}
+            )
+        asset_id = image.data["asset_id"]
+        comment = client_api.post(
+            f"{url}comments/",
+            {"comment_html": f'<p>See this</p><image-component src="{asset_id}" width="300px"></image-component>'},
+            format="json",
+        )
+        with patch(
+            "plane.space.views.intake_form.S3Storage.generate_presigned_url", return_value="https://files.test/shot"
+        ):
+            shown = client_api.get(f"{PORTAL_URL.format(anchor=anchor)}assets/{asset_id}/")
+
+        assert image.status_code == status.HTTP_201_CREATED, image.data
+        assert not_an_image.status_code == status.HTTP_400_BAD_REQUEST
+        asset = FileAsset.objects.get(pk=asset_id)
+        assert asset.project_id == project.id
+        assert str(asset.comment_id) == str(comment.data["id"])
+        assert shown.status_code == status.HTTP_302_FOUND
+        assert shown["Location"] == "https://files.test/shot"
+
+    @pytest.mark.django_db
+    def test_images_of_other_projects_are_not_shown(self, workspace, create_user, anchor, client_api):
+        other = Project.objects.create(name="Other", identifier="OT", workspace=workspace)
+        foreign = FileAsset.objects.create(
+            attributes={"name": "secret.png", "type": "image/png", "size": 3},
+            asset="secret.png",
+            size=3,
+            workspace=workspace,
+            project=other,
+            entity_type=FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+            is_uploaded=True,
+        )
+
+        response = client_api.get(f"{PORTAL_URL.format(anchor=anchor)}assets/{foreign.id}/")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.contract

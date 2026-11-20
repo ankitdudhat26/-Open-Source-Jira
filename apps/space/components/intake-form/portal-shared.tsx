@@ -98,7 +98,7 @@ export const send = async <T,>(url: string, method: string, body: Record<string,
 /** Whether the editor's HTML has no text (an empty paragraph, line breaks…). */
 export const isEmptyHtml = (html: string) =>
   !html ||
-  (!/<(img|table|hr|pre|ul|ol)\b/i.test(html) &&
+  (!/<(img|image-component|table|hr|pre|ul|ol)\b/i.test(html) &&
     !html
       .replace(/<[^>]*>/g, "")
       .replace(/&nbsp;/g, " ")

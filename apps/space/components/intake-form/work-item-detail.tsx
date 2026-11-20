@@ -4,15 +4,13 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import useSWR from "swr";
 // plane imports
-import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import {
   ArrowNarrowRightOutline,
-  AttachOutline,
   CalendarOutline,
   CloseOutline,
   CyclesOutline,
@@ -35,9 +33,11 @@ import { cn, renderFormattedDate } from "@plane/utils";
 // components
 import { LogoSpinner } from "@/components/common/logo-spinner";
 // local imports
-import { IntakeDescriptionEditor, IntakeReadOnlyHtml } from "./description-editor";
+import { IntakeCommentEditor, IntakeReadOnlyHtml } from "./description-editor";
 import type { TStateLite, TWorkItemDetail } from "./portal-shared";
-import { LabelChip, MAX_FILE_SIZE, PRIORITY_LABELS, getJson, initials, isEmptyHtml, send } from "./portal-shared";
+import { FileCards, FileDropZone, addFiles, usePickedPreviews } from "./file-previews";
+import type { TPreviewFile } from "./file-previews";
+import { LabelChip, PRIORITY_LABELS, getJson, initials, isEmptyHtml, send } from "./portal-shared";
 
 type Props = {
   base: string;
@@ -51,9 +51,6 @@ type TActivityTab = "all" | "comments" | "history";
 type THistory = TWorkItemDetail["history"][number];
 type TComment = TWorkItemDetail["comments"][number];
 type TEntry = ({ kind: "comment" } & TComment) | ({ kind: "history" } & THistory);
-
-const sizeLabel = (size: number) =>
-  size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`;
 
 /** "November 19, 2026 at 3:02 PM", as the app's activity shows it */
 const activityDate = (value: string) => {
@@ -133,8 +130,7 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
   const [editorKey, setEditorKey] = useState(0);
   const [isPosting, setIsPosting] = useState(false);
   const [message, setMessage] = useState<{ kind: "error" | "success"; text: string } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const attachInputRef = useRef<HTMLInputElement>(null);
+  const [isAttaching, setIsAttaching] = useState(false);
   const editorId = useId();
 
   useEffect(() => {
@@ -190,13 +186,17 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
     return failed;
   };
 
-  const pickFiles = (list: FileList | null, onPicked: (picked: File[]) => void) => {
-    const chosen = Array.from(list ?? []);
-    const tooBig = chosen.filter((file) => file.size > MAX_FILE_SIZE);
-    if (tooBig.length)
-      setMessage({ kind: "error", text: `${tooBig.map((file) => file.name).join(", ")} is over 5 MB.` });
-    onPicked(chosen.filter((file) => file.size <= MAX_FILE_SIZE));
+  // what was picked for the next comment, previewed under it
+  const commentPreviews = usePickedPreviews(files);
+  const pickForComment = (picked: File[]) => {
+    const result = addFiles(files, picked);
+    setMessage(result.error ? { kind: "error", text: result.error } : null);
+    setFiles(result.files);
   };
+  const attachments = useMemo<TPreviewFile[]>(
+    () => (item?.attachments ?? []).map((file) => ({ key: file.id, name: file.name, size: file.size, url: file.url })),
+    [item]
+  );
 
   const handleComment = async () => {
     if (isEmptyHtml(comment) && files.length === 0) return;
@@ -224,11 +224,15 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
     }
   };
 
-  const handleAttach = async (list: File[]) => {
-    if (list.length === 0) return;
-    setMessage(null);
-    const failed = await uploadFiles(list);
+  const handleAttach = async (picked: File[]) => {
+    const { added, error: tooBig } = addFiles([], picked);
+    setMessage(tooBig ? { kind: "error", text: tooBig } : null);
+    if (added.length === 0) return;
+    setIsAttaching(true);
+    const failed = await uploadFiles(added);
     await refresh();
+    setIsAttaching(false);
+    if (tooBig) return;
     setMessage(
       failed.length
         ? { kind: "error", text: `These files could not be attached: ${failed.join(", ")}.` }
@@ -296,51 +300,24 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
               {isEmptyHtml(item.description_html) ? (
                 <None>No description.</None>
               ) : (
-                <IntakeReadOnlyHtml id={`${editorId}-description`} html={item.description_html} />
+                <IntakeReadOnlyHtml id={`${editorId}-description`} html={item.description_html} base={base} />
               )}
             </section>
 
             {/* files */}
             <section className="mt-6 flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <input
-                  ref={attachInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  aria-label="Attach files"
-                  onChange={(event) => {
-                    pickFiles(event.target.files, (picked) => void handleAttach(picked));
-                    event.target.value = "";
-                  }}
-                />
-                <Button
-                  variant="secondary"
+                <h3 className="text-body-sm-medium text-primary">
+                  Attachments{attachments.length ? ` (${attachments.length})` : ""}
+                </h3>
+                <FileDropZone
                   size="sm"
-                  stretch="auto"
-                  icon={<AttachOutline />}
-                  label={item.attachments.length ? `Attach (${item.attachments.length})` : "Attach"}
-                  onClick={() => attachInputRef.current?.click()}
+                  label={isAttaching ? "Uploading…" : "Attach files"}
+                  disabled={isAttaching}
+                  onFiles={(picked) => void handleAttach(picked)}
                 />
               </div>
-              {item.attachments.length > 0 && (
-                <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {item.attachments.map((file) => (
-                    <li key={file.id}>
-                      <a
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-md border border-subtle px-3 py-2 hover:bg-layer-1-hover"
-                      >
-                        <AttachOutline className="size-4 shrink-0 text-tertiary" />
-                        <span className="min-w-0 flex-1 truncate text-body-xs-medium text-primary">{file.name}</span>
-                        <span className="shrink-0 text-caption-sm-regular text-tertiary">{sizeLabel(file.size)}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <FileCards files={attachments} />
             </section>
 
             {/* properties: only the state can be changed */}
@@ -478,61 +455,28 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
               </div>
 
               {tab !== "history" && (
-                <div className="flex flex-col gap-2 rounded-md border border-subtle p-2">
-                  <IntakeDescriptionEditor
+                <div className="rounded-md border border-subtle p-2">
+                  <IntakeCommentEditor
                     key={editorKey}
                     id={`${editorId}-new-comment`}
-                    placeholder="Add comment"
+                    base={base}
+                    uploadUrl={`${url}comment-images/`}
                     onChange={setComment}
-                  />
-                  {files.length > 0 && (
-                    <ul className="flex flex-wrap gap-1.5">
-                      {files.map((file) => (
-                        <li
-                          key={`${file.name}-${file.size}-${file.lastModified}`}
-                          className="flex items-center gap-1 rounded-sm border border-subtle py-0.5 pr-0.5 pl-2 text-caption-sm-regular text-secondary"
-                        >
-                          {file.name}
-                          <IconButton
-                            variant="ghost"
-                            size="xs"
-                            icon={<Icon icon={CloseOutline} />}
-                            aria-label={`Remove ${file.name}`}
-                            onClick={() => setFiles((current) => current.filter((entry) => entry !== file))}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="flex items-center justify-between gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      className="hidden"
-                      aria-label="Files for the comment"
-                      onChange={(event) => {
-                        pickFiles(event.target.files, (picked) => setFiles((current) => [...current, ...picked]));
-                        event.target.value = "";
-                      }}
+                    onSubmit={() => void handleComment()}
+                    isEmpty={isEmptyHtml(comment) && files.length === 0}
+                    isSubmitting={isPosting}
+                  >
+                    <FileCards
+                      files={commentPreviews}
+                      className="sm:grid-cols-3 lg:grid-cols-3"
+                      onRemove={(key) =>
+                        setFiles((current) => current.filter((_, index) => commentPreviews[index]?.key !== key))
+                      }
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      stretch="auto"
-                      icon={<AttachOutline />}
-                      label="Add files"
-                      onClick={() => fileInputRef.current?.click()}
-                    />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      stretch="auto"
-                      label={isPosting ? "Posting..." : "Comment"}
-                      disabled={isPosting || (isEmptyHtml(comment) && files.length === 0)}
-                      onClick={() => void handleComment()}
-                    />
-                  </div>
+                    <div>
+                      <FileDropZone size="sm" disabled={isPosting} onFiles={pickForComment} />
+                    </div>
+                  </IntakeCommentEditor>
                 </div>
               )}
               {message && (
@@ -559,7 +503,11 @@ export function WorkItemDetail({ base, issueId, onClose, onChanged }: Props) {
                         </p>
                         <p className="text-caption-sm-regular text-tertiary">{activityDate(entry.created_at)}</p>
                         <div className="mt-1.5 rounded-md border border-subtle px-3 py-2">
-                          <IntakeReadOnlyHtml id={`${editorId}-comment-${entry.id}`} html={entry.comment_html} />
+                          <IntakeReadOnlyHtml
+                            id={`${editorId}-comment-${entry.id}`}
+                            html={entry.comment_html}
+                            base={base}
+                          />
                         </div>
                       </div>
                     </li>

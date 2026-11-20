@@ -14,6 +14,7 @@ import { Spinner } from "@plane/blocks/spinner";
 // components
 import { ProjectLevelWorkItemFiltersHOC } from "@/components/work-item-filters/filters-hoc/project-level";
 import { WorkItemFiltersRow } from "@/components/work-item-filters/filters-row";
+import { ResourceAvatarsFilter, ShowResourceAvatars } from "@/components/work-item-filters/resource-avatars";
 // hooks
 import { useIssues } from "@/hooks/store/use-issues";
 import { IssuesStoreContext } from "@/hooks/use-issue-layout-store";
@@ -78,7 +79,25 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
       >
         {({ filter: projectWorkItemsFilter }) => (
           <div className="relative flex h-full w-full flex-col overflow-hidden">
-            {projectWorkItemsFilter && <WorkItemFiltersRow filter={projectWorkItemsFilter} />}
+            {projectWorkItemsFilter && (
+              <ShowResourceAvatars
+                filter={projectWorkItemsFilter}
+                workspaceSlug={workspaceSlug}
+                projectId={projectId}
+              />
+            )}
+            {projectWorkItemsFilter && (
+              <WorkItemFiltersRow
+                filter={projectWorkItemsFilter}
+                extraContent={
+                  <ResourceAvatarsFilter
+                    filter={projectWorkItemsFilter}
+                    workspaceSlug={workspaceSlug}
+                    projectId={projectId}
+                  />
+                }
+              />
+            )}
             <div className="relative h-full w-full overflow-auto bg-surface-1">
               {/* mutation loader */}
               {issues?.getIssueLoader() === "mutation" && (

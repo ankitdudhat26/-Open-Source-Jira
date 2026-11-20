@@ -235,8 +235,10 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
         "ml-[100%] -translate-x-full": nodeAlignment === "right",
       })}
     >
+      {/* a mouse target only (selects the image node); the editor handles the keyboard */}
       <div
         ref={containerRef}
+        role="presentation"
         className="group/image-component relative inline-block max-w-full"
         onMouseDown={handleImageMouseDown}
         style={{
@@ -313,6 +315,15 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
             handleAlignmentChange={(alignment) =>
               updateAttributesSafely({ alignment }, "Failed to update attributes while changing alignment:")
             }
+            handleDelete={() => {
+              const pos = getPos();
+              if (pos === undefined) return;
+              editor
+                .chain()
+                .focus()
+                .deleteRange({ from: pos, to: pos + node.nodeSize })
+                .run();
+            }}
             height={size.height}
             isTouchDevice={isTouchDevice}
             width={size.width}
@@ -344,6 +355,7 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
                   "right-0 translate-x-1/2 cursor-nwse-resize": nodeAlignment !== "right",
                 }
               )}
+              role="presentation"
               onMouseDown={handleResizeStart}
               onTouchStart={handleResizeStart}
             />

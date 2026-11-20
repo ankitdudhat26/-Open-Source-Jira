@@ -389,6 +389,11 @@ def resolve(request):
     return (slug, None, feature, _action(method, segments)) if feature else None
 
 
+# what a project's Admin (their Role in the project's Members) always has in that project, whatever their workspace
+# role and its rules: accepting, declining, snoozing and marking Intake requests as duplicate
+PROJECT_ADMIN_ACCESS = {("intake", "edit")}
+
+
 def role_key(workspace_role, is_sub_admin=False, project_role=None):
     """The role whose rules apply: the workspace role, lowered in a project where they have a lower project role (a
     project admin keeps their workspace role's rules)."""
@@ -446,6 +451,9 @@ def _decide(user, slug, project_id, feature, action):
         if membership.is_sub_admin and project_member["project__created_by_id"] == user.id:
             return None
         project_role = project_member["role"]
+        # left to the endpoint, which allows it to the project's admins
+        if project_role == ADMIN and (feature, action) in PROJECT_ADMIN_ACCESS:
+            return None
     role = role_key(membership.role, membership.is_sub_admin, project_role)
     value = explicit_access(policy_rules(membership.workspace_id), membership.custom_access, role, feature, action)
     if value is None and role in ("sub_admin", "member") and not DEFAULTS[role][feature][action]:
@@ -484,6 +492,9 @@ def effective_access(membership, project_role=None):
     for key in FEATURE_KEYS:
         result[key] = {}
         for action in FEATURE_ACTIONS[key]:
+            if project_role == ADMIN and (key, action) in PROJECT_ADMIN_ACCESS:
+                result[key][action] = {"allowed": True, "set": False}
+                continue
             value = explicit_access(rules, membership.custom_access, role, key, action)
             result[key][action] = {
                 "allowed": DEFAULTS[role][key][action] if value is None else value,

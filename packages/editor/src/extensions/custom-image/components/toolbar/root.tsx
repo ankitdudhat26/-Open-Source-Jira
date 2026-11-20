@@ -11,6 +11,7 @@ import { cn } from "@plane/utils";
 // local imports
 import type { TCustomImageAlignment } from "../../types";
 import { ImageAlignmentAction } from "./alignment";
+import { ImageDeleteAction } from "./delete";
 import { ImageDownloadAction } from "./download";
 import { ImageFullScreenActionRoot } from "./full-screen";
 
@@ -20,6 +21,8 @@ type Props = {
   aspectRatio: number;
   downloadSrc: string;
   handleAlignmentChange: (alignment: TCustomImageAlignment) => void;
+  /** removes the image from the content (only while editing) */
+  handleDelete: () => void;
   height: string;
   isTouchDevice: boolean;
   src: string;
@@ -27,7 +30,7 @@ type Props = {
 };
 
 export function ImageToolbarRoot(props: Props) {
-  const { alignment, editor, downloadSrc, handleAlignmentChange, isTouchDevice } = props;
+  const { alignment, editor, downloadSrc, handleAlignmentChange, handleDelete, isTouchDevice } = props;
   // states
   const [shouldShowToolbar, setShouldShowToolbar] = useState(false);
   // derived values
@@ -57,6 +60,7 @@ export function ImageToolbarRoot(props: Props) {
           isTouchDevice={isTouchDevice}
           toggleToolbarViewStatus={setShouldShowToolbar}
         />
+        {isEditable && <ImageDeleteAction onDelete={handleDelete} />}
       </div>
     </>
   );

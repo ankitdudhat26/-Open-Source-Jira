@@ -16,6 +16,8 @@ from plane.space.views import (
     IntakeFormWorkItemCommentEndpoint,
     IntakeFormWorkItemAttachmentEndpoint,
     IntakeFormNotificationEndpoint,
+    IntakeFormWorkItemCommentImageEndpoint,
+    IntakeFormAssetEndpoint,
 )
 
 
@@ -55,6 +57,16 @@ urlpatterns = [
         "intake-forms/<str:anchor>/work-items/<uuid:issue_id>/attachments/",
         IntakeFormWorkItemAttachmentEndpoint.as_view(),
         name="intake-form-work-item-attachments",
+    ),
+    path(
+        "intake-forms/<str:anchor>/work-items/<uuid:issue_id>/comment-images/",
+        IntakeFormWorkItemCommentImageEndpoint.as_view(),
+        name="intake-form-work-item-comment-images",
+    ),
+    path(
+        "intake-forms/<str:anchor>/assets/<uuid:asset_id>/",
+        IntakeFormAssetEndpoint.as_view(),
+        name="intake-form-asset",
     ),
     path(
         "intake-forms/<str:anchor>/notifications/",
