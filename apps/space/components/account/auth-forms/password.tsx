@@ -29,12 +29,14 @@ type Props = {
 
 type TPasswordFormValues = {
   email: string;
+  full_name: string;
   password: string;
   confirm_password?: string;
 };
 
 const defaultValues: TPasswordFormValues = {
   email: "",
+  full_name: "",
   password: "",
 };
 
@@ -80,15 +82,16 @@ export const AuthPasswordForm = observer(function AuthPasswordForm(props: Props)
 
   const isButtonDisabled = useMemo(
     () =>
-      !isSubmitting &&
-      !!passwordFormData.password &&
-      (mode === EAuthModes.SIGN_UP
-        ? getPasswordStrength(passwordFormData.password) === E_PASSWORD_STRENGTH.STRENGTH_VALID &&
-          passwordFormData.password === passwordFormData.confirm_password
-        : true)
-        ? false
-        : true,
-    [isSubmitting, mode, passwordFormData.confirm_password, passwordFormData.password]
+      !(
+        !isSubmitting &&
+        !!passwordFormData.password &&
+        (mode === EAuthModes.SIGN_UP
+          ? !!passwordFormData.full_name.trim() &&
+            getPasswordStrength(passwordFormData.password) === E_PASSWORD_STRENGTH.STRENGTH_VALID &&
+            passwordFormData.password === passwordFormData.confirm_password
+          : true)
+      ),
+    [isSubmitting, mode, passwordFormData.confirm_password, passwordFormData.password, passwordFormData.full_name]
   );
 
   const password = passwordFormData.password ?? "";
@@ -151,6 +154,31 @@ export const AuthPasswordForm = observer(function AuthPasswordForm(props: Props)
         </div>
       </div>
 
+      {mode === EAuthModes.SIGN_UP && (
+        <div className="space-y-1">
+          <label className="text-13 font-medium text-tertiary" htmlFor="full_name">
+            Full name
+          </label>
+          <div className="relative flex h-10 items-center rounded-md border border-subtle bg-surface-1 px-3 [&_input]:disable-autofill-style">
+            <Input
+              id="full_name"
+              name="full_name"
+              type="text"
+              size="xl"
+              value={passwordFormData.full_name}
+              onChange={(e) => handleFormChange("full_name", e.target.value)}
+              placeholder="e.g. Manish Singh"
+              autoComplete="name"
+              maxLength={200}
+              required
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- first field of a dedicated sign-up step
+              autoFocus
+            />
+          </div>
+          <p className="text-caption-sm-regular text-tertiary">The team sees this name on your requests.</p>
+        </div>
+      )}
+
       <div className="space-y-1">
         <label className="text-13 font-medium text-tertiary" htmlFor="password">
           {mode === EAuthModes.SIGN_IN ? "Password" : "Set a password"}
@@ -168,7 +196,7 @@ export const AuthPasswordForm = observer(function AuthPasswordForm(props: Props)
             onBlur={() => setIsPasswordInputFocused(false)}
             autoComplete="off"
             // oxlint-disable-next-line jsx-a11y/no-autofocus -- sole primary field of a dedicated auth step; matches standard sign-in flows
-            autoFocus
+            autoFocus={mode === EAuthModes.SIGN_IN}
           />
           {showPassword?.password ? (
             <button

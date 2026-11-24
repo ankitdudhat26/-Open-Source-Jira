@@ -128,13 +128,14 @@ export const InboxIssueMainContent = observer(function InboxIssueMainContent(pro
       <div className="space-y-4 pb-4">
         {/* who sent it — the email of the decision goes to them */}
         {inboxIssue.created_by_detail && (
+          // the client's name (from their sign-up); the email shows on hover
           <p className="text-caption-md-regular text-tertiary">
             Created by{" "}
-            <span className="font-medium text-secondary">
+            <span className="font-medium text-secondary" title={inboxIssue.created_by_detail.email}>
               {`${inboxIssue.created_by_detail.first_name ?? ""} ${inboxIssue.created_by_detail.last_name ?? ""}`.trim() ||
-                inboxIssue.created_by_detail.display_name}
-            </span>{" "}
-            · {inboxIssue.created_by_detail.email}
+                inboxIssue.created_by_detail.display_name ||
+                inboxIssue.created_by_detail.email}
+            </span>
           </p>
         )}
         {inboxIssue.status === EInboxIssueStatus.DECLINED && inboxIssue.decline_reason && (

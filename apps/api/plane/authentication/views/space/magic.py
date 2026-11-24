@@ -31,6 +31,7 @@ from plane.authentication.rate_limit import (
     throttle_auth_redirect,
 )
 from plane.utils.path_validator import get_safe_redirect_url, validate_next_path, get_allowed_hosts
+from plane.utils.intake_portal import set_full_name
 
 
 class MagicGenerateSpaceEndpoint(APIView):
@@ -165,6 +166,8 @@ class MagicSignUpSpaceEndpoint(View):
             user = provider.authenticate()
             # Login the user and record his device info
             user_login(request=request, user=user, is_space=True)
+            # the name typed on the sign-up form (clients of an Intake link are shown by it)
+            set_full_name(user, request.POST.get("full_name"))
             # redirect to referer path
             next_path = validate_next_path(next_path=next_path)
             url = f"{base_host(request=request, is_space=True).rstrip('/')}{next_path}"

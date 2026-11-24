@@ -29,11 +29,13 @@ type TAuthUniqueCodeForm = {
 
 type TUniqueCodeFormValues = {
   email: string;
+  full_name: string;
   code: string;
 };
 
 const defaultValues: TUniqueCodeFormValues = {
   email: "",
+  full_name: "",
   code: "",
 };
 
@@ -52,10 +54,10 @@ export function AuthUniqueCodeForm(props: TAuthUniqueCodeForm) {
   const handleFormChange = (key: keyof TUniqueCodeFormValues, value: string) =>
     setUniqueCodeFormData((prev) => ({ ...prev, [key]: value }));
 
-  const generateNewCode = async (email: string) => {
+  const generateNewCode = async (address: string) => {
     try {
       setIsRequestingNewCode(true);
-      const uniqueCode = await generateEmailUniqueCode(email);
+      const uniqueCode = await generateEmailUniqueCode(address);
       setResendCodeTimer(defaultResetTimerValue);
       handleFormChange("code", uniqueCode?.code || "");
       setIsRequestingNewCode(false);
@@ -72,7 +74,12 @@ export function AuthUniqueCodeForm(props: TAuthUniqueCodeForm) {
   }, [csrfToken]);
 
   const isRequestNewCodeDisabled = isRequestingNewCode || resendTimerCode > 0;
-  const isButtonDisabled = isRequestingNewCode || !uniqueCodeFormData.code || isSubmitting;
+  const isButtonDisabled =
+    isRequestingNewCode ||
+    !uniqueCodeFormData.code ||
+    isSubmitting ||
+    // a new account needs the name the team sees on its requests
+    (mode === EAuthModes.SIGN_UP && !uniqueCodeFormData.full_name.trim());
 
   return (
     <form
@@ -114,6 +121,29 @@ export function AuthUniqueCodeForm(props: TAuthUniqueCodeForm) {
           )}
         </div>
       </div>
+
+      {mode === EAuthModes.SIGN_UP && (
+        <div className="space-y-1">
+          <label className="text-13 font-medium text-tertiary" htmlFor="full_name">
+            Full name
+          </label>
+          <div className="relative flex h-10 items-center rounded-md border border-subtle bg-surface-1 px-3 [&_input]:disable-autofill-style">
+            <Input
+              id="full_name"
+              name="full_name"
+              type="text"
+              size="xl"
+              value={uniqueCodeFormData.full_name}
+              onChange={(e) => setUniqueCodeFormData((prev) => ({ ...prev, full_name: e.target.value }))}
+              placeholder="e.g. Manish Singh"
+              autoComplete="name"
+              maxLength={200}
+              required
+            />
+          </div>
+          <p className="text-caption-sm-regular text-tertiary">The team sees this name on your requests.</p>
+        </div>
+      )}
 
       <div className="space-y-1">
         <label className="text-13 font-medium text-tertiary" htmlFor="code">

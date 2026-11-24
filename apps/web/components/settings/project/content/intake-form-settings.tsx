@@ -18,6 +18,8 @@ import { SettingsBoxedControlItem } from "@/components/settings/boxed-control-it
 // services
 import type { TIntakeFormField, TIntakeFormInvite } from "@/services/intake-form.service";
 import { intakeFormService } from "@/services/intake-form.service";
+// local imports
+import { IntakeReceivedEmails } from "./intake-received-emails";
 
 type Props = {
   workspaceSlug: string;
@@ -270,6 +272,17 @@ export function IntakeFormSettings(props: Props) {
           )}
         </div>
       )}
+
+      {/* who is emailed about new requests */}
+      <IntakeReceivedEmails
+        workspaceSlug={workspaceSlug}
+        projectId={projectId}
+        form={form}
+        disabled={!isIntakeEnabled}
+        mutateForm={(data, optimistic) =>
+          mutateForm(data, { optimisticData: optimistic, rollbackOnError: true, revalidate: false })
+        }
+      />
 
       {/* the fields */}
       <div className="flex flex-col gap-3">

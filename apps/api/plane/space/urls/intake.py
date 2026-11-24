@@ -10,6 +10,7 @@ from plane.space.views import (
     WorkspaceProjectDeployBoardEndpoint,
     IntakeFormAttachmentEndpoint,
     IntakeFormPortalEndpoint,
+    IntakeFormProfileEndpoint,
     IntakeFormRequestEndpoint,
     IntakeFormWorkItemListEndpoint,
     IntakeFormWorkItemEndpoint,
@@ -67,6 +68,11 @@ urlpatterns = [
         "intake-forms/<str:anchor>/assets/<uuid:asset_id>/",
         IntakeFormAssetEndpoint.as_view(),
         name="intake-form-asset",
+    ),
+    path(
+        "intake-forms/<str:anchor>/me/",
+        IntakeFormProfileEndpoint.as_view(),
+        name="intake-form-profile",
     ),
     path(
         "intake-forms/<str:anchor>/notifications/",

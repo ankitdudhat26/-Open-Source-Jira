@@ -40,6 +40,25 @@ HISTORY_FIELDS = {
 }
 
 
+MAX_NAME_LENGTH = 255
+
+
+def clean_full_name(full_name):
+    """A full name as typed (extra spaces dropped), or "" when it is empty."""
+    return " ".join(str(full_name or "").split())[: MAX_NAME_LENGTH * 2]
+
+
+def set_full_name(user, full_name):
+    """Save the client's full name: the first word is the first name, the rest the last name."""
+    name = clean_full_name(full_name)
+    if not name:
+        return False
+    first, _, last = name.partition(" ")
+    user.first_name, user.last_name = first[:MAX_NAME_LENGTH], last[:MAX_NAME_LENGTH]
+    user.save(update_fields=["first_name", "last_name"])
+    return True
+
+
 def user_name(user):
     if user is None:
         return ""

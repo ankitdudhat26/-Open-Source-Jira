@@ -10,6 +10,7 @@ import re
 # Django imports
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.utils import timezone
 
@@ -22,6 +23,7 @@ from rest_framework.response import Response
 # Module imports
 from .base import BaseAPIView
 from plane.app.serializers import IssueAttachmentSerializer, IssueCommentSerializer, IssueCreateSerializer
+from plane.bgtasks.intake_request_status_task import intake_request_received
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.db.models import FileAsset, IntakeForm, IntakeIssue, Issue, Project, State, StateGroup
 from plane.db.models.intake import SourceType
@@ -40,6 +42,7 @@ from plane.utils.intake_form import (
 )
 from plane.utils.intake_portal import (
     allowed_states,
+    set_full_name,
     notifications,
     visible_work_items,
     work_item_detail,
@@ -90,8 +93,28 @@ class IntakeFormPortalEndpoint(BaseAPIView):
                 **data,
                 "access": "ok",
                 "email": request.user.email,
+                # the name the team sees on their requests
+                "full_name": f"{request.user.first_name or ''} {request.user.last_name or ''}".strip(),
+                # only a client with no name (an account made before the sign-up form asked for it) is asked for it
+                "needs_name": not (request.user.first_name or "").strip()
+                and not (request.user.last_name or "").strip(),
                 "forms": [project_form(project) for project in _client_projects(request.user, form)],
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class IntakeFormProfileEndpoint(BaseAPIView):
+    """The invited client's full name, which the team sees on their requests (asked once when it is missing)."""
+
+    def patch(self, request, anchor):
+        form = _form(anchor)
+        if not form or not is_invited(request.user, form.project_id):
+            return Response(NOT_AVAILABLE, status=status.HTTP_404_NOT_FOUND)
+        if not set_full_name(request.user, request.data.get("full_name")):
+            return Response({"error": "Enter your full name."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"full_name": f"{request.user.first_name} {request.user.last_name}".strip(), "needs_name": False},
             status=status.HTTP_200_OK,
         )
 
@@ -166,6 +189,9 @@ class IntakeFormRequestEndpoint(BaseAPIView):
             origin=base_host(request=request, is_app=True),
             intake=str(intake_issue.id),
         )
+        # the members switched on in Settings → Intake get an email (once the request is saved)
+        app_url = base_host(request=request, is_app=True)
+        transaction.on_commit(lambda: intake_request_received.delay(str(intake_issue.id), app_url))
         return Response(
             {"id": str(intake_issue.id), "issue_id": str(issue.id), "project_id": str(project.id)},
             status=status.HTTP_201_CREATED,

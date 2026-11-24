@@ -23,6 +23,7 @@ import { LogoSpinner } from "@/components/common/logo-spinner";
 // local imports
 import { IntakeDescriptionEditor } from "./description-editor";
 import { FileCards, FileDropZone, addFiles, usePickedPreviews } from "./file-previews";
+import { EditNameMenu, FullNamePrompt } from "./name-prompt";
 import { NotificationsBell } from "./notifications-bell";
 import type { TWorkItemRow } from "./portal-shared";
 import { ColorDot, LabelChip, OptionSelect, PRIORITY_LABELS, getJson, isEmptyHtml } from "./portal-shared";
@@ -46,6 +47,10 @@ type TPortal = {
   project_name: string;
   workspace_name: string;
   email?: string;
+  /** the client's name ("" until they give it) */
+  full_name?: string;
+  /** only a client whose account has no name yet is asked for it */
+  needs_name?: boolean;
   forms?: TProjectForm[];
 };
 
@@ -550,6 +555,7 @@ export function IntakePortal({ anchor }: { anchor: string }) {
     data: portal,
     error,
     isLoading,
+    mutate: mutatePortal,
   } = useSWR(anchor ? base : null, (url: string) => getJson<TPortal>(url), {
     revalidateOnFocus: false,
     shouldRetryOnError: false,
@@ -618,6 +624,14 @@ export function IntakePortal({ anchor }: { anchor: string }) {
             Send a request to the team and follow what happens to it. A declined request shows the reason.
           </p>
         </div>
+        {portal.needs_name && (
+          <FullNamePrompt
+            base={base}
+            onSaved={(fullName) =>
+              void mutatePortal({ ...portal, full_name: fullName, needs_name: false }, { revalidate: false })
+            }
+          />
+        )}
         <div className="flex gap-1 border-b border-subtle" role="tablist">
           {(
             [
@@ -684,7 +698,14 @@ export function IntakePortal({ anchor }: { anchor: string }) {
             <>
               <NotificationsBell base={base} anchor={anchor} onOpen={setOpenIssueId} />
               <span className="h-5 w-px shrink-0 bg-layer-3" />
-              <span className="hidden text-body-xs-regular text-tertiary sm:inline">{portal.email}</span>
+              <EditNameMenu
+                base={base}
+                fullName={portal.full_name ?? ""}
+                email={portal.email ?? ""}
+                onSaved={(fullName) =>
+                  void mutatePortal({ ...portal, full_name: fullName, needs_name: false }, { revalidate: false })
+                }
+              />
               <SignOutButton anchor={anchor} />
             </>
           )}

@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from ..base import BaseAPIView
 from plane.app.permissions import allow_permission, ROLE
 from plane.bgtasks.intake_form_invitation_task import intake_form_invitation
-from plane.db.models import IntakeFormInvite, IntakeIssue, Project, User
+from plane.db.models import IntakeFormInvite, IntakeIssue, Project, ProjectMember, User
 from plane.db.models.intake import get_form_anchor
 from plane.utils.host import base_host
 from plane.utils.intake_form import IntakeFormError, form_fields, get_form, open_form_filter, save_form_fields
@@ -29,12 +29,27 @@ def form_url(request, form):
     return f"{base_host(request=request, is_space=True)}intake/{form.anchor}"
 
 
+def _member_ids(project_id):
+    """The active members of the project (who can be emailed about new requests)."""
+    return {
+        str(member_id)
+        for member_id in ProjectMember.objects.filter(
+            project_id=project_id, is_active=True, member__is_bot=False
+        ).values_list("member_id", flat=True)
+    }
+
+
 def _form_data(request, form):
+    members = _member_ids(form.project_id)
     return {
         "anchor": form.anchor,
         "url": form_url(request, form),
         "is_enabled": form.is_enabled,
         "fields": form_fields(form.project_id),
+        # who is emailed when a client sends a request (members who left the project are dropped)
+        "notify_member_ids": [
+            str(member_id) for member_id in form.notify_member_ids or [] if str(member_id) in members
+        ],
     }
 
 
@@ -95,6 +110,17 @@ class IntakeFormEndpoint(BaseAPIView):
                 save_form_fields(form, request.data.get("fields"))
             except IntakeFormError as error:
                 return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        if "notify_member_ids" in request.data:
+            ids = request.data.get("notify_member_ids")
+            if not isinstance(ids, list):
+                return Response({"error": "Choose the members to email."}, status=status.HTTP_400_BAD_REQUEST)
+            members = _member_ids(project_id)
+            if any(str(member_id) not in members for member_id in ids):
+                return Response(
+                    {"error": "Only members of this project can be emailed about requests."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            form.notify_member_ids = sorted({str(member_id) for member_id in ids})
         form.save()
         return Response(_form_data(request, form), status=status.HTTP_200_OK)
 

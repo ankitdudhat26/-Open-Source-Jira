@@ -11,6 +11,9 @@ import type { IUser } from "@plane/types";
 // hooks
 import { useCurrentTime } from "@/hooks/use-current-time";
 
+// the organization is in India: show India time unless the person picked another timezone in their profile
+const DEFAULT_TIME_ZONE = "Asia/Kolkata";
+
 export interface IUserGreetingsView {
   user: IUser;
 }
@@ -22,22 +25,27 @@ export function UserGreetingsView(props: IUserGreetingsView) {
   // store hooks
   const { t } = useTranslation();
 
+  const timeZone = user?.user_timezone && user.user_timezone !== "UTC" ? user.user_timezone : DEFAULT_TIME_ZONE;
+
   const hour = new Intl.DateTimeFormat("en-US", {
+    timeZone,
     hour12: false,
     hour: "numeric",
   }).format(currentTime);
 
   const date = new Intl.DateTimeFormat("en-US", {
+    timeZone,
     month: "short",
     day: "numeric",
   }).format(currentTime);
 
   const weekDay = new Intl.DateTimeFormat("en-US", {
+    timeZone,
     weekday: "long",
   }).format(currentTime);
 
   const timeString = new Intl.DateTimeFormat("en-US", {
-    timeZone: user?.user_timezone,
+    timeZone,
     hour12: false, // Use 24-hour format
     hour: "2-digit",
     minute: "2-digit",

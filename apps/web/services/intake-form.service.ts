@@ -24,6 +24,8 @@ export type TIntakeForm = {
   url: string;
   is_enabled: boolean;
   fields: TIntakeFormField[];
+  /** members emailed when a client sends a request (nobody by default) */
+  notify_member_ids: string[];
 };
 
 /** A client invited to the request form. */
@@ -62,7 +64,11 @@ export class IntakeFormService extends APIService {
   update(
     workspaceSlug: string,
     projectId: string,
-    data: { is_enabled?: boolean; fields?: Partial<Record<TIntakeFormFieldKey, { visible: boolean }>> }
+    data: {
+      is_enabled?: boolean;
+      fields?: Partial<Record<TIntakeFormFieldKey, { visible: boolean }>>;
+      notify_member_ids?: string[];
+    }
   ): Promise<TIntakeForm> {
     return unwrap(this.patch(this.url(workspaceSlug, projectId), data));
   }

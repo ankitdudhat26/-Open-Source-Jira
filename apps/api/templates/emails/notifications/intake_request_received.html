@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New intake request {{ key }}</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: arial, helvetica, sans-serif; color: #3b3f44">
+    <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" style="background-color: #f8f9fa">
+      <tr>
+        <td align="center" style="padding: 32px 16px">
+          <table width="560" cellspacing="0" cellpadding="0" border="0" role="presentation" style="max-width: 560px; width: 100%; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px">
+            <tr>
+              <td style="padding: 28px 32px 8px 32px; font-size: 14px; color: #6b7280">HLIS Flow · {{ project_name }} · Intake</td>
+            </tr>
+            <tr>
+              <td style="padding: 0 32px; font-size: 20px; font-weight: bold; color: #1f2d3d">New request received</td>
+            </tr>
+            <tr>
+              <td style="padding: 16px 32px 0 32px; font-size: 15px; line-height: 1.5">
+                Hi {{ member_name }},<br /><br />
+                {{ client_name }}{% if client_email and client_email != client_name %} ({{ client_email }}){% endif %} sent a new request to {{ project_name }}. It is waiting in Intake to be accepted or declined.
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 16px 32px 0 32px">
+                <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" style="border: 1px solid #e5e7eb; border-radius: 6px">
+                  <tr>
+                    <td style="padding: 12px 14px 4px 14px; font-size: 12px; color: #6b7280">{{ key }}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 0 14px 8px 14px; font-size: 16px; font-weight: bold; color: #1f2d3d">{{ title }}</td>
+                  </tr>
+                  {% if description %}
+                  <tr>
+                    <td style="padding: 0 14px 8px 14px; font-size: 14px; line-height: 1.5; color: #3b3f44">{{ description }}</td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <td style="padding: 4px 14px 12px 14px; font-size: 13px; color: #6b7280">
+                      Priority: <strong style="color: #3b3f44">{{ priority }}</strong>{% if labels %} &nbsp;·&nbsp; Labels: <strong style="color: #3b3f44">{{ labels }}</strong>{% endif %}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 24px 32px 28px 32px">
+                <a href="{{ intake_url }}" style="display: inline-block; background-color: #006399; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; padding: 10px 18px; border-radius: 4px">Open in Intake</a>
+              </td>
+            </tr>
+          </table>
+          <p style="font-size: 12px; color: #9ca3af; margin: 16px 0 0 0">
+            You get this email because you are switched on under "Intake received emails" in {{ project_name }}'s Intake settings.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

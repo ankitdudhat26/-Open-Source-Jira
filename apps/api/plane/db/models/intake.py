@@ -100,6 +100,8 @@ class IntakeForm(ProjectBaseModel):
     is_enabled = models.BooleanField(default=False)
     # {"<field key>": {"visible": bool}}
     fields = models.JSONField(default=dict, blank=True)
+    # project members emailed when a client sends a request on the link (Settings → Intake; nobody by default)
+    notify_member_ids = models.JSONField(default=list, blank=True)
 
     class Meta:
         verbose_name = "Intake Form"

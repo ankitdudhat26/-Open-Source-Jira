@@ -38,6 +38,7 @@ from .intake_form import (
     IntakeFormWorkItemCommentImageEndpoint,
     IntakeFormAssetEndpoint,
     IntakeFormPortalEndpoint,
+    IntakeFormProfileEndpoint,
     IntakeFormRequestEndpoint,
     IntakeFormWorkItemAttachmentEndpoint,
     IntakeFormWorkItemCommentEndpoint,
