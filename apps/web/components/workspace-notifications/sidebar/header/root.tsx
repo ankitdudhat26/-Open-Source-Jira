@@ -7,11 +7,14 @@
 import { observer } from "mobx-react";
 // plane imports
 import { useTranslation } from "@plane/i18n";
-import { InboxOutline } from "@makeplane/propel/icons";
+import { IconButton } from "@makeplane/propel/components/icon-button";
+import { ArrowNarrowLeftOutline, InboxOutline } from "@makeplane/propel/icons";
 import { Breadcrumbs } from "@plane/blocks/breadcrumb";
 import { Header } from "@plane/blocks/layout";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
+// hooks
+import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { NotificationSidebarHeaderOptions } from "./options";
 
@@ -24,11 +27,23 @@ export const NotificationSidebarHeader = observer(function NotificationSidebarHe
 ) {
   const { workspaceSlug } = props;
   const { t } = useTranslation();
+  const router = useAppRouter();
 
   if (!workspaceSlug) return <></>;
   return (
     <Header className="my-auto bg-surface-1">
       <Header.LeftItem>
+        {/* back to where the notifications were opened from (the workspace home when opened directly) */}
+        <IconButton
+          variant="ghost"
+          size="sm"
+          icon={<ArrowNarrowLeftOutline />}
+          aria-label="Back"
+          onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.push(`/${workspaceSlug}/`);
+          }}
+        />
         <Breadcrumbs>
           <Breadcrumbs.Item
             component={

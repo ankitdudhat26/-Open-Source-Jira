@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { Input, InputGroup } from "@makeplane/propel/components/input";
+import { Switch } from "@makeplane/propel/components/switch";
 import {
   CalendarOutline,
   CyclesOutline,
@@ -63,6 +64,9 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
 const Empty = () => <span className="text-placeholder">—</span>;
 
 /** The work item's type as the app shows it: a small square in the type's colour. */
+/** finished: its status is in the completed group, whatever it is called (Done, Closed, Ready for Deployment…) */
+const isDone = (item: TWorkItemRow) => item.state?.group === "completed";
+
 function TypeMark({ item }: { item: TWorkItemRow }) {
   if (!item.type) return <span className="size-3.5 shrink-0" />;
   return (
@@ -84,6 +88,8 @@ function TypeMark({ item }: { item: TWorkItemRow }) {
 export function WorkItemsTable({ items, showProject, onOpen }: Props) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<TFilters>(NO_FILTERS);
+  // finished work items (any status of the completed group) are hidden until the client asks to see them
+  const [showDone, setShowDone] = useState(false);
 
   // the choices of each filter: what the work items have
   const options = useMemo(() => {
@@ -112,8 +118,11 @@ export function WorkItemsTable({ items, showProject, onOpen }: Props) {
   );
 
   const query = search.trim().toLowerCase();
+  const doneCount = items.filter(isDone).length;
   const visible = items.filter(
     (item) =>
+      // a done status picked in the State filter shows its work items too
+      (showDone || !isDone(item) || (!!item.state && filters.states.includes(item.state.id))) &&
       (!filters.types.length || (item.type && filters.types.includes(item.type.name))) &&
       (!filters.states.length || (item.state && filters.states.includes(item.state.id))) &&
       (!filters.assignees.length || item.assignees.some((person) => filters.assignees.includes(person.id))) &&
@@ -219,14 +228,34 @@ export function WorkItemsTable({ items, showProject, onOpen }: Props) {
           </InputGroup>
         </div>
       </div>
-      <p className="text-caption-md-regular text-tertiary">
-        {filtered ? `${visible.length} of ${items.length} work items` : `${items.length} work items`}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-caption-md-regular text-tertiary">
+          {filtered || (!showDone && doneCount > 0)
+            ? `${visible.length} of ${items.length} work items`
+            : `${items.length} work items`}
+          {!showDone && doneCount > 0 && ` · ${doneCount} done ${doneCount === 1 ? "item" : "items"} hidden`}
+        </p>
+        {doneCount > 0 && (
+          <label className="flex cursor-pointer items-center gap-2 text-body-xs-medium text-secondary">
+            <Switch size="sm" checked={showDone} onCheckedChange={setShowDone} aria-label="Show done work items" />
+            Show done items ({doneCount})
+          </label>
+        )}
+      </div>
+      <p className="rounded-md border border-subtle bg-layer-1 px-3 py-2 text-caption-md-regular text-secondary">
+        <span className="font-medium text-primary">Note:</span> work items that are done (Done or any other finished
+        status) are hidden here so you see what is still open. Turn on{" "}
+        <span className="font-medium">Show done items</span> to see them too.
       </p>
 
       <div className="overflow-hidden rounded-lg border border-subtle bg-surface-1">
         {visible.length === 0 ? (
           <p className="px-5 py-14 text-center text-body-xs-regular text-tertiary">
-            {items.length === 0 ? "No work items yet." : "No work items match these filters."}
+            {items.length === 0
+              ? "No work items yet."
+              : !filtered && !showDone && doneCount === items.length
+                ? "Every work item is done. Turn on Show done items to see them."
+                : "No work items match these filters."}
           </p>
         ) : (
           <div className="overflow-x-auto">
