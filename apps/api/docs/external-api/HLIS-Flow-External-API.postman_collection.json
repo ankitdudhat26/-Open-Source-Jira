@@ -1,0 +1,258 @@
+{
+  "info": {
+    "name": "HLIS Flow — External API v1",
+    "description": "Read-only API: log in, My Projects, a project's work items, a work item's details. See README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/ext/v1"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "project_id",
+      "value": ""
+    },
+    {
+      "key": "work_item_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Log in",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/login/",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login", ""]
+        },
+        "description": "Email and password → Bearer token (saved to {{token}}).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["if (pm.response.code === 200) { pm.collectionVariables.set('token', pm.response.json().token); }"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Me",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/me/",
+          "host": ["{{base_url}}"],
+          "path": ["me", ""]
+        },
+        "description": "Who the token belongs to.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "My projects",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/projects/?search=&workspace=",
+          "host": ["{{base_url}}"],
+          "path": ["projects", ""],
+          "query": [
+            {
+              "key": "search",
+              "value": "",
+              "description": "name or key contains",
+              "disabled": true
+            },
+            {
+              "key": "workspace",
+              "value": "",
+              "description": "workspace slug",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Projects of My Projects (the first one is saved to {{project_id}}).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json().results || []; if (r.length) { pm.collectionVariables.set('project_id', r[0].id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Project work items",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/projects/{{project_id}}/work-items/?page=1&per_page=100&search=&state_group=&state_id=&priority=",
+          "host": ["{{base_url}}"],
+          "path": ["projects", "{{project_id}}", "work-items", ""],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "page number",
+              "disabled": false
+            },
+            {
+              "key": "per_page",
+              "value": "100",
+              "description": "1–500",
+              "disabled": false
+            },
+            {
+              "key": "search",
+              "value": "",
+              "description": "title or number",
+              "disabled": true
+            },
+            {
+              "key": "state_group",
+              "value": "",
+              "description": "backlog,unstarted,started,completed,cancelled",
+              "disabled": true
+            },
+            {
+              "key": "state_id",
+              "value": "",
+              "description": "status ids",
+              "disabled": true
+            },
+            {
+              "key": "priority",
+              "value": "",
+              "description": "urgent,high,medium,low,none",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Every work item of the project, every status (the first one is saved to {{work_item_id}}).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json().results || []; if (r.length) { pm.collectionVariables.set('work_item_id', r[0].id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Work item details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/work-items/{{work_item_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["work-items", "{{work_item_id}}", ""]
+        },
+        "description": "Everything the work item's screen shows.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Log out",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/auth/logout/",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "logout", ""]
+        },
+        "description": "The token stops working.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
